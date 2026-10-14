@@ -1,6 +1,6 @@
-# Samsung client licensing
+# Vemm Samsung client licensing
 
-The Samsung client is now independently maintained in this repository. This
+Vemm's Samsung client is independently maintained in this repository. This
 does not remove inherited copyright, change the licence of derived code or
 grant rights to the upstream identity. Samsung contributions remain under
 GPL-3.0-or-later; authors retain their copyrights. The separately developed
@@ -19,7 +19,7 @@ available for the versions and contributions originally offered under them; thei
 is preserved in `licenses/PlxNative-historical-MIT.txt`. The GPL election does not revoke old grants.
 Trademark guidance is separate in `TRADEMARKS.md` and does not narrow the copyright license.
 
-The maintained application uses Samsung's public Tizen Web APIs and AVPlay.
+The maintained Vemm application uses Samsung's public Tizen Web APIs and AVPlay.
 The Samsung WGT does not bundle LG native libraries, FFmpeg, libass or the
 retired Rust/C implementation. Historical native-library relationships and
 notices remain in `licenses/native-history-NOTICES.md`; removal of active code
@@ -36,5 +36,6 @@ The native tree and its build recipes remain available at the immutable
 and historical release tags. This source cleanup does not relicense any code.
 `samsung/source_bundle.py` archives the exact clean committed tree for future
 Samsung distributions; `samsung/build.py` stages the GPL, licensing and
-third-party notices with the WGT. Keep the existing author certificate and
-package identity for updates.
+third-party notices with the WGT. The first Vemm release establishes its own
+package/application and author identity; preserve that Vemm author for later
+Vemm updates. Historical Plx identity remains separate.

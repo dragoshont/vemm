@@ -1,6 +1,6 @@
 "use strict";
 var assert = require("assert");
-var playback = require("../../samsung/PlexTv/js/playback.js");
+var playback = require("../../samsung/Vemm/js/playback.js");
 var item = {
     ratingKey: "10", duration: 100000, viewOffset: 5000,
     Media: [{ container: "mp4", videoCodec: "h264", audioCodec: "aac", width: 1920, height: 1080,
@@ -90,7 +90,17 @@ async function run() {
     assert.throws(function () { playback.plan(unanalysedTrack, {}); }, /can't be played/i,
         "Music without audio codec or Stream facts must not negotiate an unplayable file");
     unanalysedTrack.Media[0].Part[0].Stream = [{ streamType: 2, codec: "flac" }];
-    assert.doesNotThrow(function () { playback.plan(unanalysedTrack, {}); });
+    var musicPlan = playback.plan(unanalysedTrack, {});
+    assert.deepStrictEqual(musicPlan.explanation, {
+        selected: "transcode",
+        reason: "",
+        fallback: "none",
+        capability: {
+            status: "unknown",
+            measured: false,
+            source: "No device capability evidence"
+        }
+    }, "Music conversion must not be mislabeled as capability-supported direct playback");
     assert.strictEqual(plan.query.offset, 0, "AVPlay resumes in the source timeline, not an offset-relative HLS clock");
     assert.strictEqual(playback.plan(item, { profile: {
         evidence: "synthetic-measured-profile", containers: ["mp4"], video: ["h264"], audio: ["aac"],
@@ -291,6 +301,16 @@ async function run() {
         settings: { profile: profile, offset: 5000 }, onEvent: function (event) { events.push(event); } });
     await session.start();
     assert.strictEqual(session.mode(), "transcode", "A file the TV refuses must fall back to a server transcode");
+    assert.deepStrictEqual(session.quality().explanation, {
+        selected: "transcode",
+        reason: "decoder",
+        fallback: "none",
+        capability: {
+            status: "unknown",
+            measured: false,
+            source: "synthetic-measured-profile"
+        }
+    }, "The fallback remains explainable after AVPlay rejects the original");
     var decisions = test.calls.filter(function (call) { return call[0] === "decision"; });
     assert.strictEqual(decisions.length, 2);
     assert.strictEqual(decisions[0][1].directPlay, 1);

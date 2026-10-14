@@ -1,5 +1,11 @@
 # Independent Samsung project transition
 
+> **Superseded active identity:** this document records the historical
+> Samsung-only/Plx transition. The Vemm candidate is now a separate app with
+> `VemmTvApp0.Vemm`, `vemm-tizen-*`, `Vemm-*` artifacts and `v*` tags. It does
+> not update or import the historical Plx installation. See
+> [the classified identity audit](vemm/08-legacy-identity-audit.md).
+
 ## Decision and current state
 
 The product maintained here is the Samsung Tizen Web client. Its visual direction
@@ -39,9 +45,10 @@ Keep these stable until an explicit migration is designed and accepted:
 - Copyright, GPL and third-party notices, historical grants and source offers.
 
 Published 0.2.7 retains its historical **Plx** display name. Current source uses
-the neutral descriptive **Media for Tizen** label and original screen artwork;
-the permanent name remains undecided. Upstream reserves PlxNative and associated
-brand artwork. Do not borrow the upstream domain, sponsorship, badges, support
+the **Vemm** working brand and original vector-first artwork. Vemm is not a claim
+of completed trademark clearance, and the repository remains
+`dragoshont/plx-native`. Upstream reserves PlxNative and associated brand
+artwork. Do not borrow the upstream domain, sponsorship, badges, support
 promises or screenshots as Samsung product claims.
 
 ## Repository ownership
@@ -135,8 +142,9 @@ new TV acceptance. No GPL app implementation was relicensed as MIT.
 
 ## Remaining external migration decisions
 
-- Choose the long-term project/repository name. A neutral display label and
-  original non-PLX artwork are already in the active source.
+- Complete legal/name clearance and decide whether the repository should adopt
+  the Vemm name. The working display brand and original non-PLX artwork are
+  already in the active source.
 - Decide whether to rename or detach the GitHub fork. Neither is performed by
   source edits; preserve redirects, tags, issues and Actions configuration.
 - Verify default-branch integration by the actual squash PR/source SHA and CI.

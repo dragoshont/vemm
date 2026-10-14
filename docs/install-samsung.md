@@ -1,14 +1,17 @@
-# Install the Samsung client
+# Install the historical Plx 0.2.7 Samsung package
 
-Published Samsung 0.2.7 appears as **Plx** on the TV. Current development source
-uses **Media for Tizen** with original artwork; the package/app IDs and existing
-author continuity are unchanged. This source migration does not replace any
-published asset or install an update.
+This guide installs the historical Samsung 0.2.7 package, which appears as
+**Plx**. It is retained for existing release users and provenance.
+
+**No Vemm package has been released.** Current Vemm source is a separate app
+(`VemmTvApp0.Vemm`) with separate settings and future signing identity. It does
+not update, uninstall or import data from Plx.
 
 Use **one command-line tool: `python3 tools/tizen.py`**.
-It downloads Plx, connects to your TV, signs the package with your signing
+For the published 0.2.7 instructions below, it downloads the historical Plx
+package, connects to your TV, signs the package with your signing
 profile, installs it and checks that the TV lists the app.
-You do not need to build Plx or run Samsung's `tizen` command yourself.
+You do not need to build the client or run Samsung's `tizen` command yourself.
 
 ## 1. Clone the toolkit
 
@@ -53,7 +56,7 @@ Your computer and TV must be on the same network. On the TV:
 3. Set **Host PC IP** to your computer's local IPv4 address, found in its network settings.
 4. Hold the remote's power button until the TV restarts.
 
-## 4. Scan and install Plx
+## 4. Scan and install the published package
 
 Find your TV from the terminal:
 
@@ -116,8 +119,8 @@ D-pad access is a reported unresolved issue; no remote-access fix is claimed her
 
 ## Additional commands (optional)
 
-Plx is installed after step 4. Use these when you want to check it or inspect
-its UI:
+The published package is installed after step 4. Use these when you want to
+check it or inspect its UI:
 
 ```sh
 python3 tools/tizen.py info TV_IP
@@ -175,5 +178,5 @@ Resetting the profile that signed an installed app means that app must be
 removed before a new profile can install it again.
 Then continue from **cert add** in step 4.
 
-For building Plx from source or deeper troubleshooting, see the
+For the unreleased Vemm source/build contract, see
 [developer guide](samsung-getting-started.md).

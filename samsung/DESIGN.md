@@ -1,8 +1,10 @@
-# Samsung screen system
+# Vemm Samsung screen system
 
 This describes the built Samsung Web UI, not the LG renderer or a Samsung support declaration.
-The owner-pinned direction is Apple-like simplicity, with PlxNative's LG screens as the visual
-reference. The viewing scene is a dark living room, several metres from the panel, using a remote.
+The built cinematic composition remains grounded in PlxNative's LG screens as a
+historical visual reference. Vemm adds a restrained Fluent/Azure-inspired
+identity without replacing effective layouts. The viewing scene is a dark
+living room, several metres from the panel, using a remote.
 
 ## Owner-selected reference
 
@@ -25,11 +27,15 @@ appearance or behavior of every settings, episode or playback menu.
 
 ## Visual language
 
-Near-black `#101012` ground, neutral `#222224` surfaces, white `#f2f2f7` foreground/focus,
-`#b8bfcc` secondary copy and pale-red explicit errors. Use the installed system sans-serif stack;
+Charcoal `#1F1F1F` ground, Vemm blue `#3B82F6`, light blue `#B7D0FF`,
+soft gray `#E5E7EB`, white `#FFFFFF` and pale-red explicit errors. Existing media surfaces may retain
+their tuned near-black values where contrast/compositing already works. Use the installed system sans-serif stack;
 do not download fonts. Ordinary screen copy is 24px or larger, page headings 48px, identity
 headings 56px; cinematic Home/detail type scales with viewport height (Home title `7vh`).
 Button focus fills only the control with white and dark text, without an outer border or halo.
+The original rounded folded-V mark appears in the app header/About/launcher;
+live native-system text is used for the in-app wordmark and tagline. Do not add
+Inter or another downloaded font.
 Media focus uses a small lift and brighter artwork; on Home the lift alone carries focus (a
 compositor-only transform with a static shadow; measured 60 fps idle and along a shelf and about
 56 fps between shelves on a 2017 set). Home reveals only the focused caption. It never frames the
@@ -73,7 +79,7 @@ progress. Episode lists retain their stills rather than making every episode ind
 Original-file metadata, the PMS-reported stream and the requested transcode limit are distinct.
 Missing stream metadata is labelled unreported, never substituted with the chosen limit.
 Original/direct playback is requested when Samsung's published media specifications (or an exact
-observed model entry) predict support; the server or the decoder can still refuse, and Plx then
+observed model entry) predict support; the server or the decoder can still refuse, and Vemm then
 converts unless Direct Play is set to Force.
 
 ## Evidence and boundaries

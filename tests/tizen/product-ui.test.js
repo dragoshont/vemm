@@ -3,7 +3,7 @@ var assert = require("assert");
 var fs = require("fs");
 var path = require("path");
 var JSDOM = require("jsdom").JSDOM;
-var app = path.resolve(__dirname, "../../samsung/PlexTv");
+var app = path.resolve(__dirname, "../../samsung/Vemm");
 var movie = {
     ratingKey: "10", type: "movie", title: "Synthetic Movie", duration: 100000,
     summary: "Synthetic metadata", Chapter: [{ startTimeOffset: 20000, tag: "Chapter one" }],
@@ -258,7 +258,7 @@ async function run() {
         secondRow.className = "shelf-row";
         var secondShelfCard = window.document.createElement("button");
         secondShelfCard.className = "media-card";
-        secondShelfCard.plexCard = firstShelfCard.plexCard;
+        secondShelfCard.vemmCard = firstShelfCard.vemmCard;
         secondRow.appendChild(secondShelfCard);
         secondShelf.appendChild(secondRow);
         window.document.querySelector(".home-shelves").appendChild(secondShelf);
@@ -306,6 +306,13 @@ async function run() {
         click("Account");
         click("Settings");
         assert(window.document.querySelector(".settings-menu"), "Settings uses a grouped menu surface");
+        click("About Vemm");
+        assert(window.document.querySelector(".screen-about"), "About Vemm is a first-class settings destination");
+        assert(window.document.querySelector(".about-brand-mark"), "About Vemm uses the original packaged mark");
+        assert(window.document.body.textContent.includes("Your media. At its best."));
+        assert(window.document.body.textContent.includes("working brand"));
+        click("Back");
+        assert(window.document.querySelector(".settings-menu"), "Back from About Vemm returns to Settings");
         assert.strictEqual(Array.from(window.document.querySelectorAll(".settings-menu button")).filter(function (node) {
             return node.textContent.indexOf("Quality:") === 0;
         }).length, 1, "Settings must show one quality value, not every alternative");
@@ -385,7 +392,7 @@ async function run() {
         var retainedCard = window.document.querySelectorAll(".media-card")[30];
         retainedCard.focus();
         click("Load more"); await settle();
-        assert.strictEqual(window.document.activeElement.plexCard.item.ratingKey, retainedCard.plexCard.item.ratingKey,
+        assert.strictEqual(window.document.activeElement.vemmCard.item.ratingKey, retainedCard.vemmCard.item.ratingKey,
             "Appending a page must preserve the focused title, not leave focus on the removed node");
         for (var page = 0; page < 3; page += 1) { click("Load more"); await settle(); }
         assert.strictEqual(window.document.querySelectorAll(".media-card").length, 200, "Bound DOM and metadata retained after 250 items");
@@ -420,8 +427,8 @@ async function run() {
         assert.strictEqual(window.document.querySelectorAll(".media-card").length, 1);
         assert(!window.document.body.textContent.includes("identifiers and permissions"),
             "Search results must not show developer-facing copy");
-        assert.deepStrictEqual(JSON.parse(window.localStorage.getItem("plx-tizen-recent-searches") || "{}")
-            [Object.keys(JSON.parse(window.localStorage.getItem("plx-tizen-recent-searches") || "{}"))[0]], ["Synthetic"],
+        assert.deepStrictEqual(JSON.parse(window.localStorage.getItem("vemm-tizen-recent-searches") || "{}")
+            [Object.keys(JSON.parse(window.localStorage.getItem("vemm-tizen-recent-searches") || "{}"))[0]], ["Synthetic"],
             "A search that ran is remembered for the profile");
         var searchInput = window.document.querySelector('input[type="search"]');
         searchInput.value = "";
@@ -566,6 +573,23 @@ async function run() {
         assert(!window.document.getElementById("player-menu"), "Back closes playback options");
         assert.strictEqual(window.document.activeElement, playerControls[5],
             "Back from playback options restores focus to More");
+        click("More");
+        click("Stats for nerds");
+        var stats = window.document.getElementById("playback-stats");
+        var reasonBeforeClock = Array.from(stats.querySelectorAll("p")).filter(function (node) {
+            return node.textContent.indexOf("Reason:") === 0;
+        })[0];
+        assert(reasonBeforeClock, "Stats must expose the playback decision reason");
+        assert.strictEqual(stats.querySelectorAll(".playback-stats-position").length, 1,
+            "Stats must have exactly one live position row");
+        listener.oncurrentplaytime(12000);
+        assert(stats.contains(reasonBeforeClock), "A clock update must not replace the decision reason");
+        assert.strictEqual(Array.from(stats.querySelectorAll("p")).filter(function (node) {
+            return node.textContent.indexOf("Reason:") === 0;
+        }).length, 1, "Stats retain one decision reason after a clock update");
+        assert(stats.querySelector(".playback-stats-position").textContent.indexOf("0:12") !== -1,
+            "The live position row updates without overwriting explanation rows");
+        click("Close");
         var pauseControl = Array.from(window.document.querySelectorAll("button")).find(function (node) {
             return node.textContent === "Pause / Play";
         });
@@ -719,9 +743,9 @@ async function run() {
         assert(window.document.querySelector(".synopsis"), "Foreground recovery must restore fresh details");
         assert.strictEqual(window.localStorage.length, 3,
             "Only the device identifier, explicitly saved preferences and recent searches are stored");
-        assert(window.localStorage.getItem("plx-tizen-recent-searches"));
-        assert(window.localStorage.getItem("plx-tizen-preferences"));
-        assert.strictEqual(window.localStorage.getItem("plx-tizen-account"), null, "Preference changes must not persist account credentials");
+        assert(window.localStorage.getItem("vemm-tizen-recent-searches"));
+        assert(window.localStorage.getItem("vemm-tizen-preferences"));
+        assert.strictEqual(window.localStorage.getItem("vemm-tizen-account"), null, "Preference changes must not persist account credentials");
         movie.type = "show";
         movie.OnDeck = { Metadata: onDeck };
         click("Back"); await settle();

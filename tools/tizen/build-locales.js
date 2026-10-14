@@ -2,6 +2,37 @@
 var fs = require("fs");
 var path = require("path");
 var root = path.resolve(__dirname, "../..");
+var acorn = require(path.join(root, "tests/tizen/node_modules/acorn"));
+var required = {};
+
+function copy(node) {
+    if (!node) { return; }
+    if (node.type === "Literal" && typeof node.value === "string" && node.value) {
+        required[node.value] = true;
+    }
+    if (node.type === "ConditionalExpression") {
+        copy(node.consequent);
+        copy(node.alternate);
+    }
+}
+
+function walk(node) {
+    if (!node || typeof node !== "object") { return; }
+    var name = node.type === "CallExpression" && (node.callee.type === "Identifier" ? node.callee.name :
+        node.callee.type === "MemberExpression" && node.callee.object.name === "options" ? node.callee.property.name : "");
+    if (["button", "setStatus", "serviceView", "translate", "view", "status"].indexOf(name) !== -1) {
+        copy(node.arguments[name === "button" ? 1 : 0]);
+    }
+    Object.keys(node).forEach(function (key) {
+        if (Array.isArray(node[key])) { node[key].forEach(walk); }
+        else if (node[key] && typeof node[key] === "object") { walk(node[key]); }
+    });
+}
+
+["main.js", "js/television-ui.js", "js/catalogue-ui.js"].forEach(function (name) {
+    walk(acorn.parse(fs.readFileSync(path.join(root, "samsung/Vemm", name), "utf8"), { ecmaVersion: 5 }));
+});
+
 var catalogs = { es: {}, be: {} };
 ["core", "settings", "widgets", "browse"].forEach(function (name) {
     var english = JSON.parse(fs.readFileSync(path.join(root, "samsung/locales/en", name + ".json"), "utf8"));
@@ -9,7 +40,8 @@ var catalogs = { es: {}, be: {} };
         var translated = JSON.parse(fs.readFileSync(path.join(root, "samsung/locales", language, name + ".json"), "utf8"));
         Object.keys(english).forEach(function (key) {
             var source = english[key].value;
-            if (typeof source === "string" && typeof translated[key] === "string" && source.indexOf("{") === -1) {
+            if (typeof source === "string" && typeof translated[key] === "string" &&
+                    source.indexOf("{") === -1 && required[source]) {
                 catalogs[language][source] = translated[key];
             }
         });
@@ -23,7 +55,7 @@ Object.keys(additions).forEach(function (source) {
     });
 });
 var output = "(function (root) {\n    \"use strict\";\n    var catalogs = " + JSON.stringify(catalogs) +
-    ";\n    var language = \"en\";\n    root.PlexI18n = {\n" +
+    ";\n    var language = \"en\";\n    root.VemmI18n = {\n" +
     "        setLanguage: function (value) { language = value === \"es\" || value === \"be\" ? value : \"en\"; },\n" +
     "        has: function (value) { return language === \"en\" || Object.prototype.hasOwnProperty.call(catalogs[language], value); },\n" +
     "        error: function (error) {\n" +
@@ -40,7 +72,7 @@ var output = "(function (root) {\n    \"use strict\";\n    var catalogs = " + JS
     "            });\n" +
     "        }\n" +
     "    };\n}(this));\n";
-var target = path.join(root, "samsung/PlexTv/js/i18n.js");
+var target = path.join(root, "samsung/Vemm/js/i18n.js");
 if (process.argv[2] === "--write") { fs.writeFileSync(target, output); }
 else if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== output) {
     throw new Error("Tizen translations are stale. Run node tools/tizen/build-locales.js --write.");

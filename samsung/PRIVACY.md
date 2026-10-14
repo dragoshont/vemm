@@ -1,8 +1,9 @@
-# Samsung client data handling
+# Vemm Samsung client data handling
 
-Applies to the Samsung Web client described by release 0.2.7 and the current
-Samsung source. Historical LG policy is linked from the root privacy document,
-not an active policy for this package.
+Applies to current Vemm source. Published Samsung 0.2.7 is a separate historical
+Plx package. Vemm does not read/import that app's tokens, settings or storage.
+Historical LG policy is linked from the root privacy document, not an active
+policy for this package.
 
 ## Services
 
@@ -38,7 +39,7 @@ data to the project maintainer.
 
 ## Diagnostics and sharing
 
-The Samsung client has no analytics or crash-upload feature enabled. This does
+Vemm has no analytics or crash-upload feature enabled. This does
 not describe the inherited LG application, which has separate optional
 reporting features. Do not interpret LG Sentry/PostHog documentation or
 sponsorship as a Samsung service.
@@ -51,6 +52,6 @@ redact them before sharing. The account-free benchmark blocks external
 connections and playback; it is not the normal signed-in application.
 
 For questions about this Samsung implementation, contact the maintainer through
-[this repository](https://github.com/dragoshont/plx-native), not the upstream
+[the canonical repository](https://github.com/dragoshont/vemm), not the upstream
 author's support mailbox. Never include account tokens, passwords, certificates,
 private server addresses or unredacted inspector logs in a public issue.
