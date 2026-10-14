@@ -18,7 +18,7 @@ external decision.
 |---|---|
 | User-facing source display name | **Vemm** |
 | Product/protocol name sent to Plex | **Vemm** |
-| Repository | canonical target `dragoshont/vemm`; current PR remains in the old repository for review provenance |
+| Repository | canonical [`dragoshont/vemm`](https://github.com/dragoshont/vemm); archived [`dragoshont/plx-native`](https://github.com/dragoshont/plx-native) preserves migration review/history |
 | Installed Samsung application/package | `VemmTvApp0.Vemm` / `VemmTvApp0` |
 | Saved settings/session keys | `vemm-tizen-*`; no old setting/token import |
 | Signing identity | a future Vemm author, separate from the historical Plx app |

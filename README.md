@@ -7,8 +7,9 @@ permissions; Vemm owns the television browsing, playback policy and remote-first
 client experience.
 
 Vemm is a working brand, not a claim of completed trademark clearance. The
-canonical repository target is `dragoshont/vemm`; this branch remains in
-`dragoshont/plx-native` only for review provenance.
+canonical repository is [`dragoshont/vemm`](https://github.com/dragoshont/vemm).
+The archived [`dragoshont/plx-native`](https://github.com/dragoshont/plx-native)
+repository preserves the pre-migration review and historical Samsung releases.
 
 **I've tested the client on Tizen 4.0 and newer.** The recorded device checks below distinguish individual runtimes and features; they are not blanket certification of every model or codec.
 
@@ -132,8 +133,7 @@ references in [the independence plan](docs/samsung-repository-independence-plan.
 The Samsung Rust/.NET/NaCl experiments remain parked, with
 [their actual results retained](docs/samsung-rust-runtime-results.md).
 
-Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vemm/issues)
-after it is populated.
+Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vemm/issues).
 
 Historical repository URLs, package IDs, author continuity, tags and release
 filenames are preserved as history. Vemm deliberately uses a new package,
