@@ -27,20 +27,32 @@ appearance or behavior of every settings, episode or playback menu.
 
 ## Visual language
 
-Charcoal `#1F1F1F` ground, Vemm blue `#3B82F6`, light blue `#B7D0FF`,
-soft gray `#E5E7EB`, white `#FFFFFF` and pale-red explicit errors. Existing media surfaces may retain
-their tuned near-black values where contrast/compositing already works. Use the installed system sans-serif stack;
+The built theme is **Blue Calm**: a near-black navy canvas (`#081522`), deep-navy
+selected/elevated surfaces (`#0F2747`), misty-blue action and progress cues
+(`#5E7FA7`), pale-sky focus (`#D6E6F5`), soft-stone secondary copy
+(`#D7DBE3`) and slate dividers (`#4B5C63`). The folded-V mark keeps its brighter
+brand pair (`#3B82F6` / `#B7D0FF`). Color is deliberately scarce: artwork,
+titles and current tasks lead; blue identifies Vemm, selection and progress
+rather than washing every screen.
+
+Existing cinematic scrims retain tuned near-black gradients where they make
+artwork readable. Use the installed system sans-serif stack;
 do not download fonts. Ordinary screen copy is 24px or larger, page headings 48px, identity
 headings 56px; cinematic Home/detail type scales with viewport height (Home title `7vh`).
-Button focus fills only the control with white and dark text, without an outer border or halo.
+Text-control focus fills only the control with pale sky and dark navy, without
+an outer halo. Current navigation also keeps an underline, so color is not the
+only selected-state cue.
 The original rounded folded-V mark appears in the app header/About/launcher;
 live native-system text is used for the in-app wordmark and tagline. Do not add
 Inter or another downloaded font.
 Media focus uses a small lift and brighter artwork; on Home the lift alone carries focus (a
 compositor-only transform with a static shadow; measured 60 fps idle and along a shelf and about
 56 fps between shelves on a 2017 set). Home reveals only the focused caption. It never frames the
-whole poster and caption. Selected settings have a separate indicator. Transport controls use
-icons with retained accessible names; other controls keep visible labels.
+whole poster and caption. Selected settings have a separate indicator. The interface is text-first:
+decorative menu and feature glyphs are suppressed, while labels remain visible.
+Playback retains its compact transport glyphs because those controls intentionally
+hide text and keep accessible names. A decoded profile photo remains a functional
+identity surface, with an Account text fallback when artwork is unavailable.
 
 ## Screen families
 

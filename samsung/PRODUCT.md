@@ -34,8 +34,10 @@ Licensed catalogue streaming and verified live tuning remain acceptance gaps.
 
 Vemm (`/vem/`) is the working product brand and **Your media. At its best.** is
 the working tagline. Keep the existing cinematic, remote-first layout as the
-product reference; use the restrained Azure-inspired accent for identity,
-primary action and selected state rather than mass-redesigning every screen.
+product reference. Blue Calm uses quiet navy surfaces and mist/pale-blue
+focus, selection and progress cues rather than mass-redesigning every screen.
+Keep controls text-first and avoid decorative iconography; retain compact
+transport glyphs only where visible text would harm playback operation.
 Do not borrow Plex, Samsung, Microsoft or upstream PlxNative branding or imply
 endorsement. Vemm is a separate install and must not read/migrate historical
 Plx credentials or settings.
@@ -49,6 +51,8 @@ live in `docs/samsung-tizen-client-spec.md` and the Samsung feasibility/test reg
 
 ## Accessibility
 
-Remote-first operation, visible focus, couch-legible text, labels alongside meaningful icons,
-English/Spanish/Belarusian copy and scrollable long content. Focus must not imply selection or
-permission, and unavailable actions must remain explicitly disabled or explained.
+Remote-first operation, visible focus, couch-legible text, visible labels for
+ordinary controls, accessible names for compact playback glyphs,
+English/Spanish/Belarusian copy and scrollable long content. Focus must not
+imply selection or permission, and unavailable actions must remain explicitly
+disabled or explained.
