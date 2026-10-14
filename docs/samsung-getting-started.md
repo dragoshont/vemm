@@ -124,9 +124,7 @@ workflow. The installed x86_64 Tizen 10 emulator did not launch on this Apple-Si
 
 Complete sections 1–4 first, or let the toolkit's `cert add` create the certificate for you.
 
-1. Use the reviewed Vemm checkout and run the host gates above. The canonical
-   target is `dragoshont/vemm`; until it is populated, this old repository/PR is
-   review provenance only:
+1. Clone the canonical Vemm repository and run the host gates above:
    ```sh
    git clone https://github.com/dragoshont/vemm.git
    cd vemm
