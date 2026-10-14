@@ -14,9 +14,10 @@ repository preserves the pre-migration review and historical Samsung releases.
 **I've tested the client on Tizen 4.0 and newer.** The recorded device checks below distinguish individual runtimes and features; they are not blanket certification of every model or codec.
 
 The UI is inspired by [Gleb Linnik's LG client](https://github.com/GLinnik21/plx-native).
-Current source uses original Vemm vector artwork and a restrained dark,
-Azure-accented identity while preserving the existing cinematic screen
-composition and old-TV performance constraints.
+Current source uses original Vemm vector artwork and the restrained **Blue
+Calm** theme: quiet navy surfaces, pale-blue focus and text-first controls,
+while preserving the existing cinematic composition and old-TV performance
+constraints.
 
 The implementation uses **Tizen Web APIs, HTML/CSS/JavaScript and Samsung AVPlay**.
 

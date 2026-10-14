@@ -2810,3 +2810,234 @@ body,
 .home-navigation::-webkit-scrollbar { display: none; }
 
 [hidden] { display: none !important; }
+
+/* Blue Calm semantic roles:
+   canvas      #081522 / deep surface #0f2747
+   focus       #d6e6f5 on #0f2747
+   selection   #0f2747 + pale-sky underline
+   secondary   #d7dbe3 / divider #4b5c63
+   accent      #5e7fa7 (brand mark retains #3b82f6 / #b7d0ff)
+   Values stay explicit because the oldest supported engine has no CSS custom properties. */
+html,
+body,
+.detail-mode .screen,
+.detail-section,
+.screen-home.shelves-focused .browse-header {
+    background: #081522;
+    color: #f5f8fc;
+}
+
+button {
+    background: #102238;
+    color: #f5f8fc;
+}
+
+.app-header h1,
+.home-hero-title,
+.screen > .detail-hero h2.detail-title,
+.screen > .page-title,
+.detail-section-title,
+.section-heading,
+.shelf .hub-title,
+.shelf h3 {
+    color: #f5f8fc;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.app-header p,
+.help-text,
+.status,
+.auth-step,
+.auth-wait,
+.card-meta,
+.detail-meta,
+.detail-synopsis,
+.detail-identity,
+.home-hero-description,
+.playback-context,
+.playback-remaining,
+.file-info-label {
+    color: #d7dbe3;
+}
+
+button:focus,
+.menu-control:focus,
+.home-navigation .menu-control:focus,
+.settings-menu .menu-control:focus,
+.player-menu .menu-control:focus,
+.home-utilities .menu-control:focus,
+.browse-header .menu-control:focus,
+.detail-pill:focus,
+.detail-more .detail-pill:focus {
+    outline: none;
+    background: #d6e6f5;
+    color: #0f2747;
+}
+
+input:focus,
+.playback-progress:focus {
+    outline-color: #d6e6f5;
+}
+
+.home-navigation,
+.browse-header .home-navigation {
+    border-color: rgba(214, 230, 245, 0.34);
+    background: rgba(15, 39, 71, 0.72);
+}
+
+.home-navigation [aria-current="page"] {
+    border-bottom: 3px solid #d6e6f5;
+    background: #0f2747;
+    color: #ffffff;
+}
+
+.settings-menu,
+.player-menu,
+.home-utilities,
+.detail-overflow,
+.file-info-panel {
+    border-color: #4b5c63;
+    background: #102238;
+}
+
+.selection-list .menu-control[aria-pressed="true"],
+.settings-menu [aria-pressed="true"] {
+    border-color: #5e7fa7;
+}
+
+.settings-menu [aria-pressed="true"]::after {
+    box-shadow: inset 0 0 0 5px #102238;
+}
+
+.card-progress,
+.playback-progress,
+.detail-progress {
+    background: rgba(94, 127, 167, 0.42);
+}
+
+.card-progress-fill,
+.playback-progress-fill,
+.detail-progress-fill,
+.feature-dot.selected {
+    background: #5e7fa7;
+}
+
+.media-card:focus .poster,
+.item-list .media-card:focus .poster {
+    box-shadow: 0 0 0 4px #d6e6f5, 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.browse-header .account-control:focus {
+    box-shadow: 0 0 0 4px #d6e6f5, 0 0 0 7px rgba(8, 21, 34, 0.72);
+}
+
+.identity-choice:focus::before,
+.detail-person:focus .detail-person-photo {
+    border-color: #d6e6f5;
+}
+
+.working-brand-status,
+.about-pronunciation {
+    color: #d7dbe3;
+}
+
+.about-tagline {
+    color: #b7d0ff;
+}
+
+/* Text-first controls keep the brand quiet. Transport glyphs remain because their labels are
+   intentionally visual in the player; profile artwork remains a functional identity surface. */
+.menu-control::before {
+    display: none;
+}
+
+.browse-header .home-navigation .menu-control::before,
+.home-feature-actions .menu-control::before,
+.detail-actions .menu-control::before,
+.home-utilities .menu-control::before {
+    display: none;
+}
+
+.menu-control,
+.settings-menu .menu-control,
+.player-menu .menu-control {
+    padding-left: 28px;
+}
+
+.playback-controls .menu-control::before {
+    display: block;
+}
+
+.home-navigation .menu-icon-search {
+    width: auto;
+    font-size: 2.6vh !important;
+}
+
+.home-feature-actions .round-control,
+.detail-actions .round-control,
+.detail-actions .detail-pill-restart {
+    width: auto;
+    min-width: 0;
+    height: auto;
+    min-height: 5.5vh;
+    padding: 0 24px;
+    border-radius: 32px;
+    font-size: 2.2vh;
+}
+
+.home-feature-actions .round-control::before,
+.detail-actions .round-control::before,
+.detail-actions .detail-pill-restart::before {
+    display: none;
+}
+
+.browse-header .account-control {
+    width: auto;
+    min-width: 112px;
+    padding: 0 20px;
+    font-size: 2.2vh;
+}
+
+.browse-header .account-control[data-avatar="true"] {
+    width: 6vh;
+    min-width: 44px;
+    padding: 0;
+    font-size: 0;
+}
+
+.title-tile:focus {
+    border-color: #d6e6f5;
+    outline: 2px solid #d6e6f5;
+    outline-offset: 2px;
+    background: #0f2747;
+    color: #f5f8fc;
+}
+
+@media (max-width: 1400px) {
+    .browse-header .home-navigation .menu-control,
+    .browse-header .account-control,
+    .home-hero-meta,
+    .home-hero-description,
+    .screen-home .shelf .hub-title,
+    .screen-home .card-title,
+    .screen-home .card-meta,
+    .home-feature-actions .menu-control,
+    .home-feature-actions .round-control,
+    .detail-identity,
+    .detail-main .detail-meta,
+    .detail-synopsis,
+    .detail-expand,
+    .detail-pill,
+    .detail-people {
+        font-size: 24px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screen-home .media-card,
+    .detail-backdrop {
+        -webkit-transition: none;
+        transition: none;
+    }
+}

@@ -46,19 +46,24 @@ Source-maintained assets:
 PNG with Python's standard library. No font download, image library or build
 dependency is introduced.
 
-The restrained palette extends the existing dark television UI:
+The logo palette and built Blue Calm interface roles are:
 
 | Role | Value |
 |---|---|
 | Primary / front fold | `#3B82F6` |
 | Light / rear fold | `#B7D0FF` |
-| Charcoal | `#1F1F1F` |
-| Soft gray | `#E5E7EB` |
-| White | `#FFFFFF` |
+| Canvas | `#081522` |
+| Selected / elevated surface | `#0F2747` |
+| Action / progress | `#5E7FA7` |
+| Focus | `#D6E6F5` |
+| Secondary text | `#D7DBE3` |
+| Divider | `#4B5C63` |
 
-Existing white focus fills, system typography, cinematic artwork composition
-and remote-first spacing remain. Azure blue is reserved for identity and
-primary actions rather than decorating every surface.
+System typography, cinematic artwork composition and remote-first spacing
+remain. The UI is text-first: decorative menu glyphs are suppressed; compact
+playback transport glyphs and profile artwork remain because they carry
+functional meaning. Blue is reserved for identity, progress, focus and selected
+state rather than decorating every surface.
 
 ## Usage and non-affiliation
 
