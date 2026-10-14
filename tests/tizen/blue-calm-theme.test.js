@@ -26,7 +26,7 @@ assert(selectedRules.some(function (rule) {
     return /background:\s*#0f2747/.test(rule) && /border-bottom:\s*3px solid #d6e6f5/.test(rule);
 }),
     "Selected navigation needs both Blue Calm color and a non-color underline");
-assert(/button:focus[\s\S]*background:\s*#d6e6f5;[\s\S]*color:\s*#0f2747;/.test(css),
+assert(/button:focus,[^{]*\{[^}]*background:\s*#d6e6f5;[^}]*color:\s*#0f2747;/.test(css),
     "Focused text controls must use the pale-sky/dark-navy high-contrast pair");
 assert(/\.menu-control::before\s*\{\s*display:\s*none;/.test(css),
     "Decorative menu glyphs must be removed from the text-first interface");

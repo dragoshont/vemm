@@ -10,9 +10,16 @@ function rule(selector) {
     return match ? match[1] : "";
 }
 
+function finalRule(selector) {
+    var start = css.lastIndexOf(selector);
+    var open = css.indexOf("{", start);
+    var close = css.indexOf("}", open);
+    return start >= 0 && open >= 0 && close >= 0 ? css.slice(open + 1, close) : "";
+}
+
 // Library posters must keep the 2:3 artwork aspect so server-side corner overlays are not cropped.
 var dom = new JSDOM("<style>" + css + "</style><section class='screen screen-library'>" +
-    "<div class='item-list'><button class='media-card'><img class='poster'></button></div></section>");
+    "<div class='item-list'><button class='media-card'><span class='poster'></span></button></div></section>");
 try {
     var poster = dom.window.getComputedStyle(dom.window.document.querySelector(".poster"));
     assert(["calc((90vw - 156px) / 4)", "calc(0.25 * (90vw - 156px))"].indexOf(poster.height) >= 0,
@@ -20,12 +27,12 @@ try {
 } finally { dom.window.close(); }
 
 // The account avatar covers its own button background, so focus needs a ring outside it.
-assert(/box-shadow:\s*0 0 0 4px #ffffff/.test(rule(".browse-header .account-control:focus")),
+assert(/box-shadow:\s*0 0 0 4px #d6e6f5/.test(finalRule(".browse-header .account-control:focus")),
     "Focused account/avatar control needs a visible ring that the avatar image cannot cover");
 
 // Library cards need the same emphasis as Home cards, not a 2.5% scale and underline alone.
-var library = rule(".item-list .media-card:focus .poster");
-assert(/box-shadow:\s*0 0 0 4px #ffffff/.test(library), "Focused library poster needs a visible ring");
+var library = finalRule(".item-list .media-card:focus .poster");
+assert(/box-shadow:\s*0 0 0 4px #d6e6f5/.test(library), "Focused library poster needs a Blue Calm visible ring");
 assert(/scale\(1\.06\)/.test(rule(".item-list .media-card:focus")), "Focused library card scales like Home cards");
 
 // Children listings (Seasons, Episodes, Collection items) measured 270x350 season posters and
@@ -42,7 +49,7 @@ assert(/height:\s*240px/.test(rule(".screen-listing .item-list .media-card[data-
 // (44 missed frames over 10 shelf moves), and visibility-toggling the hero repainted it.
 var homeDom = new JSDOM("<style>" + css + "</style><section class='screen screen-home shelves-focused'>" +
     "<div class='home-track'><section class='home-hero'></section><div class='shelf-row'>" +
-    "<button class='media-card'><img class='poster'><p class='card-title'>T</p></button></div></div></section>");
+    "<button class='media-card'><span class='poster'></span><p class='card-title'>T</p></button></div></div></section>");
 try {
     var w = homeDom.window;
     var homeCard = w.getComputedStyle(w.document.querySelector(".media-card"));
