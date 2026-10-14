@@ -133,8 +133,7 @@ references in [the independence plan](docs/samsung-repository-independence-plan.
 The Samsung Rust/.NET/NaCl experiments remain parked, with
 [their actual results retained](docs/samsung-rust-runtime-results.md).
 
-Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vemm/issues)
-after it is populated.
+Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vemm/issues).
 
 Historical repository URLs, package IDs, author continuity, tags and release
 filenames are preserved as history. Vemm deliberately uses a new package,
