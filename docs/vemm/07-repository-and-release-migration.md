@@ -1,19 +1,22 @@
 # Vemm repository and release migration plan
 
-The source candidate is reviewed in `dragoshont/plx-native`, but the canonical
-target is the currently available `dragoshont/vemm`. This transition does not
-create/rename that repository, detach the old fork, change ownership, modify
-public settings, sign a package or publish a release.
+The canonical source is now maintained in
+[`dragoshont/vemm`](https://github.com/dragoshont/vemm). A live GitHub read on
+2026-10-15 confirmed that it is populated, non-fork, unarchived and has Issues
+enabled; it has no published releases. The predecessor
+[`dragoshont/plx-native`](https://github.com/dragoshont/plx-native) is archived
+and remains a fork, preserving its review, history and historical releases.
+This document does not authorize a package release, signing or device access.
 
 ## Source transition
 
-The reviewable PR may:
+The source transition established:
 
-- establish Vemm in current source, docs and future release presentation;
-- use a clean Vemm package, storage and build identity;
-- keep historical Plx release names and links accurate;
-- add original brand assets and tests;
-- improve existing architecture seams.
+- Vemm in current source, docs and future release presentation;
+- a separate Vemm package, storage and build identity;
+- accurate historical Plx release names and links;
+- original brand assets and tests;
+- improvements to existing architecture seams.
 
 ## Approved technical identity
 
@@ -32,14 +35,15 @@ Vemm is a separate application:
 There is no automatic import of old credentials or preferences. The historical
 Plx application remains a separate install.
 
-## Separately executed remote migration
+## Repository preservation
 
-Before any repository rename or fork-network change:
+Canonical population is complete, not a pending source task. For any future
+repository rename or fork-network change:
 
 1. Re-audit live fork status, redirects, release/download URLs, Actions,
    issues/PRs, security reporting, source offers and external links.
-2. Create/populate `dragoshont/vemm` through a fresh reviewed PR. Do not
-   delete/recreate `dragoshont/plx-native` to simulate detachment.
+2. Keep Vemm changes reviewable in the canonical repository. Do not
+   delete/recreate either repository to simulate detachment.
 3. Preserve all tags, releases, assets, checksums, issues, PR metadata and Git
    history.
 4. Update source/documentation links only after the provider operation and
@@ -63,5 +67,6 @@ A future first Vemm Samsung release must:
 7. distinguish source readiness, signed package verification, developer
    installation and Samsung Store approval.
 
-This plan recommends no release until human review accepts the Vemm candidate
-and separate device/release authorization is granted.
+Source integration does not satisfy the release gate. No release is authorized
+until human review accepts the exact Vemm candidate and separate device/release
+authorization is granted. See the [current installation status](../install-samsung.md).

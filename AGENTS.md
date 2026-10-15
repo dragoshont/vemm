@@ -4,7 +4,8 @@
 
 This repository maintains **Vemm**, an independent, unofficial Samsung Tizen
 Web Plex client. Vemm is a working brand, pronounced `/vem/`; trademark
-clearance and repository migration remain separate decisions. The UI was
+clearance remains a separate decision. The canonical repository is
+`dragoshont/vemm`; the archived predecessor preserves historical releases. The UI was
 inspired by Gleb Linnik's PlxNative. Inherited code/catalogs remain
 GPL-3.0-or-later, not clean-room or MIT-relicensed code. Read `LICENSING.md`,
 `THIRD-PARTY-NOTICES.md` and `docs/vemm/`.
@@ -94,6 +95,6 @@ is a separate acceptance step.
 
 Use this repository's Issues and `SECURITY.md`, never the upstream author's
 support/funding channels. Preserve history, releases and source offers.
-The canonical target is `dragoshont/vemm`; repository population, old fork
-handling and final trademark clearance are separate external operations;
+The canonical repository is `dragoshont/vemm`; final trademark clearance and
+any future old-fork handling are separate external operations;
 do not delete/recreate the repository or discard metadata to simulate them.
