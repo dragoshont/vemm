@@ -900,7 +900,7 @@
         var serverInput = element("input", "remote-input");
         serverInput.type = "url";
         serverInput.name = "server";
-        serverInput.placeholder = "https://192.168.1.10:32400";
+        serverInput.placeholder = "https://server.example.invalid:32400";
         serverInput.autocomplete = "url";
         serverLabel.appendChild(serverInput);
 

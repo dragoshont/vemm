@@ -33,7 +33,7 @@
         var baseUrl = String(value || "").replace(/\/+$/, "");
         if (!/^https?:\/\/(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])(?::[0-9]{1,5})?$/i.test(baseUrl) ||
                 baseUrl.indexOf("@") !== -1) {
-            throw new Error("Enter a PMS origin such as http://192.168.1.10:32400.");
+            throw new Error("Enter a PMS origin such as https://server.example.invalid:32400.");
         }
         return baseUrl;
     }

@@ -54,9 +54,13 @@ writes a checksum. The local publisher includes that archive and checksum next
 to the WGT. `--no-publish` builds without publishing, but still requires signing
 authorization. Do not execute the publisher merely to validate source cleanup.
 
-`samsung/build.py` stages the product plus `LICENSE`, `LICENSING.md`,
+`samsung/build.py` stages the explicit root app files, flat `.js`, `.css` and
+`.svg` assets from their product directories, plus `LICENSE`, `LICENSING.md`,
 `THIRD-PARTY-NOTICES.md`, `TRADEMARKS.md` and the explicit `LICENSE_FILES`
-inventory from `licenses/` (not arbitrary local directory contents). These are legal payload,
+inventory from `licenses/` (not arbitrary local directory contents). Hidden files, source maps, old WGTs
+and unrelated/private file types are not product assets. This is a staging
+boundary, not a secret scanner: review the actual source and staged entries.
+The notices are legal payload,
 not executable dependencies. Review actual archive entries and preserve matching
 complete-source availability under GPL section 6(d).
 

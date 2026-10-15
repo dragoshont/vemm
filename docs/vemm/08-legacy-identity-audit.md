@@ -43,6 +43,10 @@ Keep terms required to tell the truth about inherited source and prior releases:
   and the historical `PlxNative0.Plx` installation identity.
 - Dated device/probe/benchmark evidence that names the tested Plx release,
   application registration or old source revision.
+- Parked Samsung feasibility probes and the exact-0.2.7 graphics benchmark,
+  including their disposable Plx-prefixed IDs, receipt symbols and adapter
+  names. They reproduce dated investigations, are not Vemm installation
+  targets and are not staged into its WGT.
 - Historical support, rollout and repository-independence records.
 - Inherited source catalogs under `samsung/locales/`, including old product
   copy required for provenance. The generated Vemm runtime bundle includes only
@@ -71,7 +75,7 @@ The active Vemm product now owns these identities:
 | Signing environment | `VEMM_*` |
 | Local configuration | `~/.config/vemm/` |
 | Temporary build/profile | `vemm-tizen-build.*` / `vemm-build` |
-| Canonical future repository | `dragoshont/vemm` |
+| Canonical repository | `dragoshont/vemm` |
 
 App-owned `Plex*` globals were migrated to `Vemm*` where they represented
 presentation, preferences, playback policy, Samsung capability/backend,
@@ -90,7 +94,27 @@ historical Plx app:
 - A user links Plex and chooses Vemm preferences again.
 
 No signed package, device install, release, repository creation/rename or public
-setting mutation was performed by this source remediation.
+setting mutation was performed by the original source remediation.
+
+## Launch-readiness follow-up
+
+On 2026-10-15, `dragoshont/vemm` was independently verified as populated,
+non-fork and unarchived with Issues enabled and no releases. The predecessor
+was verified archived and still a fork. Present-tense references claiming the
+canonical source was unpopulated or the old fork were corrected; dated
+migration/device evidence remains historical.
+
+Current install/support/release links lead to Vemm's unreleased installation
+status. The old 0.2.7 command remains in the explicitly historical guide.
+The RFC1918 address formerly shown in the direct-server form and validation
+error was a generic example, not evidence of an exposed household address;
+it now uses `server.example.invalid` consistently with public-example policy.
+Plex endpoints, headers and protocol modules are unchanged.
+
+Offline package staging now limits product asset directories to flat
+JavaScript, CSS and SVG files. Synthetic canaries confirmed that unrelated
+files previously copied from those directories are excluded. This is not a
+secret-scan claim: allowed source files still require review.
 
 ## Narrow regression policy
 

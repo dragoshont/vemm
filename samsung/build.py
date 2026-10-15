@@ -118,10 +118,11 @@ def stage(app, version):
     app.mkdir()
     for name in ("config.xml", "index.html", "main.js", "icon.png"):
         shutil.copyfile(HERE / "Vemm" / name, app / name)
-    for name in ("js", "css"):
-        shutil.copytree(HERE / "Vemm" / name, app / name,
-                        ignore=shutil.ignore_patterns(".*", "*.map", "*.wgt"))
-    shutil.copytree(HERE / "Vemm" / "brand", app / "brand")
+    for name, suffix in (("js", ".js"), ("css", ".css"), ("brand", ".svg")):
+        (app / name).mkdir()
+        for asset in sorted((HERE / "Vemm" / name).iterdir()):
+            if asset.is_file() and not asset.name.startswith(".") and asset.suffix == suffix:
+                shutil.copyfile(asset, app / name / asset.name)
     cfg = app / "config.xml"
     text = cfg.read_text(encoding="utf-8")
     text, n1 = re.subn(r'(<widget [^>]*version=")[^"]*"', rf'\g<1>{version}"', text, count=1)

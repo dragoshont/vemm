@@ -21,7 +21,7 @@ constraints.
 
 The implementation uses **Tizen Web APIs, HTML/CSS/JavaScript and Samsung AVPlay**.
 
-**[Historical Plx install guide](docs/install-samsung.md)** · **[Vemm architecture](docs/vemm/03-architecture.md)** · **[Identity audit](docs/vemm/08-legacy-identity-audit.md)** · **[Report an issue](https://github.com/dragoshont/vemm/issues)** · **[Tizen TV Builder toolkit](https://github.com/dragoshont/tizen-tv-builder)**
+**[Vemm installation status](docs/install-samsung.md)** · **[Vemm architecture](docs/vemm/03-architecture.md)** · **[Identity audit](docs/vemm/08-legacy-identity-audit.md)** · **[Report an issue](https://github.com/dragoshont/vemm/issues)** · **[Tizen TV Builder toolkit](https://github.com/dragoshont/tizen-tv-builder)**
 
 ## Release status and installation identity
 
@@ -30,14 +30,11 @@ identity `VemmTvApp0` / `VemmTvApp0.Vemm`, its own `vemm-tizen-*` local data and
 a future Vemm signing author. It will not update, uninstall or import
 credentials/preferences from the historical Plx app.
 
-The latest package currently published in this old repository is the historical
+The latest Samsung package published in the archived predecessor is the historical
 [Samsung 0.2.7](https://github.com/dragoshont/plx-native/releases/tag/samsung-v0.2.7),
-a **prerelease** that appears as **Plx**. Its install command remains available
-for historical users:
-
-```sh
-python3 tools/tizen.py install https://github.com/dragoshont/plx-native/releases/download/samsung-v0.2.7/Plx-0.2.7.wgt TV_IP
-```
+a **prerelease** that appears as **Plx**. Its exact install command remains in
+the [historical install guide](docs/install-samsung-historical.md), not the
+current Vemm installation route.
 
 That package is not Vemm. Keep its author certificate only for historical Plx
 updates and do not uninstall it to simulate a Vemm migration.
@@ -97,7 +94,14 @@ Two distinct RU7092 devices were observed: four model generations, **five device
 
 Our [reproducible app benchmark](tools/tizen/graphics-benchmark/README.md) uses the exact released app code with inert Plex adapters, synthetic images and in-memory settings. It repeats Home, Detail and navigation work in **OFF / ON / ON / OFF** order, retains warmups and original samples, and separates main-thread/API timing from graphics correctness.
 
-**The reusable benchmark is now implemented in the toolkit:** [`benchmark run`, `validate` and `summarize`](https://github.com/dragoshont/tizen-tv-builder/blob/e09c9f345170c7ada8309fc9be95ae8ae38e85e8/docs/benchmark.md). It is available at that pinned commit on `dragoshont-reusable-tv-benchmark-toolkit`, not yet in the toolkit's default branch or a newly released plugin. The GPL-licensed application workload stays here and connects through a tested adapter. This keeps the MIT toolkit useful for other TV apps without copying this app's screens, credentials or business logic into it. See [the transition record](docs/samsung-project-transition.md) for delivery and licensing boundaries.
+The reusable benchmark's original toolkit delivery documents
+[`benchmark run`, `validate` and `summarize`](https://github.com/dragoshont/tizen-tv-builder/blob/e09c9f345170c7ada8309fc9be95ae8ae38e85e8/docs/benchmark.md).
+Use the toolkit's current documentation for available commands; that pinned
+revision is historical delivery evidence, not an installed-plugin version
+claim. The GPL-licensed application workload stays here and connects through a
+tested adapter. This keeps the MIT toolkit useful for other TV apps without
+copying this app's screens, credentials or business logic into it. See
+[the transition record](docs/samsung-project-transition.md) for licensing boundaries.
 
 ## Development and deployment
 
@@ -126,7 +130,9 @@ signing, matching source archives and immutable versions.
 
 ## Independent direction, retained history
 
-This repository is still technically a GitHub fork. The active tree now contains
+`dragoshont/vemm` is the independent canonical repository, not a GitHub fork.
+The archived predecessor remains a fork with its history and releases intact.
+The active tree contains
 the Samsung product, tests, app-specific tools and evidence, not the unused LG
 Rust/C implementation, native builds or upstream website. **History, release
 assets and licensing obligations are preserved**, with immutable native source
@@ -139,8 +145,8 @@ Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vem
 Historical repository URLs, package IDs, author continuity, tags and release
 filenames are preserved as history. Vemm deliberately uses a new package,
 storage, artifact, tag and signing identity. This source work does not deploy
-either app. Repository population at `dragoshont/vemm`, fork handling and final
-legal clearance remain separate operations.
+either app. The canonical source is populated; final legal clearance and any
+future release remain separate decisions.
 
 ## Privacy, licensing and attribution
 

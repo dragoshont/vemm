@@ -4,6 +4,14 @@ Approved scope, 2026-10-14: plan, implement and squash-merge the Samsung-only
 active tree into this repository's remote `main`. This replaces the earlier
 instruction to keep an unused LG implementation in the active tree.
 
+This is a historical plan for the predecessor repository, not current release
+instructions. The canonical `dragoshont/vemm` is now populated and independent;
+`dragoshont/plx-native` is archived. Its historical package/tag/author
+compatibility requirements below do not apply to the separate Vemm app.
+Use [the current transition contract](samsung-project-transition.md) for Vemm
+releases and [the migration record](vemm/07-repository-and-release-migration.md)
+for repository status.
+
 The later Vemm working-brand transition supersedes this plan's temporary
 `Media for Tizen` display-label decision. Its provenance and
 historical-release preservation constraints remain in force.

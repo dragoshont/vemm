@@ -1,14 +1,14 @@
-# Samsung Tizen TV: getting started (for beginners)
+# Vemm Samsung Tizen: getting started (for developers)
 
 Part of the [Samsung feasibility study](samsung-tizen-feasibility.md). This is a plain-language
-checklist for installing the separate experimental Samsung client and preparing a named-model
+checklist for building Vemm and preparing a named-model
 [test](samsung-tizen-poc.md). **Developer installation observed** (2026-10-09/11, macOS, a 2017 set):
 Tizen Studio 6.1 installation, Tizen CLI 2.5.25, SDB 4.2.36, Samsung signing, Developer Mode,
-hello/probe apps and the current Plex client installed and launched. The gotchas
+hello/probe apps and the historical Samsung client installed and launched. The gotchas
 below are the ones actually hit. Where a page changes, Samsung's wins. Ask the owner before installing anything.
 
-**Only want to install Plx?** Follow the [Samsung installation guide](install-samsung.md): one
-toolkit command installs a released `.wgt`. This page is for building and developing the client.
+**Looking for a Vemm download?** Read the [installation status](install-samsung.md):
+no Vemm package has been released. This page is for building and developing the client.
 
 ## What you are building
 
@@ -22,9 +22,10 @@ route needs a computer and a Samsung developer certificate containing **your** T
 An LG `.ipk` or Homebrew Channel package cannot install on Samsung. If you only want a supported
 one-click app today, this experimental build is not that yet.
 
-## Installing Plx
+## Historical package installation
 
-Use the [Samsung installation guide](install-samsung.md). It installs a released package with
+Use the [historical Plx guide](install-samsung-historical.md) only for the old
+0.2.7 package. It is not Vemm. That guide installs a released package with
 `python3 tools/tizen.py` from [tizen-tv-builder](https://github.com/dragoshont/tizen-tv-builder):
 `scan`, `cert add` for your TV's DUID (one Samsung sign-in) and `install`. You do not need Tizen
 Studio's IDE, Certificate Manager or the `tizen` command for that route. The sections below explain
@@ -104,7 +105,7 @@ Gotchas observed on a 2017 set from a Mac (2026-10-09):
 If this does not work, stop device testing and fix it first. Host/mock Plex development can
 continue independently; it does not establish TV compatibility.
 
-## 6. Build the current Plex application without touching a TV
+## 6. Build Vemm without touching a TV
 
 From this repository, with Node/npm and Samsung's Tizen CLI already installed:
 
@@ -151,7 +152,7 @@ Complete sections 1–4 first, or let the toolkit's `cert add` create the certif
    saved automatically in unencrypted TV storage; Settings can turn this off and sign-out
    deletes it.
 
-Plx has been installed and used on a 2017 UE55MU6172 (Tizen 3.0), two 2019 UE43RU7092 sets
+The historical Plx client has been installed and used on a 2017 UE55MU6172 (Tizen 3.0), two 2019 UE43RU7092 sets
 (Tizen 5.0), a QE65Q80C and a 2025 QE55QN70F. That is not a support list for other models:
 each new TV needs its DUID in your certificate, and codec, remote and standby behaviour can
 differ by model year.

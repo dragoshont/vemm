@@ -1,6 +1,9 @@
 # Vemm current-state audit
 
 **Audit baseline:** `7b82c0fe` (`origin/main` on 2026-10-14)
+This is the original source-transition audit, not the current integration
+status. The source now lives in the populated canonical `dragoshont/vemm`;
+see [the migration record](07-repository-and-release-migration.md).
 **Evidence rule:** statements marked **Observed** come from the current tree,
 tests, Git metadata, or published release metadata. **Proposed** statements are
 transition decisions, not claims about already-completed behavior.

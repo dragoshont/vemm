@@ -82,4 +82,18 @@ var audit = read("docs/vemm/08-legacy-identity-audit.md");
 assert(audit.includes("separate install"));
 assert(audit.includes("dragoshont/vemm"));
 
+var installGuide = read("docs/install-samsung.md");
+assert(installGuide.startsWith("# Install Vemm for Samsung Tizen"),
+    "Current support/release install links must lead to Vemm, not a historical Plx package");
+assert(installGuide.includes("No Vemm package has been released"));
+assert(installGuide.includes("VemmTvApp0.Vemm"));
+assert(!installGuide.includes("/releases/download/samsung-v"),
+    "The current install guide must not offer an old package as Vemm");
+assert(installGuide.includes("install-samsung-historical.md"),
+    "Historical users must retain an explicitly separate installation guide");
+assert(read("docs/install-samsung-historical.md").includes("/samsung-v0.2.7/Plx-0.2.7.wgt"));
+assert(!read("README.md").includes("This repository is still technically a GitHub fork"));
+assert(appSources.includes("https://server.example.invalid:32400"));
+assert(!appSources.includes("192.168.1.10"), "Public server examples must use synthetic .invalid hosts");
+
 console.log("Vemm separate-install technical identity and classified legacy audit: passed");

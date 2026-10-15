@@ -19,8 +19,13 @@ Substantive commits:
   restrict runtime localization to current Vemm copy and remove the final
   active Plx temporary prefix.
 
-The branch remains unmerged. Published releases, remote identity, public
-repository settings, signing material and devices were not mutated.
+This is the historical implementation report from the original review branch.
+The source was subsequently integrated into the canonical
+[`dragoshont/vemm`](https://github.com/dragoshont/vemm); the Blue Calm follow-up
+is merged at `2fc024c8d411f4f70cc3baa72d329afb233318a6`.
+The original source work did not mutate published releases, remote identity,
+public settings, signing material or devices. Later repository migration is
+recorded in [the current migration record](07-repository-and-release-migration.md).
 
 ## Completed
 
@@ -85,9 +90,9 @@ repository settings, signing material and devices were not mutated.
 
 ## Deferred and externally held
 
-- Trademark/domain work, final legal clearance and repository naming.
-- Population of `dragoshont/vemm`, old fork disposition, ownership transfer or
-  public settings changes.
+- Trademark/domain work and final legal clearance.
+- Any future ownership transfer, old-fork disposition or public settings changes.
+  Canonical population and predecessor archival were subsequently completed.
 - SDK installation/upgrades, certificate/profile access, signing, WGT
   publication and release creation.
 - Device connection, first install/update/launch, Plex account/server operations,
@@ -162,13 +167,13 @@ Resolved intermediate failures:
 
 ## Outstanding decisions
 
-1. Human review of the broad brand/architecture PR.
+1. Human approval of any first Vemm release; original source integration is complete.
 2. Whether Vemm receives final legal clearance.
 3. Whether/when to authorize a first signed Vemm package and establish its
    retained Vemm author.
 4. Exact named-model acceptance scope before any support or release claim.
-5. Population of `dragoshont/vemm` and preservation-safe disposition of the old
-   fork/repository.
+5. Preserve the populated canonical repository and archived predecessor; any
+   future provider operation needs a separate preservation review.
 
 ## Changed-path inventory
 

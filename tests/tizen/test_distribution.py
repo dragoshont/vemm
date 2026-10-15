@@ -58,7 +58,14 @@ class DistributionTests(unittest.TestCase):
                 (product / name).write_bytes((ROOT / "samsung/Vemm" / name).read_bytes())
             for name in ("js", "css", "brand"):
                 (product / name).mkdir()
+            (product / "js/product.js").write_text('"use strict";')
+            (product / "css/style.css").write_text("body {}")
             (product / "brand/vemm-mark.svg").write_text("<svg/>")
+            for directory in ("js", "css", "brand"):
+                for name in ("synthetic-private.p12", "author.pw", "private.txt", "old.wgt", "source.map"):
+                    (product / directory / name).write_text("synthetic canary, never real credentials")
+                (product / directory / ".settings").mkdir()
+                (product / directory / ".settings/account.txt").write_text("synthetic-account")
             (product / "private.txt").write_text("synthetic-private-value")
             (product / ".settings").mkdir()
             (product / ".settings/account.txt").write_text("synthetic-account")
@@ -69,6 +76,9 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(files, {"config.xml", "index.html", "main.js", "icon.png", "js", "css", "brand",
                                      "LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md",
                                      "TRADEMARKS.md", "licenses"})
+            for directory, expected in (("js", {"product.js"}), ("css", {"style.css"}),
+                                        ("brand", {"vemm-mark.svg"})):
+                self.assertEqual({p.name for p in (Path(tmp) / "stage" / directory).iterdir()}, expected)
 
     def test_staging_licenses_are_an_explicit_source_inventory(self):
         expected = {
