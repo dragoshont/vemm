@@ -90,8 +90,10 @@ panel output, physical remote behavior or the current candidate.
   and must not absorb GPL product implementation.
 - Published tags, releases, assets, checksums, source links and display names
   are immutable historical records.
-- A future update must keep package/application IDs, author continuity and
-  saved settings unless a separately approved migration proves otherwise.
+- Historical Plx updates must preserve that app's package/application IDs,
+  author and saved settings. Vemm is a separate install; later Vemm updates
+  must preserve Vemm's own identity, author and storage unless a separately
+  approved migration proves otherwise.
 - Ordinary PR CI performs host/source checks only. Signing, device operations
   and publication remain tag-gated or local-author operations with explicit
   authorization.
