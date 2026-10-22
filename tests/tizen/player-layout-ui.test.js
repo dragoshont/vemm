@@ -13,6 +13,7 @@ var item = {
     title: "A Synthetic Journey",
     grandparentTitle: "Synthetic Show",
     grandparentThumb: "/library/metadata/show/thumb",
+    grandparentRatingKey: "synthetic-show",
     parentTitle: "Season 2",
     parentIndex: 2,
     index: 4,
@@ -30,10 +31,10 @@ var item = {
     Media: [{
         container: "mp4", videoCodec: "h264", audioCodec: "aac", width: 1920, height: 1080,
         Part: [{ id: 1, key: "/library/parts/synthetic/file", Stream: [
-            { id: 11, streamType: 2, language: "English", languageCode: "eng", displayTitle: "English — Stereo", codec: "aac" },
+            { id: 11, streamType: 2, language: "English", languageCode: "eng", displayTitle: "English — Stereo", codec: "aac", selected: true },
             { id: 12, streamType: 2, language: "English", languageCode: "eng", displayTitle: "English — Commentary", codec: "aac" },
             { id: 13, streamType: 2, language: "French", languageCode: "fra", displayTitle: "French", codec: "aac" },
-            { id: 21, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "srt" }
+            { id: 21, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "srt", selected: true }
         ] }]
     }]
 };
@@ -47,65 +48,135 @@ function playerFixture(trackOptions) {
     var callbacks = {};
     var adapters = 0;
     var seeks = [];
+    var heldSeeks = [];
     var starts = 0;
+    var stops = 0;
+    var pending = {};
     var plays = 0;
+    var pauses = 0;
     var playerSettings = [];
+    var saved = [];
     var timers = [];
     var timersNext = 1;
+    var clock = { now: 0, position: 45000 };
+    var reconnectTimers = [];
+    var sessionOptions = [];
+    if (trackOptions && trackOptions.memory) {
+        window.localStorage.setItem("vemm-tizen-track-memory", JSON.stringify(trackOptions.memory));
+    }
     window.fetch = function () { assert.fail("The player preview must not use the network"); };
     var i18nContext = {};
     vm.runInNewContext(fs.readFileSync(path.join(root, "samsung/Vemm/js/i18n.js"), "utf8"), i18nContext);
     window.VemmI18n = i18nContext.VemmI18n;
     window.VemmPreferences = {
-        load: function () { return { quality: "original", nextEpisode: "countdown", language: "en",
+        load: function () { return Object.assign({ quality: "original", nextEpisode: "countdown", language: "en",
             skipInterval: 10, subtitleDelayMs: trackOptions && trackOptions.initialDelay || 0,
             subtitleSize: "medium", subtitlePosition: "low",
-            subtitleColor: "white", subtitleBackground: "off", directPlay: "auto" }; },
-        save: function () {}
+            subtitleColor: "white", subtitleBackground: "off", directPlay: "auto", minBuffer: 1,
+            skipIntro: "button", skipCredits: "button" }, trackOptions && trackOptions.preferences); },
+        save: function (storage, value) { saved.push(JSON.parse(JSON.stringify(value))); },
+        bufferSizes: [0.5, 1, 2, 4, 8, 15]
     };
+    var memory = { free: 572 };
+    if (trackOptions && trackOptions.device) {
+        window.VemmDeviceStats = require("../../samsung/Vemm/js/device-stats.js");
+        window.tizen = { systeminfo: {
+            getTotalMemory: function () { return 1869 * 1048576; },
+            getAvailableMemory: function () { return memory.free * 1048576; },
+            getPropertyValue: function (name, ok) { ok({ units: [{ type: "INTERNAL", capacity: 4544 * 1048576, availableCapacity: 2236 * 1048576 }] }); }
+        } };
+    }
     window.VemmSkipMarkers = require("../../samsung/Vemm/js/skip-markers.js");
+    window.VemmTrackMemory = require("../../samsung/Vemm/js/track-memory.js");
+    // The reconnect wait on the fixture's own clock: its tries are the entries of reconnectTimers.
+    window.VemmReconnect = { create: function (options) {
+        options.now = function () { return clock.now; };
+        options.setTimeout = function (run, delay) { reconnectTimers.push({ run: run, delay: delay }); return reconnectTimers.length; };
+        options.clearTimeout = function (id) { if (reconnectTimers[id - 1]) { reconnectTimers[id - 1].run = null; } };
+        return require("../../samsung/Vemm/js/reconnect.js").create(options);
+    } };
+    window.eval(fs.readFileSync(path.join(root, "samsung/Vemm/js/ends-at.js"), "utf8"));
+    window.eval(fs.readFileSync(path.join(root, "samsung/Vemm/js/preview-thumbs.js"), "utf8"));
+    var awake = [];
+    window.VemmScreensaver = { keepAwake: function (on) { awake.push(on); } };
+    var blobUrls = [];
+    window.URL.createObjectURL = function () { blobUrls.push("blob:synthetic/" + blobUrls.length); return blobUrls[blobUrls.length - 1]; };
+    window.URL.revokeObjectURL = function () {};
     window.VemmSubtitles = require("../../samsung/Vemm/js/subtitles.js");
+    window.PlexApi = { ratingBadges: function () { return []; } };
     window.VemmAvplay = { create: function (options) { adapters += 1; callbacks.avplay = options; return {}; } };
     window.VemmPlayback = {
         create: function (options) {
             playerSettings.push(options.settings);
+            sessionOptions.push(options);
             var state = "idle";
             return {
                 start: function () {
                     starts += 1;
+                    var scripted = trackOptions && trackOptions.startErrors && trackOptions.startErrors[starts - 1];
+                    if (scripted) {
+                        var failure = new Error(scripted.message || "Synthetic start failure");
+                        Object.keys(scripted).forEach(function (field) { failure[field] = scripted[field]; });
+                        return Promise.reject(failure);
+                    }
                     if (trackOptions && trackOptions.failFirstStart && starts === 1) {
                         return Promise.reject(new Error("Synthetic stream negotiation failure"));
+                    }
+                    if (trackOptions && trackOptions.pendingStart) {
+                        state = "preparing";
+                        return new Promise(function (resolve) { pending.start = function () { state = "playing"; resolve(); }; });
                     }
                     state = "playing";
                     return Promise.resolve();
                 },
-                snapshot: function () { return { state: state, position: 45000, duration: item.duration }; },
-                pause: function () { state = "paused"; return Promise.resolve(); },
+                snapshot: function () { return { state: state, position: clock.position, duration: item.duration }; },
+                pause: function () { pauses += 1; state = "paused"; return Promise.resolve(); },
                 play: function () { plays += 1; state = "playing"; return Promise.resolve(); },
-                seek: function (position) { seeks.push(position); return Promise.resolve(position); },
-                stop: function () { state = "idle"; return Promise.resolve(item); },
+                seek: function (position) {
+                    seeks.push(position);
+                    if (!(trackOptions && trackOptions.holdSeeks)) { return Promise.resolve(position); }
+                    // Like the AVPlay adapter: one seek at a time, settled by the test.
+                    if (heldSeeks.some(function (held) { return !held.settled; })) {
+                        return Promise.reject(new Error("A seek is already in progress. Wait before seeking again."));
+                    }
+                    return new Promise(function (resolve, reject) {
+                        var held = { position: position, settled: false };
+                        held.resolve = function (landed) { held.settled = true; resolve(landed); };
+                        held.reject = function (failure) { held.settled = true; reject(failure); };
+                        heldSeeks.push(held);
+                    });
+                },
+                stop: function () { stops += 1; state = "idle"; return Promise.resolve(item); },
+                buffer: function () { return trackOptions && trackOptions.buffer || null; },
                 selection: function () { return { audioId: 11, subtitleId: 21 }; },
                 part: function () { return item.Media[0].Part[0]; },
                 quality: function () { return { source: item.Media[0], stream: item.Media[0], mode: "direct", limit: "original" }; },
-                tracks: function () { return []; },
+                tracks: function () { return trackOptions && trackOptions.nativeTracks ? [{ type: "AUDIO", index: 0 }] : []; },
                 setSubtitleOffset: function (offset) { callbacks.subtitleOffset = offset; }
             };
         }
     };
     var client = {
+        identity: function () { return trackOptions && trackOptions.identity ? trackOptions.identity() : Promise.resolve({}); },
         nextEpisode: function () {
             return Promise.resolve({ ratingKey: "synthetic-next", type: "episode", title: "Next Synthetic Episode",
                 grandparentTitle: "Synthetic Show", parentIndex: 2, index: 5,
                 thumb: "/library/metadata/next/thumb" });
         },
         getMetadata: function () { return Promise.resolve({ ratingKey: "synthetic-next", type: "episode", title: "Next Synthetic Episode" }); },
-        image: function () { return Promise.reject(new Error("No image request is permitted in this fixture")); }
+        image: function () { return Promise.reject(new Error("No image request is permitted in this fixture")); },
+        previewIndex: function (partId) {
+            assert.strictEqual(partId, 1);
+            return Promise.resolve(trackOptions && trackOptions.noPreview ? null :
+                require("./fixtures/bif.js")([[0, 4], [10, 4], [20, 4], [30, 4], [40, 4], [50, 4]], 1000));
+        }
     };
     var source = fs.readFileSync(path.join(root, "samsung/Vemm/main.js"), "utf8");
     var boot = source.lastIndexOf('    addConnectForm("");');
     assert(boot !== -1, "The app boot boundary remains available to isolated UI tests");
+    var playing = trackOptions && trackOptions.markers ? Object.assign({}, item, { Marker: trackOptions.markers }) : item;
     source = source.slice(0, boot) +
-        '    startPlayer(' + JSON.stringify(item) + ', window.__syntheticClient, 45000, 0, ' +
+        '    startPlayer(' + JSON.stringify(playing) + ', window.__syntheticClient, 45000, 0, ' +
         JSON.stringify(trackOptions || null) + '); }());';
     window.__syntheticClient = client;
     vm.runInNewContext(source, {
@@ -146,12 +217,33 @@ function playerFixture(trackOptions) {
         window.document.dispatchEvent(event);
     }
     async function settle() { for (var i = 0; i < 8; i += 1) { await Promise.resolve(); } }
+    // Runs the pending timers of one delay (the 0.4 s seek wait), as the clock would.
+    function runTimers(delay) {
+        timers.filter(function (timer) { return timer.delay === delay && timer.callback; }).forEach(function (timer) {
+            var callback = timer.callback;
+            if (!timer.interval) { timer.callback = null; }
+            callback();
+        });
+    }
+    // Runs the next pending reconnect try, moving the clock by its pause. Null when none waits.
+    function nextReconnect() {
+        var next = reconnectTimers.filter(function (timer) { return timer.run; })[0];
+        if (!next) { return null; }
+        var run = next.run;
+        next.run = null;
+        clock.now += next.delay;
+        run();
+        return next.delay;
+    }
     return {
-        dom: dom, window: window, document: window.document, callbacks: callbacks, seeks: seeks,
-        starts: function () { return starts; }, plays: function () { return plays; },
+        sessionOptions: sessionOptions, clock: clock, nextReconnect: nextReconnect,
+        dom: dom, window: window, document: window.document, callbacks: callbacks, seeks: seeks, heldSeeks: heldSeeks,
+        starts: function () { return starts; }, plays: function () { return plays; }, pauses: function () { return pauses; },
+        stops: function () { return stops; }, awake: awake, blobUrls: blobUrls,
+        finishStart: function () { pending.start(); },
         adapters: function () { return adapters; },
-        playerSettings: playerSettings, timers: timers,
-        findButton: findButton, click: click, key: key, settle: settle
+        playerSettings: playerSettings, timers: timers, saved: saved, memory: memory,
+        findButton: findButton, click: click, key: key, settle: settle, runTimers: runTimers
     };
 }
 
@@ -187,6 +279,180 @@ async function hudAndPanels() {
     } finally { app.dom.window.close(); }
 }
 
+function rowLabels(node) {
+    return Array.prototype.map.call(node.querySelectorAll("button"), function (control) { return control.textContent; });
+}
+
+async function playerControlsShareOneRow() {
+    var app = playerFixture();
+    try {
+        var doc = app.document;
+        assert(!doc.querySelector(".player-tabs"), "Info and Chapters no longer have their own row");
+        var row = doc.querySelector(".playback-controls");
+        var groups = row.children;
+        assert.strictEqual(groups.length, 3, "The control row has three groups");
+        assert(/playback-left/.test(groups[0].className) && /playback-center/.test(groups[1].className) &&
+            /playback-right/.test(groups[2].className), "Groups are left, center, right in order");
+        assert.deepStrictEqual(rowLabels(groups[0]), ["Subtitles", "Audio"]);
+        assert.deepStrictEqual(rowLabels(groups[1]), ["Back 10 seconds", "Pause / Play", "Forward 10 seconds", "Chapters"],
+            "Chapters sit right of Forward in the center group");
+        assert.deepStrictEqual(rowLabels(groups[2]), ["More", "Info"], "Info sits right beside More");
+
+        var info = app.findButton("Info");
+        var more = app.findButton("More");
+        var chapters = app.findButton("Chapters");
+        var forward = app.findButton("Forward 10 seconds");
+        forward.focus();
+        app.key(39);
+        assert.strictEqual(doc.activeElement, chapters, "Right from Forward reaches Chapters");
+        app.key(39);
+        assert.strictEqual(doc.activeElement, more, "Right from Chapters crosses into the right group");
+        app.key(39);
+        assert.strictEqual(doc.activeElement, info, "Right from More reaches Info");
+        app.key(37);
+        assert.strictEqual(doc.activeElement, more, "Left from Info returns to More");
+        app.key(37);
+        assert.strictEqual(doc.activeElement, chapters, "Left from More crosses back to Chapters");
+        app.findButton("Audio").focus();
+        app.key(39);
+        assert.strictEqual(doc.activeElement, app.findButton("Back 10 seconds"), "Right from Audio crosses into the center group");
+        app.key(37);
+        assert.strictEqual(doc.activeElement, app.findButton("Audio"), "Left from Back crosses to Audio");
+        more.focus();
+        app.key(38);
+        assert.strictEqual(doc.activeElement.id, "playback-progress", "Up from the row focuses the timeline");
+        app.key(40);
+        assert.strictEqual(doc.activeElement, more, "Down from the timeline returns to the row");
+    } finally { app.dom.window.close(); }
+}
+
+async function skipButtonStartsTheRightGroup() {
+    var app = playerFixture();
+    try {
+        app.callbacks.avplay.onEvent({ type: "time", position: 56000, duration: item.duration });
+        await app.settle();
+        var right = app.document.querySelector(".playback-right");
+        var skip = right.querySelector(".skip-marker");
+        assert(skip, "The skip button joins the right group");
+        assert.strictEqual(right.querySelector("button"), skip, "It comes before More");
+        assert.deepStrictEqual(rowLabels(right).slice(1), ["More", "Info"]);
+    } finally { app.dom.window.close(); }
+}
+
+async function downClosesTheChapterStrip() {
+    var app = playerFixture();
+    try {
+        var doc = app.document;
+        app.click("Chapters");
+        assert(doc.getElementById("chapter-strip"), "The strip opens");
+        assert(doc.getElementById("chapter-strip").contains(doc.activeElement), "Focus enters the strip");
+        app.key(40);
+        assert(!doc.getElementById("chapter-strip"), "Down closes the strip");
+        assert.strictEqual(doc.activeElement, app.findButton("Chapters"), "Focus returns to the Chapters button");
+    } finally { app.dom.window.close(); }
+}
+
+async function trackMenusAreIndependentAndOnTheLeft() {
+    var app = playerFixture();
+    try {
+        var doc = app.document;
+        app.click("More");
+        var more = doc.getElementById("player-menu");
+        assert(!/Audio|Subtitles/.test(rowLabels(more).join("|")), "More has no track entries");
+        app.key(27);
+        assert(!doc.getElementById("player-menu"), "Back closes More");
+
+        ["Subtitles", "Audio"].forEach(function (name) {
+            var opener = app.findButton(name, doc.querySelector(".playback-left"));
+            opener.click();
+            var menu = doc.getElementById("player-menu");
+            assert(/player-menu-left/.test(menu.className), name + " menu opens on the left");
+            var labels = rowLabels(menu);
+            assert(labels.indexOf("Playback options") === -1, name + " has no Playback options link");
+            assert(labels.indexOf("Audio") === -1 && labels.indexOf("Subtitles") === -1, name + " does not link to the other track menu");
+            app.key(27);
+            assert(!doc.getElementById("player-menu"), "Back closes the " + name + " menu");
+            assert.strictEqual(doc.activeElement, opener, "Back returns focus to " + name);
+        });
+    } finally { app.dom.window.close(); }
+}
+
+async function subItemsAreMarked() {
+    var app = playerFixture();
+    try {
+        app.click("Audio");
+        var english = app.findButton("English");
+        var other = app.findButton("Other languages");
+        assert(/menu-has-sub/.test(english.className), "A language that expands has the indicator class");
+        assert(/menu-has-sub/.test(other.className), "Other languages has the indicator class");
+        assert(!/menu-sub-item/.test(english.className), "A top-level language is a primary row");
+        english.click();
+        var track = app.findButton("English — Stereo");
+        assert(/menu-sub-item/.test(track.className), "Tracks inside a language are indented sub-items");
+        app.key(10009);
+        assert(app.findButton("English"), "Back from a language's tracks returns to the languages");
+        app.click("Other languages");
+        var french = app.findButton("French");
+        assert(/menu-sub-item/.test(french.className) && /menu-has-sub/.test(french.className),
+            "Languages under Other languages are sub-items that also expand");
+    } finally { app.dom.window.close(); }
+}
+
+async function deviceTracksAreASubList() {
+    var app = playerFixture({ nativeTracks: true });
+    try {
+        app.click("Audio");
+        var device = app.findButton("Device tracks");
+        assert(/menu-has-sub/.test(device.className), "Device tracks has the indicator class");
+        var nested = app.document.querySelector(".native-tracks button");
+        assert(nested && /menu-sub-item/.test(nested.className), "Device track entries are sub-items");
+    } finally { app.dom.window.close(); }
+}
+
+async function rapidPressesMakeOneSeek() {
+    var app = playerFixture({ holdSeeks: true });
+    try {
+        await app.settle();
+        app.click("Back 10 seconds");
+        app.click("Back 10 seconds");
+        app.click("Back 10 seconds");
+        assert.deepStrictEqual(app.seeks, [], "Nothing is sent while the presses keep coming");
+        assert.strictEqual(app.document.querySelector(".playback-elapsed").textContent, "0:15", "Each press moves the timeline at once");
+        app.runTimers(400);
+        assert.deepStrictEqual(app.seeks, [15000], "0.4 s after the last press, one seek goes to the sum of the presses");
+        app.click("Back 10 seconds");
+        app.click("Back 10 seconds");
+        app.runTimers(400);
+        await app.settle();
+        assert(!app.document.getElementById("playback-error"), "Presses while a seek lands must not raise a playback problem");
+        assert.deepStrictEqual(app.seeks, [15000], "AVPlay cannot take a second seek while one lands");
+        app.heldSeeks[0].resolve(15000);
+        await app.settle();
+        assert.deepStrictEqual(app.seeks, [15000, 0], "Only the latest target follows, once the first has landed");
+        app.heldSeeks[1].resolve(0);
+        await app.settle();
+        assert(!app.document.getElementById("playback-error"), "Queued seeks finish without a playback problem");
+    } finally { app.dom.window.close(); }
+}
+
+async function timedOutSeekClosesItsProblemWhenItLands() {
+    var app = playerFixture({ holdSeeks: true });
+    try {
+        await app.settle();
+        app.click("Back 10 seconds");
+        app.runTimers(400);
+        var timeout = new Error("Samsung playback failed during seek-timeout. Stop and retry this title.");
+        timeout.code = "avplay-seek-timeout";
+        app.heldSeeks[0].reject(timeout);
+        await app.settle();
+        assert(app.document.getElementById("playback-error"), "A timed-out seek raises the playback problem");
+        app.callbacks.avplay.onEvent({ type: "time", position: 45500, duration: item.duration });
+        assert(app.document.getElementById("playback-error"), "Ordinary playback at the old spot keeps the problem open");
+        app.callbacks.avplay.onEvent({ type: "time", position: 35000, duration: item.duration });
+        assert(!app.document.getElementById("playback-error"), "The problem closes once the late seek lands");
+    } finally { app.dom.window.close(); }
+}
+
 async function upNextAndTracks() {
     var app = playerFixture();
     try {
@@ -203,8 +469,8 @@ async function upNextAndTracks() {
         assert(app.findButton("Subtitles off"), "Subtitles off is available from the menu");
         app.click("English");
         assert(app.findButton("English — Stereo"), "A language step lists tracks within that language");
-        assert(app.findButton("Back to languages"), "The track language step has an explicit return");
-        app.click("Back to languages");
+        assert(!app.findButton("Back to languages") && !app.findButton("Close menu"), "Back is the remote's job");
+        app.key(10009);
         app.click("Other languages");
         assert(app.findButton("French"), "Other languages opens the remaining language choices");
         app.click("French");
@@ -338,13 +604,676 @@ async function failedPlayerRecoveryRestartsThePipeline() {
     } finally { app.dom.window.close(); }
 }
 
+async function bufferingShowsPercent() {
+    var app = playerFixture();
+    try {
+        var status = app.document.getElementById("status");
+        var send = function (type, detail) {
+            app.callbacks.avplay.onEvent({ type: type, detail: detail, position: 45000, duration: item.duration });
+        };
+        var ring = function () { return app.document.querySelector(".buffering-ring"); };
+        var percent = function () { return ring().querySelector(".buffering-percent").textContent; };
+        var spinning = function () { return !!ring() && /buffering-spinner/.test(ring().className) && percent() === ""; };
+        var time = function (position) {
+            app.callbacks.avplay.onEvent({ type: "time", position: position, duration: item.duration });
+        };
+        assert(spinning(), "Playback starts behind a spinner, not a percent");
+        assert.strictEqual(status.textContent, "", "No status bar while Plex prepares the stream");
+        assert.strictEqual(app.document.querySelector(".playback-elapsed").textContent, "0:45",
+            "The clock shows where playback resumes, not a preparing message");
+        // AVPlay fills once while preparing and again after the resume seek: neither shows a percent.
+        send("buffering", true);
+        send("buffer-progress", 34);
+        assert(spinning(), "A start-up fill does not jump the ring to a percent");
+        send("buffering", false);
+        assert(spinning(), "The spinner stays through the resume seek");
+        await app.settle();
+        time(45000);
+        assert(spinning(), "Started but not moving yet");
+        time(45500);
+        assert(!ring(), "The spinner goes once the picture moves");
+        send("buffering", true);
+        assert(ring(), "Buffering shows the centered ring");
+        assert(status.textContent.indexOf("Buffering") === -1, "The status bar does not repeat the buffering text");
+        send("buffer-progress", 42);
+        assert(spinning(), "The first 3 s of a wait only spin, with no percent");
+        app.runTimers(3000);
+        assert.strictEqual(percent(), "42%", "A longer wait shows AVPlay's percent");
+        send("buffer-progress", 50);
+        assert.strictEqual(percent(), "50%");
+        send("buffer-progress", 250);
+        assert.strictEqual(percent(), "100%", "The percent is clamped to 100");
+        send("buffer-progress", -3);
+        assert.strictEqual(percent(), "0%", "The percent is clamped to 0");
+        var hud = app.document.querySelector(".player-hud");
+        hud.hidden = true;
+        assert(ring() && !hud.contains(ring()), "The ring shows whether or not the HUD is visible");
+        send("buffering", false);
+        assert(!ring(), "The ring goes away when buffering completes");
+        send("buffer-progress", 60);
+        assert(!ring(), "A late progress event after completion shows nothing");
+        send("buffering", true);
+        app.runTimers(3000);
+        assert.strictEqual(percent(), "0%", "A wait with no progress yet shows 0% after 3 s");
+        send("buffering", false);
+        send("buffering", true);
+        send("buffer-progress", 80);
+        assert(spinning(), "Every new wait spins for its own first 3 s");
+        send("buffering", false);
+    } finally { app.dom.window.close(); }
+}
+
+async function bufferSizeIsChosenFromMoreAndRestartsTheStream() {
+    var app = playerFixture();
+    try {
+        await app.settle();
+        assert.strictEqual(app.playerSettings[0].minBuffer, 1, "1 s is the default minimum buffer");
+        app.click("More");
+        var entry = app.click("Minimum buffer: 1 s");
+        var menu = app.document.getElementById("player-menu");
+        assert.deepStrictEqual(rowLabels(menu), ["0.5 s", "1 s", "2 s", "4 s", "8 s", "15 s"],
+            "The choices, shortest first, with no close or return buttons");
+        assert(!menu.querySelector(".help-text"), "No description and, at the default, no warning");
+        assert.strictEqual(app.document.activeElement, app.findButton("1 s"), "Focus starts on the chosen value");
+        app.key(10009);
+        assert.strictEqual(app.document.querySelector("#player-menu h2").textContent, "Playback options", "Back returns to More");
+        assert.strictEqual(app.document.activeElement.textContent, entry.textContent, "on the entry the submenu came from");
+        app.click("Minimum buffer: 1 s");
+        app.click("0.5 s");
+        await app.settle();
+        assert.strictEqual(app.saved[app.saved.length - 1].minBuffer, 0.5, "The choice is saved");
+        assert.strictEqual(app.starts(), 2, "The stream restarts so the choice applies now");
+        assert.strictEqual(app.playerSettings[1].minBuffer, 0.5, "The new pipeline receives the minimum buffer");
+        assert.strictEqual(app.playerSettings[1].offset, 45000, "The restart resumes at the current position");
+        app.click("More");
+        entry = app.click("Minimum buffer: 0.5 s");
+        assert(entry.textContent.length < 24, "The More entry stays short enough for one line");
+        assert(!app.document.querySelector("#player-menu .help-text"), "0.5 s is an ordinary choice, with no warning");
+        app.key(10009);
+        app.click("Minimum buffer: 0.5 s");
+        app.click("4 s");
+        await app.settle();
+        app.click("More");
+        app.click("Minimum buffer: 4 s");
+        assert.strictEqual(app.document.querySelector("#player-menu .help-text").textContent, "Every start and seek waits this long.",
+            "A longer wait than the default carries a one-line note");
+    } finally { app.dom.window.close(); }
+}
+
+async function moreMenuOrder() {
+    var app = playerFixture();
+    try {
+        await app.settle();
+        app.click("More");
+        assert.deepStrictEqual(rowLabels(app.document.getElementById("player-menu")), ["Quality and version", "Minimum buffer: 1 s",
+            "Intro and credits", "Stop and return to details", "Stats for nerds"],
+            "Quality first, stats last; no Markers, Info (the HUD has its own) or Close menu");
+        app.key(10009);
+        assert(!app.document.getElementById("player-menu"), "Back closes More");
+        assert.strictEqual(app.document.activeElement, app.findButton("More"), "and returns to the More button");
+    } finally { app.dom.window.close(); }
+}
+
+async function seeksShowTheTargetAndNoStatus() {
+    var app = playerFixture({ holdSeeks: true, pendingStart: true });
+    try {
+        var status = app.document.getElementById("status");
+        app.click("Back 10 seconds");
+        app.runTimers(400);
+        assert.deepStrictEqual(app.seeks, [], "No seek before playback has started");
+        assert(!app.document.getElementById("playback-error"), "An early press is not a playback problem");
+        app.finishStart();
+        await app.settle();
+        app.callbacks.avplay.onEvent({ type: "time", position: 45500, duration: item.duration });
+        var knob = app.document.querySelector(".playback-knob-track");
+        assert.strictEqual(knob.style.transform, "translateX(" + 45500 / 600 + "%)", "The scrubber follows the playhead");
+        assert(/scaleX\(0\.758/.test(app.document.querySelector(".playback-progress-fill").style.transform),
+            "The fill scales instead of changing width");
+        app.click("Back 10 seconds");
+        assert.strictEqual(app.document.querySelector(".playback-elapsed").textContent, "0:35", "The clock jumps to the target at once");
+        app.runTimers(400);
+        assert(/buffering-spinner/.test(app.document.querySelector(".buffering-ring").className), "A spinner shows while the seek lands");
+        app.callbacks.avplay.onEvent({ type: "time", position: 45600, duration: item.duration });
+        assert.strictEqual(app.document.querySelector(".playback-elapsed").textContent, "0:35",
+            "Playback ticks during the seek do not pull the timeline back");
+        app.heldSeeks[0].resolve(34000);
+        await app.settle();
+        assert.strictEqual(app.document.querySelector(".playback-elapsed").textContent, "0:34", "The clock shows where it landed");
+        assert(!app.document.querySelector(".buffering-ring"), "The spinner goes when the seek lands");
+        assert.strictEqual(status.textContent, "", "No 'Seek landed' status bar");
+    } finally { app.dom.window.close(); }
+}
+
+// AVPlay cannot pause before the picture moves (it throws right after play()), so Pause / Play during a start or a
+// seek only records the choice, which applies once the picture moves.
+async function pauseWaitsForThePicture() {
+    var app = playerFixture({ holdSeeks: true, pendingStart: true });
+    try {
+        var control = app.findButton("Pause / Play");
+        app.click("Pause / Play");
+        await app.settle();
+        assert(!app.document.getElementById("playback-error"), "Pause while the stream starts is not a playback problem");
+        assert.strictEqual(app.pauses(), 0, "Nothing is paused before the picture moves");
+        assert(/menu-icon-play/.test(control.className), "The control shows that it will be paused");
+        app.key(415);
+        assert(/menu-icon-pause/.test(control.className), "The Play key takes it back");
+        app.click("Pause / Play");
+        assert(/menu-icon-play/.test(control.className), "and Pause / Play asks again");
+        app.finishStart();
+        await app.settle();
+        assert.strictEqual(app.pauses(), 0, "Started is not moving yet");
+        app.callbacks.avplay.onEvent({ type: "time", position: 45500, duration: item.duration });
+        await app.settle();
+        assert.strictEqual(app.pauses(), 1, "The picture moving applies the pause");
+        app.click("Pause / Play");
+        await app.settle();
+        assert.strictEqual(app.plays(), 1, "after which Pause / Play acts at once");
+        app.click("Forward 10 seconds");
+        app.runTimers(400);
+        assert.strictEqual(app.seeks.length, 1);
+        app.click("Pause / Play");
+        await app.settle();
+        assert.strictEqual(app.pauses(), 1, "A press while a seek lands waits for it");
+        app.heldSeeks[0].resolve(55000);
+        await app.settle();
+        assert.strictEqual(app.pauses(), 2, "and pauses once it has landed");
+        assert(!app.document.getElementById("playback-error"));
+    } finally { app.dom.window.close(); }
+}
+
+async function introAndCreditsModes() {
+    var intro = [{ id: 1, type: "intro", startTimeOffset: 46000, endTimeOffset: 52000 },
+        { id: 9, type: "credits", startTimeOffset: 54000, endTimeOffset: 60000, final: "1" }];
+    var app = playerFixture({ markers: intro, preferences: { skipIntro: "auto", skipCredits: "off" } });
+    try {
+        await app.settle();
+        app.callbacks.avplay.onEvent({ type: "time", position: 46500, duration: item.duration });
+        await app.settle();
+        assert.deepStrictEqual(app.seeks, [52000], "Skip automatically jumps past the intro");
+        assert(!app.document.querySelector(".skip-marker"), "No Skip button when skipping automatically");
+        app.callbacks.avplay.onEvent({ type: "time", position: 47000, duration: item.duration });
+        await app.settle();
+        assert.deepStrictEqual(app.seeks, [52000], "An intro is skipped once");
+        app.callbacks.avplay.onEvent({ type: "time", position: 56000, duration: item.duration });
+        await app.settle();
+        assert(!app.document.querySelector(".skip-marker") && !app.document.querySelector(".up-next-card"),
+            "Credits set to Off show neither Skip nor the countdown");
+        assert.strictEqual(app.stops(), 0, "Off never finishes the episode early");
+    } finally { app.dom.window.close(); }
+
+    app = playerFixture({ markers: intro });
+    try {
+        await app.settle();
+        app.click("More");
+        app.click("Intro and credits");
+        var menu = app.document.getElementById("player-menu");
+        assert(menu.textContent.indexOf("Synthetic Show") !== -1, "The choice is for the show, not one episode");
+        assert.strictEqual(app.findButton("Default (Show Skip button)").getAttribute("aria-pressed"), "true", "A title starts on the TV's default");
+        var rows = Array.prototype.filter.call(menu.querySelectorAll("button"), function (row) { return row.textContent === "Skip automatically"; });
+        rows[0].click();
+        assert(app.document.activeElement.textContent === "Skip automatically" && app.document.activeElement.getAttribute("aria-pressed") === "true", "Focus stays on the choice, now marked");
+        var saved = JSON.parse(app.window.localStorage.getItem("vemm-tizen-skip-overrides"));
+        assert.deepStrictEqual(saved[Object.keys(saved)[0]], { intro: "auto" }, "Stored on the TV under vemm-tizen-");
+        app.key(27);
+        app.key(27);
+        app.callbacks.avplay.onEvent({ type: "time", position: 46500, duration: item.duration });
+        await app.settle();
+        assert.deepStrictEqual(app.seeks, [52000], "The show's own choice applies");
+        app.callbacks.avplay.onEvent({ type: "time", position: 56000, duration: item.duration });
+        assert(app.document.querySelector(".skip-marker"), "Credits still follow the default Skip button");
+    } finally { app.dom.window.close(); }
+}
+
+async function upFromProgressHidesTheHud() {
+    var app = playerFixture();
+    try {
+        var hud = app.document.querySelector(".player-hud");
+        var shell = app.document.querySelector(".app-shell");
+        var progress = app.document.getElementById("playback-progress");
+        progress.focus();
+        app.key(37);
+        assert.strictEqual(app.document.activeElement, progress, "Left on the progress bar scrubs and keeps focus");
+        app.key(40);
+        assert.notStrictEqual(app.document.activeElement, progress, "Down returns to the controls");
+        assert(app.document.querySelector(".playback-controls").contains(app.document.activeElement));
+        app.key(38);
+        assert.strictEqual(app.document.activeElement, progress, "Up from the controls reaches the progress bar");
+        assert(!hud.hidden, "Reaching the progress bar keeps the HUD");
+        app.key(38);
+        assert(hud.hidden, "Up on the top-most element hides the HUD");
+        assert(shell.classList.contains("hud-hidden"), "The shell gets hud-hidden like the auto-hide");
+        assert(!hud.contains(app.document.activeElement), "No HUD control keeps focus");
+        app.key(38);
+        assert(!hud.hidden, "The next key press restores the HUD");
+        assert(!shell.classList.contains("hud-hidden"));
+        assert.strictEqual(app.document.activeElement, progress, "Focus returns to where it was");
+    } finally { app.dom.window.close(); }
+}
+
+async function deviceReadoutsRefreshOnlyWhileOpen() {
+    var app = playerFixture({ device: true });
+    try {
+        function refreshers() {
+            return app.timers.filter(function (timer) {
+                return timer.interval && timer.callback && timer.delay >= 2000 && timer.delay <= 3000;
+            });
+        }
+        var before = refreshers().length;
+        app.window.VemmDevMode = require("../../samsung/Vemm/js/dev-mode.js");
+        app.window.localStorage.setItem("vemm-tizen-dev-mode", "1");
+        app.click("More");
+        app.click("Stats for nerds");
+        var stats = app.document.getElementById("playback-stats");
+        assert(stats.textContent.indexOf("TV memory: 572 MB free of 1,869 MB") !== -1, "Stats show the TV memory");
+        assert(stats.textContent.indexOf("TV storage: 2.2 GB free of 4.4 GB") !== -1, "Stats show the TV storage");
+        assert.strictEqual(refreshers().length, before + 1, "Opening the panel starts one 2-3 s refresh");
+        app.memory.free = 300;
+        refreshers()[0].callback();
+        await app.settle();
+        assert(stats.textContent.indexOf("TV memory: 300 MB free of 1,869 MB") !== -1, "The refresh updates the readout");
+        assert.strictEqual(stats.querySelectorAll(".playback-stats-device p").length, 2, "Lines are replaced, not added");
+        app.click("Close");
+        assert.strictEqual(refreshers().length, before, "Closing the panel stops the refresh");
+
+        app.click("More");
+        app.click("Stats for nerds");
+        assert.strictEqual(refreshers().length, before + 1, "Reopening starts it again");
+        app.key(10009);
+        assert(!app.document.getElementById("playback-stats"));
+        assert.strictEqual(refreshers().length, before, "Back closes the panel and stops the refresh");
+
+        app.click("More");
+        app.click("Stats for nerds");
+        var pending = refreshers()[0];
+        app.window.document.getElementById("playback-stats").parentNode.removeChild(app.window.document.getElementById("playback-stats"));
+        pending.callback();
+        await app.settle();
+        assert.strictEqual(refreshers().length, before, "A refresh that finds no panel stops itself");
+    } finally { app.dom.window.close(); }
+}
+
+async function noDeviceApisShowNoReadout() {
+    var app = playerFixture();
+    try {
+        app.click("More");
+        app.click("Stats for nerds");
+        assert(app.document.getElementById("playback-stats"));
+        assert(app.document.getElementById("playback-stats").textContent.indexOf("TV memory") === -1);
+        assert(app.document.getElementById("playback-stats").textContent.indexOf("Playback:") !== -1);
+    } finally { app.dom.window.close(); }
+}
+
+var DROP = "PLAYER_ERROR_CONNECTION_FAILED";
+function streamLost(app, reason) {
+    app.callbacks.avplay.onEvent({ type: "error", detail: "Samsung playback failed during stream. Stop and retry this title.",
+        reason: reason === undefined ? DROP : reason, position: app.clock.position, duration: item.duration });
+}
+// Playback has started and is moving at the given position.
+async function movingAt(app, position) {
+    await app.settle();
+    app.callbacks.avplay.onEvent({ type: "time", position: position - 500, duration: item.duration });
+    app.clock.position = position;
+    app.callbacks.avplay.onEvent({ type: "time", position: position, duration: item.duration });
+}
+function reconnecting(app) { return app.document.getElementById("reconnecting-note"); }
+function problem(app) { return app.document.querySelector(".playback-error"); }
+
+async function aDroppedConnectionReconnectsAndResumes() {
+    var down = true;
+    var probes = 0;
+    var app = playerFixture({ identity: function () { probes += 1; return down ? Promise.reject(new Error("offline")) : Promise.resolve({}); } });
+    try {
+        await movingAt(app, 50500);
+        streamLost(app);
+        await app.settle();
+        assert(!problem(app), "A dropped connection is not a playback problem");
+        assert(reconnecting(app), "It shows a calm reconnecting state");
+        assert.strictEqual(reconnecting(app).textContent, "Reconnecting...");
+        assert(app.document.querySelector(".buffering-ring"), "with the spinner");
+        assert.strictEqual(app.starts(), 1, "and nothing is restarted while the server is out of reach");
+        assert.strictEqual(probes, 1, "The server is asked at once");
+        assert.strictEqual(app.nextReconnect(), 1000, "then again after 1 s");
+        await app.settle();
+        assert.strictEqual(app.nextReconnect(), 2000, "2 s");
+        await app.settle();
+        assert.strictEqual(probes, 3);
+        assert(reconnecting(app) && !problem(app), "Still reconnecting, still no error");
+        app.click("Pause / Play");
+        await app.settle();
+        assert(!problem(app), "Pause / Play during the wait is not an error");
+        down = false;
+        app.nextReconnect();
+        await app.settle();
+        await app.settle();
+        assert.strictEqual(app.stops(), 1, "The lost stream is closed");
+        assert.strictEqual(app.starts(), 2, "and the title is opened again");
+        assert.strictEqual(app.playerSettings[1].offset, 50500, "where it was");
+        assert(!problem(app) && reconnecting(app), "and keeps saying Reconnecting until the picture moves");
+        await movingAt(app, 50700);
+        assert(!reconnecting(app), "then the note goes");
+    } finally { app.dom.window.close(); }
+}
+
+async function theWaitGivesUpWithARetry() {
+    var app = playerFixture({ identity: function () { return Promise.reject(new Error("offline")); } });
+    try {
+        await movingAt(app, 50500);
+        streamLost(app);
+        await app.settle();
+        for (var tries = 0; tries < 40 && !problem(app); tries += 1) { app.nextReconnect(); await app.settle(); }
+        assert(problem(app), "After the limit the viewer gets a clear message");
+        assert(app.clock.now >= 120000 && app.clock.now < 140000, "after about two minutes, not sooner or later: " + app.clock.now);
+        assert(/could not be reached/.test(problem(app).textContent), "that says the server could not be reached");
+        assert(!reconnecting(app), "The reconnecting note is gone");
+        assert.strictEqual(app.starts(), 1, "Nothing was restarted meanwhile");
+        assert.strictEqual(app.nextReconnect(), null, "and no further tries run");
+        app.click("Retry playback");
+        await app.settle();
+        assert.strictEqual(app.starts(), 2, "Retry opens the title again at the same place");
+        assert.strictEqual(app.playerSettings[1].offset, 50500);
+    } finally { app.dom.window.close(); }
+}
+
+async function aBrokenFileDoesNotLoop() {
+    var app = playerFixture();
+    try {
+        await movingAt(app, 50500);
+        for (var round = 2; round <= 4; round += 1) {
+            streamLost(app);
+            await app.settle();
+            await app.settle();
+            assert.strictEqual(app.starts(), round, "The server answers, so the title is opened again (try " + (round - 1) + ")");
+            assert(!problem(app));
+        }
+        streamLost(app);
+        await app.settle();
+        await app.settle();
+        assert.strictEqual(app.starts(), 4, "After three tries that never played on, it stops reopening");
+        assert(problem(app), "and shows the problem with its buttons");
+        assert(app.findButton("Retry playback") && app.findButton("Restart"));
+        assert(!reconnecting(app));
+    } finally { app.dom.window.close(); }
+}
+
+async function playingOnAfterAReopenStartsTheCountAgain() {
+    var app = playerFixture();
+    try {
+        await movingAt(app, 50500);
+        for (var round = 2; round <= 6; round += 1) {
+            streamLost(app);
+            await app.settle();
+            await app.settle();
+            assert.strictEqual(app.starts(), round, "Drop " + (round - 1) + " is recovered");
+            await movingAt(app, 50500 + (round - 1) * 20000);
+        }
+        assert(!problem(app), "Drops that each play on never become a problem");
+    } finally { app.dom.window.close(); }
+}
+
+async function aReopenThatFailsOutrightWaitsAndTriesAgain() {
+    // Starts 2 to 5 fail with no word from Plex (the connection again); the sixth plays.
+    var failing = { message: "The request timed out. Check the network and retry." };
+    var app = playerFixture({ startErrors: [null, failing, failing, failing, failing] });
+    try {
+        await movingAt(app, 50500);
+        streamLost(app);
+        for (var round = 2; round <= 5; round += 1) {
+            await app.settle();
+            await app.settle();
+            assert.strictEqual(app.starts(), round, "Reopen " + (round - 1));
+            await app.settle();
+            assert(!problem(app) && reconnecting(app), "A reopen that fails outright is more waiting, not a problem");
+            assert.strictEqual(app.nextReconnect(), 3000, "after a pause of 3 s");
+        }
+        await app.settle();
+        await app.settle();
+        assert.strictEqual(app.starts(), 6, "The next reopen opens");
+        assert(!problem(app));
+    } finally { app.dom.window.close(); }
+
+    var unsupported = playerFixture({ startErrors: [null, { message: "Samsung playback failed during prepare. Stop and retry this title.",
+        code: "avplay-prepare", reason: "PLAYER_ERROR_NOT_SUPPORTED_FILE" }] });
+    try {
+        await movingAt(unsupported, 50500);
+        streamLost(unsupported);
+        await unsupported.settle();
+        await unsupported.settle();
+        await unsupported.settle();
+        assert(problem(unsupported), "A reopen AVPlay refuses as unsupported is the file's problem");
+        assert(!reconnecting(unsupported));
+    } finally { unsupported.dom.window.close(); }
+
+    var refused = playerFixture({ startErrors: [null, { message: "Plex refused this session.", status: 401 }] });
+    try {
+        await movingAt(refused, 50500);
+        streamLost(refused);
+        await refused.settle();
+        await refused.settle();
+        await refused.settle();
+        assert(problem(refused), "An answer from Plex that says no is shown as the problem");
+    } finally { refused.dom.window.close(); }
+}
+
+async function otherStreamErrorsStayProblems() {
+    var app = playerFixture();
+    try {
+        await movingAt(app, 50500);
+        streamLost(app, "PLAYER_ERROR_NOT_SUPPORTED_FILE");
+        await app.settle();
+        assert(problem(app), "An error that is not a lost connection shows the problem at once");
+        assert(!reconnecting(app));
+        assert.strictEqual(app.starts(), 1);
+    } finally { app.dom.window.close(); }
+}
+
+async function stoppingEndsTheWait() {
+    var app = playerFixture({ identity: function () { return Promise.reject(new Error("offline")); } });
+    try {
+        await movingAt(app, 50500);
+        streamLost(app);
+        await app.settle();
+        assert(reconnecting(app));
+        app.key(413);
+        await app.settle();
+        assert.strictEqual(app.stops(), 1, "Stop closes the player");
+        assert(!reconnecting(app));
+        assert.strictEqual(app.nextReconnect(), null, "and ends the retries");
+        assert.strictEqual(app.starts(), 1);
+    } finally { app.dom.window.close(); }
+}
+
+async function aLongStallShowsReconnectingOnlyWhenTheServerIsGone() {
+    var down = true;
+    var app = playerFixture({ identity: function () { return down ? Promise.reject(new Error("offline")) : Promise.resolve({}); } });
+    try {
+        await movingAt(app, 50500);
+        var send = function (type, detail) {
+            app.callbacks.avplay.onEvent({ type: type, detail: detail, position: 50500, duration: item.duration });
+        };
+        send("buffering", true);
+        await app.settle();
+        assert(!reconnecting(app), "A short stall is only the buffering ring");
+        app.runTimers(6000);
+        await app.settle();
+        assert(reconnecting(app), "A stall of 6 s with the server out of reach says Reconnecting");
+        assert(!problem(app) && app.starts() === 1, "without an error or a restart");
+        send("buffering", false);
+        assert(!reconnecting(app), "and stops saying it once playback buffers again");
+        assert.strictEqual(app.nextReconnect(), null, "with the checks ended");
+        down = false;
+        send("buffering", true);
+        app.runTimers(6000);
+        await app.settle();
+        assert(!reconnecting(app), "A slow buffer with the server reachable stays the ordinary ring");
+        send("buffering", false);
+    } finally { app.dom.window.close(); }
+}
+
+async function progressNoticesAreQuietDuringAnOutage() {
+    var app = playerFixture({ identity: function () { return Promise.reject(new Error("offline")); } });
+    try {
+        await movingAt(app, 50500);
+        var status = app.document.getElementById("status");
+        app.sessionOptions[0].onEvent({ type: "progress-error", message: "Plex progress could not be saved. Check the server and retry." });
+        assert(/progress could not be saved/.test(status.textContent), "A failed report is still told when playing normally");
+        app.sessionOptions[0].onEvent({ type: "progress-restored" });
+        assert.strictEqual(status.textContent, "", "and cleared once reports get through");
+        streamLost(app);
+        await app.settle();
+        app.sessionOptions[0].onEvent({ type: "progress-error", message: "Plex progress could not be saved. Check the server and retry." });
+        assert.strictEqual(status.textContent, "", "While reconnecting, reports failing is no news");
+    } finally { app.dom.window.close(); }
+}
+
+function savedMemory(app) {
+    return JSON.parse(app.window.localStorage.getItem("vemm-tizen-track-memory") || "[]");
+}
+
+async function aTrackPickIsRememberedForTheShow() {
+    var app = playerFixture();
+    try {
+        await app.settle();
+        assert.strictEqual(app.playerSettings[0].audioId, undefined, "Without a memory the server's defaults are used");
+        app.click("Audio");
+        app.click("Other languages");
+        app.click("French");
+        app.click("French");
+        await app.settle();
+        assert.deepStrictEqual(savedMemory(app), [{ show: "synthetic-show", audio: "fra" }],
+            "An audio pick is kept for the show by language, with no subtitle choice");
+        app.click("Subtitles");
+        app.click("Subtitles off");
+        await app.settle();
+        assert.strictEqual(savedMemory(app)[0].subtitle, "off", "so is turning subtitles off");
+        assert.strictEqual(savedMemory(app)[0].audio, "fra");
+    } finally { app.dom.window.close(); }
+}
+
+async function anotherEpisodeFollowsTheShowsTracks() {
+    var app = playerFixture({ memory: [{ show: "synthetic-show", audio: "fra" }] });
+    try {
+        await app.settle();
+        assert.strictEqual(app.playerSettings[0].audioId, 13, "The remembered language's track is chosen");
+        assert.strictEqual(app.playerSettings[0].subtitleId, 21, "and the server's subtitle pick is kept");
+    } finally { app.dom.window.close(); }
+    var other = playerFixture({ memory: [{ show: "another-show", audio: "fra" }] });
+    try {
+        await other.settle();
+        assert.strictEqual(other.playerSettings[0].audioId, undefined, "Another show's memory does not apply");
+    } finally { other.dom.window.close(); }
+    var missing = playerFixture({ memory: [{ show: "synthetic-show", audio: "jpn", subtitle: "deu" }] });
+    try {
+        await missing.settle();
+        assert.strictEqual(missing.playerSettings[0].audioId, undefined, "A language this episode lacks falls back to the defaults");
+    } finally { missing.dom.window.close(); }
+    var explicit = playerFixture({ memory: [{ show: "synthetic-show", audio: "fra" }], audioId: 12, subtitleId: 21 });
+    try {
+        await explicit.settle();
+        assert.strictEqual(explicit.playerSettings[0].audioId, 12, "A pick made in this playback is not overridden");
+    } finally { explicit.dom.window.close(); }
+}
+
+async function theShowsTrackChoicesCanBeReset() {
+    var app = playerFixture();
+    try {
+        await app.settle();
+        app.click("Audio");
+        assert(!app.findButton("Reset to default tracks"), "There is nothing to reset before a pick");
+        app.key(27);
+    } finally { app.dom.window.close(); }
+    var set = playerFixture({ memory: [{ show: "synthetic-show", audio: "fra" }, { show: "another-show", audio: "jpn" }] });
+    try {
+        await set.settle();
+        set.click("Audio");
+        set.click("Reset to default tracks");
+        assert.deepStrictEqual(savedMemory(set), [{ show: "another-show", audio: "jpn" }], "Reset forgets only this show");
+        set.click("Audio");
+        assert(!set.findButton("Reset to default tracks"), "and the button goes");
+    } finally { set.dom.window.close(); }
+}
+
+// Scrubbing shows the frame at the target above the timeline until the seek lands; the HUD says when the
+// content ends; the TV's screensaver is off only while the picture plays.
+async function previewEndsAtAndScreensaver() {
+    var app = playerFixture({ holdSeeks: true });
+    try {
+        await app.settle();
+        var ends = app.document.querySelector(".playback-ends");
+        assert(ends && /^Ends at [0-9]{1,2}:[0-9]{2} (AM|PM)$/.test(ends.textContent), "The HUD says when it ends: " + (ends && ends.textContent));
+        assert.deepStrictEqual(app.awake, [false], "The TV default is set at start-up, not left off");
+        app.callbacks.avplay.onEvent({ type: "state", state: "playing" });
+        assert.deepStrictEqual(app.awake, [false, true]);
+        app.callbacks.avplay.onEvent({ type: "time", position: 45000, duration: item.duration });
+        await app.settle();
+        assert(!app.document.querySelector(".preview-thumb"), "No preview while nothing is scrubbed");
+        app.click("Back 10 seconds");
+        await app.settle();
+        var thumb = app.document.querySelector("#playback-progress .preview-thumb");
+        assert(thumb && !thumb.hidden, "Scrubbing shows a preview frame on the timeline");
+        assert.strictEqual(thumb.querySelector("img").src, "blob:synthetic/0");
+        assert.strictEqual(app.blobUrls.length, 1, "of the frame at 35 s");
+        app.click("Back 10 seconds");
+        assert.strictEqual(app.blobUrls.length, 2, "A further press shows the next frame");
+        app.runTimers(400);
+        assert(!thumb.hidden, "The frame stays while the seek lands");
+        app.heldSeeks[0].resolve(25000);
+        await app.settle();
+        assert(thumb.hidden, "and goes once it has landed");
+        app.callbacks.avplay.onEvent({ type: "state", state: "paused" });
+        assert.deepStrictEqual(app.awake, [false, true, false], "Paused lets the screensaver return");
+        app.window.dispatchEvent(new app.window.Event("pagehide"));
+        await app.settle();
+        assert.strictEqual(app.awake[app.awake.length - 1], false, "Stopping restores the TV's default");
+        assert(!app.document.querySelector(".preview-thumb"), "and releases the preview");
+    } finally { app.dom.window.close(); }
+
+    app = playerFixture({ noPreview: true });
+    try {
+        await app.settle();
+        app.click("Back 10 seconds");
+        await app.settle();
+        assert(!app.document.querySelector(".preview-thumb"), "A title without an index shows no preview and no problem");
+        assert(!app.document.getElementById("playback-error"));
+    } finally { app.dom.window.close(); }
+}
+
 async function run() {
+    await previewEndsAtAndScreensaver();
+    await bufferingShowsPercent();
+    await bufferSizeIsChosenFromMoreAndRestartsTheStream();
+    await moreMenuOrder();
+    await seeksShowTheTargetAndNoStatus();
+    await pauseWaitsForThePicture();
+    await introAndCreditsModes();
+    await upFromProgressHidesTheHud();
     await hudAndPanels();
+    await playerControlsShareOneRow();
+    await skipButtonStartsTheRightGroup();
+    await downClosesTheChapterStrip();
+    await trackMenusAreIndependentAndOnTheLeft();
+    await subItemsAreMarked();
+    await deviceTracksAreASubList();
+    await rapidPressesMakeOneSeek();
+    await timedOutSeekClosesItsProblemWhenItLands();
     await upNextAndTracks();
     await timingStatsAndErrors();
     await subtitleTimingUsesTrackBounds();
     await subtitleTimingZeroDetentAndTrackAvailability();
     await failedPlayerRecoveryRestartsThePipeline();
+    await deviceReadoutsRefreshOnlyWhileOpen();
+    await noDeviceApisShowNoReadout();
+    await aDroppedConnectionReconnectsAndResumes();
+    await theWaitGivesUpWithARetry();
+    await aBrokenFileDoesNotLoop();
+    await playingOnAfterAReopenStartsTheCountAgain();
+    await aReopenThatFailsOutrightWaitsAndTriesAgain();
+    await otherStreamErrorsStayProblems();
+    await stoppingEndsTheWait();
+    await aLongStallShowsReconnectingOnlyWhenTheServerIsGone();
+    await progressNoticesAreQuietDuringAnOutage();
+    await aTrackPickIsRememberedForTheShow();
+    await anotherEpisodeFollowsTheShowsTracks();
+    await theShowsTrackChoicesCanBeReset();
     console.log("Tizen LG-style player HUD, panels, Up Next, tracks, timing, stats and recovery: passed (synthetic player)");
 }
 run().catch(function (error) { console.error(error.stack || error); process.exitCode = 1; });

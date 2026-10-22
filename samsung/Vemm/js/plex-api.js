@@ -88,7 +88,7 @@
         };
     }
 
-    function timedFetch(fetchRequest, url, options, scope) {
+    function timedFetch(fetchRequest, url, options, scope, maxBytes) {
         var revision = scope ? scope.revision : 0;
         function cancelled() { return requestCancelled(); }
         function register(cancel) { if (scope) { scope.pending.push(cancel); } }
@@ -148,7 +148,7 @@
                             unregister(cancelBody);
                             resolveBody(value);
                         }
-                        var limit = 4 * 1024 * 1024;
+                        var limit = maxBytes || 4 * 1024 * 1024;
                         function cancelBody() { fail(cancelled()); }
                         register(cancelBody);
                         try {
@@ -480,16 +480,46 @@
         };
     }
 
+    var LAST_CONNECTION_KEY = "vemm-tizen-last-connection";
+
+    function connectionStorage(options) {
+        if (options.storage) { return options.storage; }
+        try { return typeof localStorage !== "undefined" ? localStorage : null; } catch (error) { return null; }
+    }
+
+    // Only the URI that last worked for each server id is kept; never a token.
+    function lastConnections(storage) {
+        try {
+            var map = JSON.parse(storage.getItem(LAST_CONNECTION_KEY));
+            return map && typeof map === "object" && !Array.isArray(map) ? map : {};
+        } catch (error) { return {}; }
+    }
+
     function selectServer(server, options) {
         options = options || {};
         var index = 0;
+        var storage = connectionStorage(options);
+        var remembered = storage && server.id ? lastConnections(storage)[server.id] : null;
+        var order = server.connections || [];
+        // The address that worked last time goes first; the advertised order follows, so a changed network still falls back.
+        var first = order.filter(function (connection) { return connection.uri === remembered; })[0];
+        if (first) { order = [first].concat(order.filter(function (connection) { return connection !== first; })); }
+        function remember(uri) {
+            if (!storage || !server.id) { return; }
+            try {
+                var map = lastConnections(storage);
+                if (map[server.id] === uri) { return; }
+                map[server.id] = uri;
+                storage.setItem(LAST_CONNECTION_KEY, JSON.stringify(map));
+            } catch (error) { /* a full or blocked store only costs the head start */ }
+        }
         function probe() {
-            if (!server.id || !server.token || index >= server.connections.length) {
+            if (!server.id || !server.token || index >= order.length) {
                 var unavailable = new Error("This server is unavailable. Check PMS and retry.");
                 unavailable.code = "unavailable";
                 return Promise.reject(unavailable);
             }
-            var connection = server.connections[index++];
+            var connection = order[index++];
             var client;
             try {
                 if (!/^https:\/\//.test(connection.uri)) { return probe(); }
@@ -497,7 +527,7 @@
             } catch (error) { return probe(); }
             if (options.onClient && options.onClient(client) === false) { return Promise.reject(requestCancelled()); }
             if (options.onAttempt) {
-                options.onAttempt({ index: index, total: server.connections.length, relay: connection.relay === true });
+                options.onAttempt({ index: index, total: order.length, relay: connection.relay === true });
             }
             return client.identity().then(function (identity) {
                 if (identity.machineIdentifier !== server.id) {
@@ -505,6 +535,7 @@
                     mismatch.code = "identity-mismatch";
                     throw mismatch;
                 }
+                remember(connection.uri);
                 return { client: client, relay: connection.relay === true };
             }).catch(function (error) {
                 if (error.status === 401 || error.status === 403 || error.code === "identity-mismatch" || error.code === "cancelled") {
@@ -514,6 +545,57 @@
             });
         }
         return probe();
+    }
+
+    // Plex rating entries: image "imdb://image.rating", "rottentomatoes://image.rating.ripe|rotten" (critic) or
+    // ".upright|spilled" (audience), "themoviedb://image.rating"; values are 0-10.
+    var RATING_SOURCES = ["rt_critic", "rt_audience", "imdb", "tmdb"];
+
+    function ratingSource(image, type) {
+        image = String(image || "");
+        if (image.indexOf("imdb://") === 0) { return { source: "imdb" }; }
+        if (image.indexOf("themoviedb://") === 0) { return { source: "tmdb" }; }
+        if (image.indexOf("rottentomatoes://") === 0) {
+            var critic = type === "critic" || /\.(ripe|rotten)$/.test(image);
+            return { source: critic ? "rt_critic" : "rt_audience", fresh: /\.(ripe|upright)$/.test(image) ? true :
+                /\.(rotten|spilled)$/.test(image) ? false : null };
+        }
+        return null;
+    }
+
+    // The scores Plex has for an item, in a fixed order; "enabled" limits them to those sources.
+    function ratingBadges(item, enabled) {
+        item = item || {};
+        var entries = Array.isArray(item.Rating) && item.Rating.length ? item.Rating : [
+            { image: item.ratingImage, value: item.rating, type: "critic" },
+            { image: item.audienceRatingImage, value: item.audienceRating, type: "audience" }
+        ];
+        var found = {};
+        entries.forEach(function (entry) {
+            var value = entry && typeof entry.value === "number" ? entry.value : NaN;
+            var info = isFinite(value) ? ratingSource(entry.image, entry.type) : null;
+            if (!info || found[info.source]) { return; }
+            found[info.source] = { source: info.source, value: value, fresh: info.fresh === undefined ? null : info.fresh,
+                text: info.source === "imdb" ? value.toFixed(1) + "/10" : Math.round(value * 10) + "%" };
+        });
+        return RATING_SOURCES.filter(function (source) {
+            return found[source] && (!enabled || enabled.indexOf(source) !== -1);
+        }).map(function (source) { return found[source]; });
+    }
+
+    // The library setting that picks the ratings source: an id like /rating/i that offers enumValues "0:Label|1:Label".
+    function ratingPref(settings) {
+        var match = (Array.isArray(settings) ? settings : []).filter(function (setting) {
+            return setting && /rating/i.test(String(setting.id || "")) && typeof setting.enumValues === "string" && setting.enumValues;
+        })[0];
+        if (!match) { return null; }
+        var options = match.enumValues.split("|").map(function (part) {
+            var at = part.indexOf(":");
+            return at > 0 ? { value: part.slice(0, at), label: part.slice(at + 1) } : null;
+        }).filter(Boolean);
+        if (!options.length) { return null; }
+        var value = match.value !== undefined && match.value !== null ? match.value : match.default;
+        return { id: String(match.id), label: match.label || match.id, value: String(value), options: options };
     }
 
     function createAuthClient(options) {
@@ -743,10 +825,10 @@
                     });
                 });
             },
-            getTracks: function (id) {
+            getTracks: function (id, playlist) {
                 var tracks = [];
                 function page(start) {
-                    return get("/library/metadata/" + key(id) + "/children", "GET", {
+                    return get(playlist ? "/playlists/" + key(id) + "/items" : "/library/metadata/" + key(id) + "/children", "GET", {
                         "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
                     }).then(function (container) {
                         var items = listFrom(container, "Metadata");
@@ -766,6 +848,41 @@
                     });
                 }
                 return page(0);
+            },
+            getPlaylists: function (start) {
+                return get("/playlists", "GET", { "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50 });
+            },
+            getPlaylist: function (id) {
+                return get("/playlists/" + key(id)).then(function (container) {
+                    var playlists = listFrom(container, "Metadata");
+                    if (!playlists.length) { throw new Error("This playlist is no longer available."); }
+                    return playlists[0];
+                });
+            },
+            getPlaylistItems: function (id, start) {
+                return get("/playlists/" + key(id) + "/items", "GET", { "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50 });
+            },
+            // A server-side video queue over the playlist (shuffled by the server when asked), starting at one item.
+            createPlaylistPlayQueue: function (machineId, playlistId, shuffle, firstRatingKey) {
+                if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || ""))) {
+                    return Promise.reject(new Error("The server identity is invalid."));
+                }
+                var query = { type: "video", playlistID: key(playlistId), shuffle: shuffle ? 1 : 0, repeat: 0, continuous: 0 };
+                if (firstRatingKey) { query.key = "/library/metadata/" + key(firstRatingKey); }
+                return get("/playQueues", "POST", query).then(function (container) {
+                    var id = String(container.playQueueID || "");
+                    var selected = String(container.playQueueSelectedItemID || "");
+                    if (!/^[1-9][0-9]*$/.test(id) || !/^[1-9][0-9]*$/.test(selected)) {
+                        throw new Error("Plex returned an invalid play queue.");
+                    }
+                    return { id: id, itemId: selected, items: listFrom(container, "Metadata"), total: Number(container.playQueueTotalCount) || 0 };
+                });
+            },
+            // The items of a play queue around one of its items (20 on each side).
+            getPlayQueueItems: function (queueId, center) {
+                return get("/playQueues/" + key(queueId), "GET", { center: key(center), window: 20 }).then(function (container) {
+                    return listFrom(container, "Metadata");
+                });
             },
             getCollectionItems: function (id, start) {
                 return get("/library/collections/" + key(id) + "/children", "GET", {
@@ -832,7 +949,7 @@
                 if (!String(query || "").trim() || String(query).length > 200) {
                     return Promise.reject(new Error("Enter a search of 1 to 200 characters."));
                 }
-                return get("/hubs/search", "GET", { query: query, limit: 50, includeCollections: 1 });
+                return get("/hubs/search", "GET", { query: query, limit: 50, includeCollections: 1, includeExternalMedia: 0 });
             },
             getFilters: function (section) { return get("/library/sections/" + key(section) + "/filters"); },
             getSorts: function (section) { return get("/library/sections/" + key(section) + "/sorts"); },
@@ -848,7 +965,10 @@
                 if (target.indexOf(prefix) !== 0) { return Promise.reject(new Error("Invalid library filter.")); }
                 return get(target);
             },
-            getLetters: function (section) { return get("/library/sections/" + key(section) + "/firstCharacter"); },
+            getLetters: function (section, filters) {
+                return get("/library/sections/" + key(section) + "/firstCharacter", "GET",
+                    filters && Object.keys(filters).length ? filters : undefined);
+            },
             getCollections: function (section, start) {
                 if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid collection page.")); }
                 return get("/library/sections/" + key(section) + "/collections", "GET", {
@@ -889,6 +1009,24 @@
                 return baseUrl + path + "?" + Object.keys(params).map(function (name) {
                     return encodeURIComponent(name) + "=" + encodeURIComponent(params[name]);
                 }).concat(token ? ["X-Plex-Token=" + encodeURIComponent(token)] : []).join("&");
+            },
+            // The preview-thumbnail index (BIF) of a part: its bytes, or null when the server has none.
+            previewIndex: function (partId) {
+                return timedFetch(fetchRequest, baseUrl + "/library/parts/" + key(partId) + "/indexes/sd", {
+                    credentials: "omit", redirect: "error", headers: { "X-Plex-Token": token }
+                }, scope, 32 * 1024 * 1024).then(function (response) {
+                    if (response.status === 404) { return null; }
+                    if (!response.ok) { throw new Error("Plex refused the preview index (HTTP " + response.status + ")."); }
+                    return response.blob();
+                }).then(function (blob) {
+                    if (!blob) { return null; }
+                    return new Promise(function (resolve, reject) {
+                        var reader = new FileReader();
+                        reader.onload = function () { resolve(reader.result); };
+                        reader.onerror = function () { reject(new Error("The preview index could not be read.")); };
+                        reader.readAsArrayBuffer(blob);
+                    });
+                });
             },
             subtitleText: function (id, codec) {
                 if (["srt", "subrip", "webvtt"].indexOf(codec) === -1) {
@@ -993,6 +1131,20 @@
                 if (kind && ["video", "music"].indexOf(kind) === -1) { return Promise.reject(new Error("Invalid transcode kind.")); }
                 return get("/" + (kind || "video") + "/:/transcode/universal/stop", "GET", { session: session }, true);
             },
+            // Library settings (the ratings source among them); only the server owner may change them.
+            getSectionPrefs: function (section) {
+                return get("/library/sections/" + key(section) + "/prefs").then(function (container) {
+                    return Array.isArray(container.Setting) ? container.Setting : [];
+                });
+            },
+            setSectionPref: function (section, id, value) {
+                if (!/^[A-Za-z0-9_.-]+$/.test(String(id || ""))) { return Promise.reject(new Error("Invalid library setting.")); }
+                return Promise.resolve().then(function () {
+                    var query = {};
+                    query[id] = value;
+                    return get("/library/sections/" + key(section) + "/prefs", "PUT", query, true);
+                });
+            },
             getSections: function () {
                 return get("/library/sections").then(function (container) {
                     return listFrom(container, "Directory");
@@ -1058,6 +1210,8 @@
         createAuthClient: createAuthClient,
         createAccountClient: createAccountClient,
         selectServer: selectServer,
+        ratingBadges: ratingBadges,
+        ratingPref: ratingPref,
         validateBaseUrl: validateBaseUrl,
         localCatalogueIndex: localCatalogueIndex,
         matchCredit: matchCredit
