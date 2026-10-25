@@ -99,6 +99,17 @@ cached fallback. Cached cards are not offline media: playback, mutations,
 detail reads and grant checks still need their normal reachable endpoints.
 No offline write queue, saved grant extension or media download is added.
 
+### Profile and server navigation boundaries
+
+Entering profile selection or server discovery retires the previous browsing
+client, retained pages, Home snapshot, filters and navigation closures. A PIN
+screen's remote Back returns to profile selection, never to a prior profile's
+Home or library. Late page/profile responses still require their original view
+generation. The selected profile's token owns subsequent server discovery;
+only the linked account token is persisted for restart, not a managed-profile
+unlock. Returning from Settings to the same profiles/server screen may retain
+that screen's focus and scroll, but cannot retain media-view navigation.
+
 ### Optional Home layouts
 
 `js/home-layout.js` validates TV-local layout records; `main.js` uses the existing

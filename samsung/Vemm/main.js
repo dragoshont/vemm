@@ -200,7 +200,7 @@
             var controls = Array.prototype.slice.call(screen.querySelectorAll("button, input, select"));
             var focusedItem = document.activeElement && document.activeElement.vemmCard;
             navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
-                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null });
+                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className });
             if (navigation.length > 20) { navigation.shift(); }
         }
         action();
@@ -209,6 +209,7 @@
     function backView() {
         if (player) { stopPlayer(); return; }
         if (cancelServerConnection) { cancelServerConnection(); return; }
+        if (screen.className.indexOf("screen-profile-pin") !== -1) { openProfiles(); return; }
         var previous = navigation.pop();
         if (!previous) {
             if (currentClient && screen.className.indexOf("screen-home") === -1) { loadHome(false); return; }
@@ -636,13 +637,30 @@
         return node;
     }
 
-    function openProfiles(warning) {
+    function resetBrowsing(safeReturn) {
+        var returning = pendingRestore && pendingRestore.view === "screen screen-" + safeReturn ? pendingRestore : null;
         homeCache = null;
+        currentClient = null;
+        currentServerId = "";
+        currentItems = [];
+        currentOffset = 0;
+        currentSection = null;
+        homeSections = [];
+        libraryFilters = {};
+        navigation = [];
+        pendingRestore = returning;
+        usingRelay = false;
+    }
+
+    function openProfiles(warning) {
         restoreView = function () { openProfiles(); };
         retryView = restoreView;
         stopAuthorization();
         var generation = ++viewGeneration;
         clear(screen);
+        resetBrowsing("profiles");
+        activeProfile = null;
+        accountAudio = { client: null, state: "idle", value: null, error: null };
         page(translate("Who is watching?"), "profiles");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
         setStatus("Loading Plex Home profiles...");
@@ -739,16 +757,10 @@
         stopAuthorization();
         accountToken = "";
         accountClient = null;
-        homeCache = null;
+        resetBrowsing();
         activeProfile = null;
         linkedProfile = null;
         servers = [];
-        currentClient = null;
-        currentServerId = "";
-        currentItems = [];
-        currentSection = null;
-        usingRelay = false;
-        navigation = [];
         restoreView = null;
         addConnectForm("");
         if (storageError) { setStatus("The saved session could not be deleted. Clear this app's data on the TV before leaving it unattended.", true); }
@@ -762,6 +774,7 @@
         cancelServerConnection = null;
         var generation = ++viewGeneration;
         clear(screen);
+        resetBrowsing("servers");
         page(translate("Choose a server"), "servers");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
         setStatus("Discovering your Plex Media Servers...");

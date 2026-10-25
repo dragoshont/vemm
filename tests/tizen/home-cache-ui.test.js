@@ -25,7 +25,9 @@ async function run() {
     });
     var source = fs.readFileSync(path.join(app, "main.js"), "utf8");
     source = source.slice(0, source.lastIndexOf('    addConnectForm("");')) +
-        '    currentClient = window.__client; window.__reloadHome = function () { loadHome(false); };' +
+        '    currentClient = window.__client; window.__reloadHome = function (reconnected) {' +
+        ' if (reconnected) { currentClient = window.__client; } loadHome(false); };' +
+        ' window.__hasClient = function () { return !!currentClient; };' +
         ' window.__switchProfile = function () { activeProfile = {uuid:"different-synthetic-profile"}; };' +
         ' window.__chooseProfile = function () { accountClient = {getProfiles:function(){return Promise.resolve([]);}}; openProfiles(); };' +
         ' loadHome(false); }());';
@@ -71,8 +73,9 @@ async function run() {
         await settle();
         window.__chooseProfile();
         await settle();
+        assert.strictEqual(window.__hasClient(), false, "Profile selection retires the previous server grant");
         error = new Error("Synthetic outage while choosing a protected profile");
-        window.__reloadHome();
+        window.__reloadHome(true);
         await settle();
         assert.strictEqual(window.document.querySelectorAll(".media-card").length, 0,
             "Entering profile selection purges the previous profile's snapshot before PIN entry");
