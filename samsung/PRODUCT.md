@@ -50,6 +50,14 @@ invalidate retained metadata so Back cannot reuse an old name or deleted card.
 Smart-rule editing remains a source gap.
 Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
 
+DVR scheduling offers fresh storage locations within the chosen library, or an
+explicit Plex-default choice when none are advertised; it never picks a hidden
+default or creates a recording while browsing. Scheduled recordings link to
+confirmed manual priority management with complete bounded order read-back.
+Changing priority is not a claim that Plex resolved a tuner conflict. Existing
+subscription cancellation/preferences remain explicit; actual scheduling,
+comprehensive conflicts and tuner allocation/lifecycle still need acceptance.
+
 ## Brand commitments
 
 Vemm (`/vem/`) is the working product brand and **Your media. At its best.** is

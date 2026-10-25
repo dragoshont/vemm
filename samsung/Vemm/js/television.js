@@ -4,6 +4,7 @@
     else { root.VemmTelevision = api; }
 }(this, function () {
     "use strict";
+    var priorityClients = [];
     function id(value) {
         if (!/^[0-9]+$/.test(String(value))) { throw new Error("Invalid DVR identifier."); }
         return String(value);
@@ -19,7 +20,7 @@
         }
         return path;
     }
-    function templateQuery(template, section) {
+    function templateQuery(template, section, location) {
         var query = {};
         var text = template.parameters;
         if (typeof text !== "string" || !text || text.length > 16384) {
@@ -37,7 +38,20 @@
         });
         query.type = id(template.type);
         query.targetLibrarySectionID = id(section);
+        if (location !== undefined && location !== null) { query.targetSectionLocationID = id(location); }
         return query;
+    }
+    function subscriptionOrder(rows) {
+        var seen = {};
+        if (!Array.isArray(rows) || rows.length > 200) {
+            throw new Error("Recording priorities can verify up to 200 subscriptions.");
+        }
+        return rows.map(function (row) {
+            var key = id(row && row.key);
+            if (seen[key]) { throw new Error("Plex returned invalid recording priorities."); }
+            seen[key] = true;
+            return key;
+        });
     }
     function create(client) {
         return {
@@ -87,8 +101,63 @@
                     return result;
                 });
             },
-            record: function (template, section) {
-                return client.request("/media/subscriptions", "POST", templateQuery(template, section));
+            record: function (template, section, location) {
+                return client.request("/media/subscriptions", "POST", templateQuery(template, section, location));
+            },
+            prioritize: function (selected, expected, active) {
+                if (priorityClients.indexOf(client) !== -1) {
+                    return Promise.reject(new Error("Wait for the previous recording priority change to finish."));
+                }
+                priorityClients.push(client);
+                var deadline = Date.now() + 60000;
+                var selectedId;
+                var before;
+                function current() {
+                    if (typeof active !== "function" || !active()) { throw new Error("The recording change was cancelled."); }
+                    if (Date.now() > deadline) { throw new Error("Recording verification timed out. Reload before editing."); }
+                }
+                function read() {
+                    current();
+                    return client.request("/media/subscriptions", "GET", { includeGrabs: 1, includeStorage: 1 })
+                        .then(function (container) {
+                            current();
+                            var rows = list(container, "MediaSubscription");
+                            if (container.totalSize !== undefined && container.totalSize !== rows.length ||
+                                    container.size !== undefined && container.size !== rows.length ||
+                                    container.offset !== undefined && container.offset !== 0) {
+                                throw new Error("Plex returned incomplete recording priorities. Reload before editing.");
+                            }
+                            return rows;
+                        });
+                }
+                var operation = Promise.resolve().then(function () {
+                    current();
+                    selectedId = id(selected && selected.key);
+                    if (!Array.isArray(expected) || expected.length > 200) {
+                        throw new Error("Recording priorities can verify up to 200 subscriptions.");
+                    }
+                    return read();
+                }).then(function (rows) {
+                    before = subscriptionOrder(rows);
+                    var position = before.indexOf(selectedId);
+                    if (position < 1 || typeof selected.title !== "string" || rows[position].title !== selected.title ||
+                            before.join(",") !== expected.map(id).join(",")) {
+                        throw new Error("The recording priorities changed on Plex. Reload before editing.");
+                    }
+                    current();
+                    return client.request("/media/subscriptions/" + selectedId + "/move", "PUT");
+                }).then(read).then(function (rows) {
+                    var expectedOrder = [selectedId].concat(before.filter(function (key) { return key !== selectedId; }));
+                    if (subscriptionOrder(rows).join(",") !== expectedOrder.join(",") || rows[0].title !== selected.title) {
+                        throw new Error("Plex did not confirm the recording priority. Reload before editing.");
+                    }
+                });
+                return operation.then(function () {
+                    priorityClients.splice(priorityClients.indexOf(client), 1);
+                }, function (error) {
+                    priorityClients.splice(priorityClients.indexOf(client), 1);
+                    throw error;
+                });
             },
             remove: function (subscription) {
                 return client.request("/media/subscriptions/" + id(subscription), "DELETE", null, true);

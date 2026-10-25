@@ -1,4 +1,77 @@
 {
+  "Recording storage": { "es": "Almacenamiento de grabaciones", "be": "Сховішча запісаў" },
+  "Choose another library": { "es": "Elegir otra biblioteca", "be": "Выбраць іншую бібліятэку" },
+  "The recording library is no longer available.": {
+    "es": "La biblioteca de grabaciones ya no está disponible.",
+    "be": "Бібліятэка запісаў больш недаступная."
+  },
+  "Plex returned invalid recording storage locations.": {
+    "es": "Plex devolvió ubicaciones de grabación no válidas.",
+    "be": "Plex вярнуў няправільныя месцы захавання запісаў."
+  },
+  "Schedule {title}?": { "es": "¿Programar {title}?", "be": "Запланаваць {title}?" },
+  "Library: {library}. Storage: {location}.": {
+    "es": "Biblioteca: {library}. Almacenamiento: {location}.",
+    "be": "Бібліятэка: {library}. Сховішча: {location}."
+  },
+  "Storage location {id}": { "es": "Ubicación de almacenamiento {id}", "be": "Месца захавання {id}" },
+  "Use Plex default storage": { "es": "Usar el almacenamiento predeterminado de Plex", "be": "Выкарыстаць стандартнае сховішча Plex" },
+  "Plex default storage": { "es": "Almacenamiento predeterminado de Plex", "be": "Стандартнае сховішча Plex" },
+  "Choose a storage location. Nothing changes until you confirm.": {
+    "es": "Elige una ubicación. Nada cambia hasta que lo confirmes.",
+    "be": "Выберыце месца захавання. Нічога не зменіцца без пацверджання."
+  },
+  "Plex did not advertise storage locations. You may explicitly use its default or choose another library.": {
+    "es": "Plex no indicó ubicaciones de almacenamiento. Puedes elegir su opción predeterminada u otra biblioteca.",
+    "be": "Plex не паведаміў месцы захавання. Вы можаце відавочна выбраць стандартнае сховішча або іншую бібліятэку."
+  },
+  "Recording priorities": { "es": "Prioridades de grabación", "be": "Прыярытэты запісу" },
+  "Higher subscriptions get recording priority. Plex may still report tuner conflicts.": {
+    "es": "Las suscripciones superiores tienen prioridad. Plex aún puede indicar conflictos de sintonizador.",
+    "be": "Падпіскі вышэй у спісе маюць прыярытэт запісу. Plex усё яшчэ можа паведамляць пра канфлікты цюнара."
+  },
+  "Move to highest priority": { "es": "Dar máxima prioridad", "be": "Надаць найвышэйшы прыярытэт" },
+  "Give {title} highest recording priority?": {
+    "es": "¿Dar a {title} la máxima prioridad de grabación?",
+    "be": "Надаць {title} найвышэйшы прыярытэт запісу?"
+  },
+  "This changes recording priority, not tuner availability. Review scheduled recordings afterward.": {
+    "es": "Esto cambia la prioridad, no la disponibilidad del sintonizador. Revisa después las grabaciones programadas.",
+    "be": "Гэта змяняе прыярытэт, а не даступнасць цюнара. Пасля праверце запланаваныя запісы."
+  },
+  "Plex did not provide a complete editable recording-priority list.": {
+    "es": "Plex no proporcionó una lista completa y editable de prioridades de grabación.",
+    "be": "Plex не прадаставіў поўны спіс прыярытэтаў запісу для рэдагавання."
+  },
+  "Recording priorities can verify up to 200 subscriptions.": {
+    "es": "Se pueden comprobar las prioridades de hasta 200 suscripciones.",
+    "be": "Можна праверыць прыярытэты не больш чым 200 падпісак."
+  },
+  "Plex returned invalid recording priorities.": {
+    "es": "Plex devolvió prioridades de grabación no válidas.",
+    "be": "Plex вярнуў няправільныя прыярытэты запісу."
+  },
+  "Wait for the previous recording priority change to finish.": {
+    "es": "Espera a que termine el cambio anterior de prioridad.",
+    "be": "Пачакайце завяршэння папярэдняй змены прыярытэту запісу."
+  },
+  "The recording change was cancelled.": { "es": "Se canceló el cambio de grabación.", "be": "Змена запісу скасавана." },
+  "Recording verification timed out. Reload before editing.": {
+    "es": "Se agotó el tiempo de comprobación de las grabaciones. Vuelve a cargar antes de editar.",
+    "be": "Час праверкі запісаў скончыўся. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "Plex returned incomplete recording priorities. Reload before editing.": {
+    "es": "Plex devolvió una lista incompleta de prioridades. Vuelve a cargar antes de editar.",
+    "be": "Plex вярнуў няпоўныя прыярытэты запісу. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "The recording priorities changed on Plex. Reload before editing.": {
+    "es": "Las prioridades de grabación cambiaron en Plex. Vuelve a cargar antes de editar.",
+    "be": "Прыярытэты запісу змяніліся ў Plex. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "Plex did not confirm the recording priority. Reload before editing.": {
+    "es": "Plex no confirmó la prioridad de grabación. Vuelve a cargar antes de editar.",
+    "be": "Plex не пацвердзіў прыярытэт запісу. Перазагрузіце іх перад рэдагаваннем."
+  },
   "Create playlist": { "es": "Crear lista", "be": "Стварыць спіс прайгравання" },
   "Create empty playlist {playlist}?": {
     "es": "¿Crear la lista vacía {playlist}?",

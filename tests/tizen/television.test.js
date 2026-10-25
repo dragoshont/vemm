@@ -27,6 +27,12 @@ async function run() {
     assert.strictEqual(create.method, "POST");
     assert.strictEqual(create.query["hints[guid]"], "plex://episode/abc");
     assert.strictEqual(create.query.targetLibrarySectionID, "2");
+    await api.record(templates[0], 2, 6);
+    assert.strictEqual(calls.pop().query.targetSectionLocationID, "6");
+    assert.throws(function () { tv.templateQuery(templates[0], 2, "../6"); }, /identifier/);
+    assert(spec.paths["/media/subscriptions"].post.parameters.some(function (parameter) {
+        return parameter.name === "targetSectionLocationID";
+    }), "The selected storage ID uses the documented subscription field");
     assert.throws(function () { tv.templateQuery({ type: 4, parameters: "X-Plex-Token=bad" }, 2); }, /Unsupported/);
     assert.throws(function () { tv.templateQuery({ type: 4, parameters: "hints%5Bguid%5D=a&hints%5Bguid%5D=b" }, 2); }, /Unsupported/);
     await api.remove(18);

@@ -245,6 +245,44 @@ cancelled creation/page, stale revision and background cleanup. These are
 synthetic host contracts, not disposable-PMS or named-TV playback, memory,
 remote/lifecycle or server-mutation acceptance.
 
+## DVR storage and priorities: source-backed host contract
+
+The bundled OpenAPI subscription POST defines `targetLibrarySectionID` and
+`targetSectionLocationID` separately. Library section metadata defines
+`Location[]` with numeric `id` and disk `path`. `REQ-TV-STORAGE-01` freshly reads
+the chosen compatible library, validates at most 50 unique numeric locations
+and presents those server-provided choices before named confirmation. The
+selected ID is sent as `targetSectionLocationID`, never as a filesystem path.
+Missing advertised locations permit only an explicit **Use Plex default
+storage** choice, which omits that parameter. Malformed, duplicate or
+over-limit locations are errors, not permission to use a default. Inspection,
+Cancel and a late response after Back never schedule.
+
+The documented `PUT /media/subscriptions/{subscriptionId}/move` changes
+subscription priority; omitting `after` moves it to the beginning.
+`REQ-TV-PRIORITY-01` links scheduled-recording status to this manual priority
+workflow. It requires explicit named confirmation, matches the complete
+displayed/preflight subscription ID order and selected title, sends one PUT,
+then verifies the exact promoted order and title. It rejects duplicates,
+incomplete size/offset reports, more than 200 subscriptions, stale names/order,
+unchanged success, denied access and concurrent changes. A 60-second
+phase-admission deadline and originating-view guard stop future requests;
+already-sent changes may finish and are never undone or replayed as cleanup.
+One per-client pending priority operation remains locked across view instances.
+
+Priority read-back does **not** prove a tuner conflict resolved. The UI keeps
+that distinction explicit, and returning to scheduled recordings reads Plex's
+actual status again. The existing explicit subscription cancellation and
+server-preference forms remain available; no automatic conflict cancellation,
+tuner allocation, keepalive or guessed release endpoint is added.
+
+`television`, `recording-priority`, `recording-storage-ui` and the actual-main.js
+`media-ui` journey cover physical/default storage, malformed and late responses,
+duplicate/reordered/partial/over-limit priority data, cancellation, repeated OK,
+HTTP uncertainty and unchanged conflict status. These are synthetic fixtures,
+not actual subscription persistence, entitlement, recording or named-TV/tuner
+acceptance. Comprehensive conflict/service acceptance remains open.
+
 ## 1. Library sections
 
 ```

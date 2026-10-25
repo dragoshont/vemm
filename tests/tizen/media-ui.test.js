@@ -27,6 +27,8 @@ async function run() {
     var state = "NONE";
     var watchlisted = true;
     var ignoreWatchlistWrite = false;
+    var recordingOrder = ["19", "18"];
+    var ignorePriorityWrite = false;
     var listener;
     var time = 0;
     var queueVersion = 1;
@@ -81,7 +83,9 @@ async function run() {
             container = {};
         } else if (url.pathname === "/library/sections") {
             container = { Directory: [{ key: "3", type: "artist", title: "Music" }, { key: "4", type: "photo", title: "Photos" },
-                { key: "2", type: "show", title: "TV library" }, { key: "1", type: "movie", title: "Movies" }] };
+                { key: "2", type: "show", title: "TV library", Location: [
+                    { id: 5, path: "/synthetic/recordings/primary" }, { id: 6, path: "/synthetic/recordings/secondary" }
+                ] }, { key: "1", type: "movie", title: "Movies" }] };
         } else if (url.pathname === "/hubs/promoted") { container = { Hub: [] }; }
         else if (url.pathname === "/media/providers") {
             container = { MediaProvider: [{ identifier: "tv.plex.providers.epg.cloud:12", title: "Synthetic guide",
@@ -97,7 +101,16 @@ async function run() {
             container = { SubscriptionTemplate: [{ MediaSubscription: [{ title: "This Episode", type: 4,
                 parameters: "hints%5Bguid%5D=plex%3A%2F%2Fepisode%2Fabc" }] }] };
         } else if (url.pathname === "/media/subscriptions") {
-            container = { MediaSubscription: [{ key: "18", title: "Synthetic recording", Setting: [] }] };
+            container = { MediaSubscription: recordingOrder.map(function (id) {
+                return { key: id, title: id === "18" ? "Synthetic recording" : "Synthetic other recording", Setting: [] };
+            }) };
+        } else if (url.pathname === "/media/subscriptions/scheduled") {
+            container = { MediaGrabOperation: [{ title: "Synthetic conflicted recording", status: "conflict" }] };
+        } else if (url.pathname === "/media/subscriptions/18/move") {
+            assert.strictEqual(options.method, "PUT");
+            assert(!url.searchParams.has("after"));
+            if (!ignorePriorityWrite) { recordingOrder = ["18", "19"]; }
+            container = {};
         } else if (url.pathname === "/media/subscriptions/18") { container = {}; }
         else if (url.pathname === "/library/sections/3/all") { container = { Metadata: [album], totalSize: 1, offset: 0 }; }
         else if (url.pathname === "/library/sections/4/all") { container = { Metadata: photos, totalSize: 2, offset: 0 }; }
@@ -141,6 +154,7 @@ async function run() {
     function click(label) {
         var node = Array.from(window.document.querySelectorAll("button")).find(function (button) { return button.textContent === label; });
         assert(node, "Missing control: " + label + "; current screen: " + window.document.body.textContent);
+        node.focus();
         node.click();
     }
     async function settle() {
@@ -262,11 +276,16 @@ async function run() {
         click("Record / This Episode"); await settle();
         click("TV library"); await settle();
         assert(!calls.some(function (call) { return call.path === "/media/subscriptions" && call.method === "POST"; }));
+        click("/synthetic/recordings/secondary"); await settle();
+        click("Cancel"); await settle();
+        assert.strictEqual(window.document.activeElement.textContent, "/synthetic/recordings/secondary");
+        click("/synthetic/recordings/secondary"); await settle();
         click("Confirm"); click("Confirm"); await settle();
         var scheduled = calls.filter(function (call) { return call.path === "/media/subscriptions" && call.method === "POST"; });
         assert.strictEqual(scheduled.length, 1);
         assert.strictEqual(scheduled[0].query.get("hints[guid]"), "plex://episode/abc");
         assert.strictEqual(scheduled[0].query.get("targetLibrarySectionID"), "2");
+        assert.strictEqual(scheduled[0].query.get("targetSectionLocationID"), "6");
         click("Refresh"); await settle();
         click("Back"); await settle();
         assert(window.document.querySelector(".screen-program"),
@@ -274,7 +293,26 @@ async function run() {
         click("Back"); await settle();
         click("Back"); await settle();
         assert(window.document.querySelector(".screen-television"));
-        click("Recording subscriptions"); await settle();
+        click("Scheduled recordings"); await settle();
+        assert(window.document.querySelector(".screen-recordings").textContent.includes("conflict"));
+        click("Recording priorities"); await settle();
+        click("Move to highest priority"); await settle();
+        click("Cancel"); await settle();
+        assert(!calls.some(function (call) { return call.path === "/media/subscriptions/18/move"; }));
+        ignorePriorityWrite = true;
+        click("Move to highest priority"); click("Confirm"); click("Confirm"); await settle();
+        assert(window.document.getElementById("status").textContent.includes("not confirmed"));
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/media/subscriptions/18/move"; }).length, 1);
+        click("Cancel"); await settle();
+        ignorePriorityWrite = false;
+        click("Move to highest priority"); click("Confirm"); click("Confirm"); await settle();
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/media/subscriptions/18/move"; }).length, 2);
+        click("Refresh"); await settle();
+        assert(window.document.querySelector(".recording-row h3").textContent.includes("Synthetic recording"));
+        click("Back"); await settle();
+        assert(window.document.querySelector(".screen-recordings").textContent.includes("conflict"),
+            "Verified priority ordering must not claim the server's tuner conflict is resolved");
+        click("Recording priorities"); await settle();
         click("Cancel recording subscription"); await settle();
         assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));
         click("Cancel"); await settle();
