@@ -65,7 +65,7 @@ def fixture_boot(source):
             }
             if (fixtureClient) { throw new Error("The native fixture is already running."); }
             fixtureOrigin = origin;
-            fixtureClient = window.PlexApi.createClient({ baseUrl: origin, token: "synthetic-fixture",
+            fixtureClient = window.PlexApi.createClient({ baseUrl: origin,
                 clientIdentifier: "vemm-native-synthetic", location: "lan", fetch: window.fetch });
             currentClient = fixtureClient;
             currentServerId = "synthetic-server";

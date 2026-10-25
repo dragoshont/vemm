@@ -27,7 +27,8 @@ async function run(identity) {
     window.fetch = function (target, options) {
         var url = new URL(target);
         assert.strictEqual(url.origin, "http://127.0.0.1:32491");
-        assert.strictEqual(options.headers["X-Plex-Token"], "synthetic-fixture");
+        assert.strictEqual(options.headers["X-Plex-Token"], undefined,
+            "The account-free native widget needs no embedded Plex credential, even a synthetic one");
         calls.push(url.pathname);
         var container;
         if (url.pathname === "/library/sections") { container = { Directory: [] }; }

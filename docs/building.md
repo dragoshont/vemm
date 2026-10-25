@@ -67,8 +67,9 @@ approved author/profile, never replace or uninstall production Vemm, and
 record the separate QA payload/source hashes. Following fresh live identity
 matching, invoke `VemmNativeFixture.start()` through its owned inspector with
 the explicit private fixture origin supplied **at runtime**, not stored in the
-widget. Fetch is restricted to that exact origin, including a deliberately
-never-valid synthetic token. This is a fetch boundary, not an assertion of
+widget. Fetch is restricted to that exact origin. No Plex account/server token
+is configured, and the HTTP fixture rejects unexpected token values. This is
+a fetch boundary, not an assertion of
 general network isolation. Synthetic setup functions cannot navigate away
 from an active player or change ownership silently. Exercise real remote
 actions after setup; source helper calls alone do not prove D-pad behavior.
