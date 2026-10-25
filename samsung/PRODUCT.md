@@ -65,6 +65,9 @@ Startup resume uses the same owned PLAYING-state seek, avoiding unreliable
 READY-state HLS seeks on older engines. Opening completes only after resume
 answers and the latest intent/native clock are verified. Missing callbacks
 fail explicitly instead of claiming that playback resumed or started over.
+Resume failures retain their identity and phase; they are not decoder rejection
+and must not automatically renegotiate/reopen a Direct Play source while its
+owned seek is still outstanding.
 
 Video playlists are server-backed: browse existing playlists, play/shuffle them,
 page their items, and explicitly confirm moving an entry to the beginning.

@@ -149,7 +149,12 @@
                             timer = null;
                             pending = null;
                             transition(paused ? "paused" : "playing");
-                            if (offset > 0) { seek(offset, resumeWait).then(resolve, reject); }
+                            if (offset > 0) {
+                                seek(offset, resumeWait).then(resolve, function (failure) {
+                                    failure.playbackPhase = "resume";
+                                    reject(failure);
+                                });
+                            }
                             else { resolve(); }
                         } catch (failure) { failed("prepare"); }
                     }, function () { failed("prepare"); });

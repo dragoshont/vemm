@@ -237,8 +237,29 @@ summaries.
 | 2026-10-25 | revise | PB-01, UI-TRANSPORT-01, MARK-01, QA-01 | Exact193440c8 native trace separates pause and landing: stable post-buffer Intro8000->8021, slider18000->18026 and8000->8021 all PAUSED. A dedicated forward request18021 returned success at provisional18021, then a second buffering cycle ended at native19029 while UI/cache remained18021. Refresh owned native position after buffering completes; do not accept the earlier callback clock as final landing. Original fixed return windows are not a substitute for testing exact requested targets, stable post-buffer clocks and measured media bounds. |
 | 2026-10-25 | revise | PB-01, UI-TRANSPORT-01, QA-01 | Samsung's public AVPlay seekTo constraint requires waiting for a native success/error callback before other playback APIs. A stricter host native reproduced pending Pause refusal and timeout incorrectly attempting native restoration. Queue latest play/pause intent until the callback, do not read a final clock during an outstanding native seek, and expose an unanswered timeout as terminal failure rather than verified pause; only the still-owned late callback can safely reassert retained intent. Preserve generation/new-source retirement and explicit cleanup errors. |
 | 2026-10-25 | revise | PB-01, QA-01, REVIEW-01 | The older-engine READY-seek fallback also had separate raw seek ownership and assigned the requested offset instead of observing getCurrentTime. A temporary exact assertion observed6690000 versus native0. Subsequent strict-native fixtures observed the extra READY operation and absent shared pending ownership. Replace that path with one PLAYING-state resume using the same bounded owned seek, queued intent, cancellation and observed clock as remote actions; open waits for it and an unanswered operation explicitly fails instead of claiming playback from the start. Older-engine hardware acceptance remains separate. |
+| 2026-10-25 | revise | PB-01, QA-01, REVIEW-01 | Independent7c234c65 review reproduced startup resume timeout reaching generic Direct Play fallback, negotiating a second source and losing pause ownership to a forbidden pending close. An actual controller/adapter regression observed decisions[1,0], then passes with resume-phase failure classification preserving decisions[1], original seek-timeout and late owned PAUSED restoration. Callback error and native retirement also refuse reopen; ordinary decoder fallback remains covered. This source repair needs frozen independent closure, not acceptance inferred from host checks. |
+| 2026-10-25 | revise | QA-01, MARK-01, UI-TRANSPORT-01 | Exact7c QN70F/Tizen9 stable paused Intro and slider clocks were measured against normalized HLS keyframes, packet/frame cadence and two segment periods of clear/stable clock. Extra unowned keys then contaminated the media-key case and caused more actions. Input attribution is unknown. Parent confirms user unavailable for exclusive-window confirmation: pause further device mutation, preserve bounded observations, continue source repair. Do not guess another TV, suppress user controls or treat the global SDK lane as physical-input exclusivity. |
 
 ## Execution and acceptance
+
+7c234c65 source review returned REVISE: making open await startup resume exposed
+the controller's generic Direct Play decoder fallback to a terminal seek
+timeout. It negotiated a second source and tried native close while the
+original seek was outstanding, replacing the timeout and retiring pause intent.
+REQ-PB-01/QA-01/REVIEW-01 remain open. The observed-red actual controller/adapter
+regression now passes after tagging owned resume failures distinctly and
+preventing decoder fallback/reopen for that phase. It preserves the original
+error and owned late-callback behavior; callback error/native retirement and
+ordinary decoder fallback are also covered. Frozen independent closure remains.
+
+The separate exact7c QN70F QA run observed stable paused Intro8000->8021 and
+slider18021->19029/back9029->10026, with matching post-buffer native/UI clocks.
+These satisfy the predeclared measured one-GOP/keyframe/packet fixture bound;
+the latter two do not pass the earlier nominal17-19s/7-9s windows. The remaining
+run failed input ownership: unscripted keys during observation caused extra
+seek/credits/Stop/Play actions. Their physical/agent origin is unknown.
+Owned inspector/server/lane were released. No further TV mutation until an
+exclusive unattended-input window is confirmed; source repair continues.
 
 - Start useful end-to-end implementation after the short requirements intake.
   Existing code must be repaired/completed where appropriate, not rewritten
@@ -368,9 +389,12 @@ blanket SDK blocker or silently accept unmeasured behavior.
 
 ## Handoff
 
-Next: freeze the post-buffer clock and documented async-seek corrections,
-run exact clean committed host/source gates, independently review the delta,
-rebind artifacts and rerun native acceptance. New host regressions observed
+Next: freeze the startup resume-phase fallback repair, run exact clean
+committed host/source gates and obtain independent closure of the7c finding.
+Further TV mutation is paused pending an exclusive unattended-input window;
+the user is unavailable to confirm one. This is an input-ownership blocker,
+not renewed release permission or a generic SDK access failure.
+The preceding post-buffer/async-seek regressions observed
 stale post-buffer position, forbidden pending Pause and timeout restoration;
 repairs publish a fresh clock after post-callback buffering, queue pending
 intent, and treat a missing-callback timeout as terminal failure. The latest
@@ -384,9 +408,10 @@ seek, without first issuing an unreliable READY operation. Verify its
 observed clock, queued controls, timeout and retirement alongside remote seeks.
 The five c8aee1ea findings are source-closed by independently reviewed
 09c85be8, and the seek delta source-closed by independent 0b888fc1 review,
-not overall release acceptance. The installed QN70F QA is now193440c8:
-stable paused Intro and slider-forward/back were observed; dedicated forward
-exposed the provisional-versus-post-buffer clock defect described above.
+not overall release acceptance. The installed QN70F QA is now7c234c65:
+stable paused Intro and slider-forward/back have matching post-buffer native/
+UI clocks under the measured fixture bound, separately reporting failed old
+nominal windows. Extra unowned input invalidated the remaining media/full run.
 Rebind QA staging/signing/observer helpers before the next source-bound run.
 The timed-out09 debug attempt was followed by read-only known-inspector
 discovery (connection reset; no app mutation), then the authorized normal

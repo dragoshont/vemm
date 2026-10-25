@@ -44,6 +44,9 @@ Restoration refusal/unreadable or invalid native clocks are explicit failures.
 Startup offsets use that same owned operation after starting native playback,
 not an unanswered READY-state HLS seek followed by a competing fallback.
 Open waits for resume completion; a timeout does not claim playback from zero.
+Adapter failures from that operation carry `playbackPhase: "resume"` so the
+controller preserves the original error rather than treating it as an original
+file decoder rejection and automatically renegotiating/reopening.
 `avplay-seek-intent.test.js` models those native-state transitions and retired
 callbacks; it does not substitute for re-observing the failed QN70F criterion.
 

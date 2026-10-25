@@ -372,7 +372,8 @@
                 var url = client.streamUrl(path, selection.direct ? {} : selection.query);
                 allocated = true;
                 return adapter.open(url, settings.offset || 0, settings.paused).catch(function (error) {
-                    if (!selection.direct || selection.force || closed || stopping) { throw error; }
+                    if (!selection.direct || selection.force || closed || stopping ||
+                            (error && error.playbackPhase === "resume")) { throw error; }
                     // The capability profile is a prediction; the decoder has the last word.
                     emit({ type: "direct-fallback", message: error && error.message });
                     selection.direct = false;

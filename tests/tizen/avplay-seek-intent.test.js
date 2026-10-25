@@ -1,6 +1,7 @@
 "use strict";
 var assert = require("assert");
 var av = require("../../samsung/Vemm/js/avplay.js");
+var playback = require("../../samsung/Vemm/js/playback.js");
 
 function fixture(initial) {
     var nativeState = "NONE", time = 0, listener, completion, outstanding = false;
@@ -46,6 +47,61 @@ function fixture(initial) {
 }
 
 var cases = {
+    "resume-controller-timeout": async function (f) {
+        var source = { ratingKey: "10", duration: 100000, Media: [{
+            container: "mp4", videoCodec: "h264", audioCodec: "aac", width: 1920, height: 1080,
+            Part: [{ id: "20", key: "/library/parts/20/file.mp4", Stream: [{ streamType: 1, codec: "h264" }] }]
+        }] };
+        var decisions = [], outstanding = false;
+        var seek = f.native.seekTo, state = f.native.getState;
+        f.native.seekTo = function (target, done, failed) {
+            outstanding = true;
+            seek(target, function () { outstanding = false; done(); },
+                function () { outstanding = false; failed(); });
+        };
+        f.native.getState = function () { assert(!outstanding, "No native query before resume callback"); return state(); };
+        var configuration = { adapter: f.adapter, item: source, client: {
+            request: function (path, method, query) {
+                decisions.push(query.directPlay);
+                return Promise.resolve({ generalDecisionCode: 1001, Metadata: [{ Media: [{
+                    Part: [{ decision: query.directPlay ? "directplay" : "transcode" }]
+                }] }] });
+            },
+            streamUrl: function () { return "https://synthetic.invalid/media"; }
+        }, settings: { quality: "original", offset: 5000, paused: true, profile: {
+            evidence: "synthetic", containers: ["mp4"], video: ["h264"], audio: ["aac"],
+            maxWidth: 1920, maxHeight: 1080
+        } } };
+        var controller = playback.create(configuration);
+        var failure;
+        try { await controller.start(); } catch (error) { failure = error; }
+        f.complete();
+        assert.deepStrictEqual(decisions, [1], "An owned resume timeout must not negotiate decoder fallback or reopen");
+        assert(failure);
+        assert.strictEqual(failure.code, "avplay-seek-timeout", "Preserve the original failure, not a competing close error");
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.state(), "PAUSED", "The still-owned late callback retains pause");
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+        assert.strictEqual(f.adapter.snapshot().position, 0);
+
+        controller = playback.create(configuration);
+        var rejected = controller.start().catch(function (error) { failure = error; });
+        await new Promise(setImmediate);
+        f.complete("failed"); await rejected;
+        assert.deepStrictEqual(decisions, [1, 1], "A native resume error is not decoder rejection either");
+        assert.strictEqual(failure.code, "avplay-seek");
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.state(), "PAUSED");
+
+        controller = playback.create(configuration);
+        rejected = controller.start().catch(function (error) { failure = error; });
+        await new Promise(setImmediate);
+        f.fail(); await rejected; f.complete("failed");
+        assert.deepStrictEqual(decisions, [1, 1, 1], "Terminal native retirement cannot silently reopen the source");
+        assert.match(failure.message, /cancelled/);
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+    },
     "paused-success": async function (f) {
         var pending = f.adapter.seek(12555);
         f.complete();
