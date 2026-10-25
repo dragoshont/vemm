@@ -31,6 +31,7 @@ class DistributionTests(unittest.TestCase):
             config = (app / "config.xml").read_text()
             self.assertIn('id="VemmTvApp0.Vemm" package="VemmTvApp0"', config)
             self.assertIn('version="0.2.7"', config)
+            self.assertIn('version: "0.2.7"', (app / "js/product.js").read_text())
             self.assertIn("<name>Vemm</name>", config)
             for name in ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md",
                          "licenses/PlxNative-historical-MIT.txt", "licenses/native-history-NOTICES.md"):
@@ -58,7 +59,7 @@ class DistributionTests(unittest.TestCase):
                 (product / name).write_bytes((ROOT / "samsung/Vemm" / name).read_bytes())
             for name in ("js", "css", "brand"):
                 (product / name).mkdir()
-            (product / "js/product.js").write_text('"use strict";')
+            (product / "js/product.js").write_text('var product = { version: "0.2.0" };')
             (product / "css/style.css").write_text("body {}")
             (product / "brand/vemm-mark.svg").write_text("<svg/>")
             for directory in ("js", "css", "brand"):

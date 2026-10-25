@@ -4021,6 +4021,9 @@
         mark.alt = "";
         identity.appendChild(mark);
         identity.appendChild(element("h2", "", product.name));
+        identity.appendChild(element("p", "help-text", translate("Version {version}", {
+            version: product.version || "unknown"
+        })));
         identity.appendChild(element("p", "about-pronunciation",
             translate("Pronounced {pronunciation}, one syllable.", { pronunciation: product.pronunciation })));
         identity.appendChild(element("p", "about-tagline", translate(product.tagline)));

@@ -10,6 +10,7 @@
 }(this, function (product) {
     "use strict";
     var PRODUCT = product && product.name || "Vemm";
+    var VERSION = product && product.version || "unknown";
     var deviceIdentifier = "tizen-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
 
     function clientId() {
@@ -250,7 +251,8 @@
                         "Content-Type": "application/x-www-form-urlencoded",
                         "X-Plex-Token": token,
                         "X-Plex-Client-Identifier": identifier,
-                        "X-Plex-Product": PRODUCT
+                        "X-Plex-Product": PRODUCT,
+                        "X-Plex-Version": VERSION
                     },
                     body: body
                 }, method === "POST" ? null : scope);
@@ -296,7 +298,7 @@
             return timedFetch(fetchRequest, target, {
                 method: method || "GET", credentials: "omit", redirect: "error",
                 headers: { Accept: "application/json", "X-Plex-Token": token,
-                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT,
+                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT, "X-Plex-Version": VERSION,
                     "X-Plex-Language": options.language || "en" }
             }, method && method !== "GET" ? null : scope).then(function (response) {
                 if (!response.ok) {
@@ -322,7 +324,7 @@
             return timedFetch(fetchRequest, target, {
                 method: method, credentials: "omit", redirect: "error",
                 headers: { Accept: "application/json", "X-Plex-Token": token,
-                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT }
+                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT, "X-Plex-Version": VERSION }
             }, method === "GET" ? scope : null).then(function (response) {
                 if (!response.ok) {
                     var error = new Error(response.status === 401 || response.status === 403 ?
@@ -544,7 +546,7 @@
                         Accept: "application/json",
                         "X-Plex-Client-Identifier": clientIdentifier,
                         "X-Plex-Product": PRODUCT,
-                        "X-Plex-Version": "0.2.2",
+                        "X-Plex-Version": VERSION,
                         "X-Plex-Platform": "Tizen"
                     }
                 }, scope);
@@ -648,7 +650,7 @@
             }
             headers["X-Plex-Client-Identifier"] = options.clientIdentifier || clientId();
             headers["X-Plex-Product"] = PRODUCT;
-            headers["X-Plex-Version"] = "0.2.2";
+            headers["X-Plex-Version"] = VERSION;
             headers["X-Plex-Platform"] = "Tizen";
             headers["X-Plex-Device"] = "TV";
             headers["X-Plex-Device-Name"] = "Samsung TV";

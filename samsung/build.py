@@ -114,7 +114,17 @@ def author_cert(tizen, work):
     return cert, pw_file.read_text().strip()
 
 
+def source_version():
+    text = (HERE / "Vemm/js/product.js").read_text(encoding="utf-8")
+    versions = re.findall(r'\bversion:\s*"(\d+\.\d+\.\d+)"', text)
+    if len(versions) != 1:
+        fail("Expected one semantic version in js/product.js")
+    return versions[0]
+
+
 def stage(app, version):
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        fail("Expected a semantic version such as 0.2.0")
     app.mkdir()
     for name in ("config.xml", "index.html", "main.js", "icon.png"):
         shutil.copyfile(HERE / "Vemm" / name, app / name)
@@ -129,6 +139,12 @@ def stage(app, version):
     if n1 != 1 or f'id="{APP_ID}" package="{PACKAGE_ID}"' not in text:
         fail("Could not stamp config.xml")
     cfg.write_text(text, encoding="utf-8")
+    product = app / "js/product.js"
+    text, count = re.subn(r'(\bversion:\s*")[^"]*"', rf'\g<1>{version}"',
+                          product.read_text(encoding="utf-8"))
+    if count != 1:
+        fail("Could not stamp js/product.js")
+    product.write_text(text, encoding="utf-8")
     for name in ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md"):
         shutil.copyfile(ROOT / name, app / name)
     (app / "licenses").mkdir()
@@ -144,7 +160,7 @@ def es5_check():
 
 def build(version, out_dir=HERE / "dist"):
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
-        fail("Usage: python samsung/build.py [VERSION]   (e.g. 0.2.2)")
+        fail("Usage: python samsung/build.py [VERSION]   (e.g. 0.2.0)")
     studio = studio_dir()
     tizen = studio / "tools/ide/bin" / ("tizen.bat" if WINDOWS else "tizen")
     dist = studio / "tools/certificate-generator/certificates/distributor"
@@ -199,4 +215,4 @@ def build(version, out_dir=HERE / "dist"):
 
 
 if __name__ == "__main__":
-    build(sys.argv[1] if len(sys.argv) > 1 else "0.0.0")
+    build(sys.argv[1] if len(sys.argv) > 1 else source_version())

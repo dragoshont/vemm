@@ -1,4 +1,5 @@
 {
+  "Version {version}": { "es": "Versión {version}", "be": "Версія {version}" },
   "Accessibility": { "es": "Accesibilidad", "be": "Даступнасць" },
   "Reduced motion": { "es": "Movimiento reducido", "be": "Менш анімацыі" },
   "Interface text": { "es": "Texto de la interfaz", "be": "Тэкст інтэрфейсу" },

@@ -6,6 +6,7 @@
     "use strict";
     return {
         name: "Vemm",
+        version: "0.2.0",
         pronunciation: "/vem/",
         tagline: "Your media. At its best.",
         platform: "Samsung Tizen",

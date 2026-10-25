@@ -60,6 +60,11 @@ authorization. Do not execute the publisher merely to validate source cleanup.
 inventory from `licenses/` (not arbitrary local directory contents). Hidden files, source maps, old WGTs
 and unrelated/private file types are not product assets. This is a staging
 boundary, not a secret scanner: review the actual source and staged entries.
+`js/product.js` carries the source version, matching `config.xml`.
+The default local build uses that version. Explicit `stage(app, X.Y.Z)` stamps
+both files in the staged copy, so About and both PMS/account protocol headers
+agree with the package version without rewriting source or retaining a
+historical client version. This metadata agreement is not release acceptance.
 The notices are legal payload,
 not executable dependencies. Review actual archive entries and preserve matching
 complete-source availability under GPL section 6(d).
