@@ -31,7 +31,9 @@ flowchart LR
   backend seam.
 - Capability evidence split between published specifications and exact observed
   tuples.
-- Optional WebGL backend off by default with the current fallback.
+- Optional WebGL backend explicitly labelled experimental, with no demonstrated
+  performance benefit, off by default with the current fallback. It is not an
+  upgrade to the existing Home compositor acceleration or AVPlay.
 - Clean Vemm package/application IDs, storage keys, future author continuity,
   release filenames, GPL provenance and complete-source distribution.
 

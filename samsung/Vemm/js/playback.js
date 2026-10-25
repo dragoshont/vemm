@@ -47,6 +47,7 @@
         delete ask.videoQuality;
         delete ask.videoCodec;
         delete ask.audioCodec;
+        delete ask.autoAdjustQuality;
         return ask;
     }
 
@@ -77,6 +78,45 @@
     function rungFor(quality) {
         var rung = LADDER[quality] || LADDER["1080"];
         return { cap: rung.height, width: rung.width, height: rung.heightAsk || rung.height, bitrate: rung.bitrate };
+    }
+
+    function adaptivePolicy(options) {
+        var order = ["original", "1080h", "1080", "720", "720l", "480"];
+        var index = order.indexOf(options.quality || "original");
+        if (index < 0) { throw new Error("The requested playback quality is invalid."); }
+        var enabled = options.enabled === true && options.directPlay !== "force";
+        if (enabled && options.location === "wan") { index = Math.max(2, index); }
+        var readyAt = null;
+        var bufferAt = null;
+        var lastChange = -Infinity;
+        var stalls = [];
+        return {
+            enabled: enabled,
+            quality: function () { return order[index]; },
+            ready: function (now) { readyAt = now; bufferAt = null; stalls = []; },
+            buffer: function (active, now, playing) {
+                if (!enabled || readyAt === null || !playing || now - readyAt < 30000) {
+                    bufferAt = null;
+                    return null;
+                }
+                if (active) {
+                    if (bufferAt === null) { bufferAt = now; }
+                    return null;
+                }
+                if (bufferAt === null) { return null; }
+                var elapsed = now - bufferAt;
+                bufferAt = null;
+                if (elapsed < 1500) { return null; }
+                stalls = stalls.filter(function (time) { return now - time <= 60000; });
+                stalls.push(now);
+                if ((elapsed < 8000 && stalls.length < 2) || now - lastChange < 60000 ||
+                        index === order.length - 1) { return null; }
+                index += 1;
+                lastChange = now;
+                stalls = [];
+                return order[index];
+            }
+        };
     }
 
     function videoStream(streams) {
@@ -189,6 +229,8 @@
             "X-Plex-Client-Profile-Name": "Generic",
             "X-Plex-Client-Profile-Extra": "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)"
         };
+        if (options.location === "lan" || options.location === "wan") { query.location = options.location; }
+        if (options.adaptiveQuality === true && !force && kind === "video") { query.autoAdjustQuality = 1; }
         if (tracks.audioId > 0) { query.audioStreamID = tracks.audioId; }
         if (direct) {
             query["X-Plex-Client-Profile-Extra"] += "+add-direct-play-profile(type=videoProfile&protocol=http&container=" +
@@ -392,5 +434,6 @@
         };
     }
     return { plan: plan, create: create, fits: fits, rungFor: rungFor, streamMode: streamMode,
+        adaptivePolicy: adaptivePolicy,
         qualities: Object.keys(LADDER) };
 }));

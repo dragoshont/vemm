@@ -493,7 +493,9 @@
             var client;
             try {
                 if (!/^https:\/\//.test(connection.uri)) { return probe(); }
-                client = createClient({ baseUrl: connection.uri, token: server.token, fetch: options.fetch });
+                client = createClient({ baseUrl: connection.uri, token: server.token, fetch: options.fetch,
+                    location: connection.local === true ? "lan" :
+                        connection.local === false || connection.relay === true ? "wan" : "" });
             } catch (error) { return probe(); }
             if (options.onClient && options.onClient(client) === false) { return Promise.reject(requestCancelled()); }
             if (options.onAttempt) {
@@ -702,6 +704,7 @@
         }
 
         return {
+            location: options.location === "lan" || options.location === "wan" ? options.location : "",
             cancelRequests: function () { scope.cancel(); },
             request: get,
             identity: function () { return get("/identity"); },

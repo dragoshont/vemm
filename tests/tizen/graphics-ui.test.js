@@ -84,7 +84,7 @@ async function run() {
     function settings() { click(/^Account$/); click(/^Settings$/); }
     function saved() { return JSON.parse(data["vemm-tizen-preferences"]); }
     try {
-        assert(!find(/^New graphics enhancements:/), "Enhancements are not offered before connection/login");
+        assert(!find(/^Experimental artwork:/), "Experimental artwork is not offered before connection/login");
         assert.strictEqual(state.created, 0);
         window.document.querySelector('input[name="server"]').value = "https://pms.synthetic.invalid";
         click(/^Connect$/);
@@ -92,9 +92,10 @@ async function run() {
         assert.strictEqual(state.created, 0, "Existing rendering must allocate no new GPU backend by default");
         assert(window.document.querySelector(".home-track"), "The existing compositor movement remains");
         settings();
-        assert(find(/^New graphics enhancements: Off$/));
-        assert.strictEqual(find(/^New graphics enhancements:/).getAttribute("aria-pressed"), "false");
-        click(/^New graphics enhancements:/);
+        assert(find(/^Experimental artwork: Off$/));
+        assert(window.document.getElementById("screen").textContent.includes("no demonstrated performance benefit"));
+        assert.strictEqual(find(/^Experimental artwork:/).getAttribute("aria-pressed"), "false");
+        click(/^Experimental artwork:/);
         assert.strictEqual(saved().enhancedGraphics, true);
         assert.strictEqual(state.created, 0, "Enable is lazy; Settings contains no artwork context");
         click(/^Back$/);
@@ -107,7 +108,7 @@ async function run() {
         }));
         settings();
         assert(state.cleared > 0, "Leaving Home releases the GPU view");
-        click(/^New graphics enhancements:/);
+        click(/^Experimental artwork:/);
         assert.strictEqual(saved().enhancedGraphics, false);
         assert.strictEqual(state.enabled[state.enabled.length - 1], false);
         var rendered = state.presented.length;
@@ -116,12 +117,12 @@ async function run() {
         assert.strictEqual(state.presented.length, rendered, "Off preserves the original renderer");
         settings();
         failStorage = true;
-        click(/^New graphics enhancements:/);
-        assert(find(/^New graphics enhancements: Off$/), "Failed persistence must not enable enhancements");
+        click(/^Experimental artwork:/);
+        assert(find(/^Experimental artwork: Off$/), "Failed persistence must not enable experimental artwork");
         assert.strictEqual(saved().enhancedGraphics, false);
         assert(window.document.getElementById("status").textContent.includes("Could not save preferences"));
         failStorage = false;
-        click(/^New graphics enhancements:/);
+        click(/^Experimental artwork:/);
         state.fail = true;
         click(/^Back$/);
         await decode();

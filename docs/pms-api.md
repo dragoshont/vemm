@@ -7,6 +7,52 @@ Rust paths/symbols are historical examples at
 they are not current Samsung modules. Account tokens, server addresses and
 household records must not be used to reproduce examples without authorization.
 
+## Plex Web interoperability observation, 2026-10-25
+
+REQ-WEB-01 compares the official public client at
+<https://app.plex.tv/desktop/>, observed as **Plex Web 4.163.0**, HTML hash
+`c55ba34fd4ea83979820`. The observed main asset was
+`js/main-8792-0fadf59092c873ab638b-plex-4.163.0-8246fd2.js`
+(3,508,034 bytes), SHA-384/base64
+`q1H2YK98cS9UgTmCj45B5zzrToCNcPG4bbCoYMW3DOsbU58dRwtkYeJXq6jFl1ZB`,
+matching its HTML integrity attribute. The public assets were inspected as text
+without credentials, cookies or executing downloaded code in that inspection;
+no proprietary implementation is included in Vemm.
+
+A separate isolated startup observation executed the actual public client in
+fresh browser contexts with service workers blocked. Only official static GETs
+reached the network; all service/account/PMS/telemetry calls were intercepted
+locally using never-valid synthetic credentials. Contexts were closed afterward.
+These are observed startup requests, not successful authenticated operations:
+`GET clients.plex.tv/monitoring/health`, `POST /api/v2/users/signin`,
+`GET /api/v2/user`, `GET /api/v2/resources`, privacy/grant/provider reads,
+`POST /api/v2/user/settings` and `GET together.plex.tv/rooms`.
+The unsolicited settings write and query-string tokens are **not** copied into
+Vemm. Its token-destination, header and redirect restrictions remain unchanged.
+The synthetic startup stopped at an incomplete library-access fixture; no
+marker, watched action or playback was observed successfully in Plex Web.
+
+| Compared contract | Actual observation and independently implemented consequence |
+| --- | --- |
+| Metadata | Public Web requests `includeMarkers=1` and `includeChapters=1` for details and queues. Vemm metadata already requests both plus OnDeck. `plex-web-interop.test.js` now binds the query to unsorted, millisecond marker fixtures, including duplicate marker IDs and final credits. Subsequent episode starts refresh metadata before playing; queue rows alone are not assumed complete. |
+| Queue identity | Public Web models `playQueueSelectedItemID` as a string and `playQueueVersion` as an integer. Vemm's fixture uses distinct duplicate-title queue entries and IDs beyond JavaScript's safe-integer range, proving timeline correlation preserves the string item ID rather than a library key or index. Queue revision/editing acceptance is still open. |
+| Adaptive quality | Public Web's boolean preference defaults off, with a conditional numeric `autoAdjustQuality` request. The bundled OpenAPI describes this flag as ABR support and `location` as `lan`/`wan`/`cellular`. Vemm implements its own opt-in policy, request flags and local/remote ceiling; it does not copy the Web adaptation algorithm. Native manifest/representation and rebuffer acceptance remain outstanding. |
+| Watched state | Static Web routes include `/:/scrobble` and `/:/unscrobble`; this alone proves no method or cadence. Existing Vemm methods remain grounded in the PMS reference. New DOM regressions reject unchanged read-back rather than treating HTTP success as accepted watched state. |
+| Audio | Static Web `audioBoost` is an integer transcode option. The bundled OpenAPI independently specifies percent of original loudness (100 unchanged). This is not dialog isolation, loudness normalization, audio-delay support or device output acceptance. |
+| Lifecycle/recovery | Startup fixture failures were recorded as fixture failures, not real service outages. Existing Vemm cancellation and explicit recovery remain authoritative; Web timeline cadence, playback recovery and track-output comparisons have not been observed. |
+
+The privately retained observations are independently authored JSON, not bundles
+or account records. These comparisons and the protocol/DOM tests are partial
+REQ-WEB-01 evidence, **not** full Web parity or Samsung acceptance.
+
+Marker availability is external to the client. Plex's
+[credits documentation](https://support.plex.tv/articles/credits-detection/)
+requires PMS 1.31.0 or newer, administrator Plex Pass for analysis and a qualifying
+playing account/Home; intermediate credits must preserve extra scenes.
+The empty Markers menu now explains missing server analysis/markers and possible
+entitlement requirements rather than implying that Vemm can manufacture them.
+No household entitlement or media state was inspected for this work.
+
 > **Authoritative source: [`plex-openapi.json`](plex-openapi.json)** — the official Plex Media
 > Server OpenAPI 3.1 spec (205 operations). Check it FIRST for any endpoint (method, path,
 > params, response); this file is a hand-curated, live-verified subset for the paths we use.

@@ -50,6 +50,7 @@ function playerFixture(trackOptions, mediaItem) {
     var starts = 0;
     var plays = 0;
     var playerSettings = [];
+    var clock = 100000;
     var timers = [];
     var timersNext = 1;
     window.fetch = function () { assert.fail("The player preview must not use the network"); };
@@ -60,13 +61,15 @@ function playerFixture(trackOptions, mediaItem) {
         load: function () { return { quality: "original", nextEpisode: "countdown", language: "en",
             skipInterval: 10, subtitleDelayMs: trackOptions && trackOptions.initialDelay || 0,
             subtitleSize: "medium", subtitlePosition: "low",
-            subtitleColor: "white", subtitleBackground: "off", directPlay: "auto" }; },
+            subtitleColor: "white", subtitleBackground: "off", directPlay: "auto",
+            adaptiveQuality: !!(trackOptions && trackOptions.adaptiveQuality) }; },
         save: function () {}
     };
     window.VemmSkipMarkers = require("../../samsung/Vemm/js/skip-markers.js");
     window.VemmSubtitles = require("../../samsung/Vemm/js/subtitles.js");
     window.VemmAvplay = { create: function (options) { adapters += 1; callbacks.avplay = options; return {}; } };
     window.VemmPlayback = {
+        adaptivePolicy: require("../../samsung/Vemm/js/playback.js").adaptivePolicy,
         create: function (options) {
             playerSettings.push(options.settings);
             var state = "idle";
@@ -93,6 +96,7 @@ function playerFixture(trackOptions, mediaItem) {
         }
     };
     var client = {
+        location: trackOptions && trackOptions.remote ? "wan" : "lan",
         nextEpisode: function () {
             return Promise.resolve({ ratingKey: "synthetic-next", type: "episode", title: "Next Synthetic Episode",
                 grandparentTitle: "Synthetic Show", parentIndex: 2, index: 5,
@@ -116,6 +120,7 @@ function playerFixture(trackOptions, mediaItem) {
         Promise: Promise,
         URL: window.URL,
         Blob: window.Blob,
+        Date: trackOptions && trackOptions.adaptiveQuality ? { now: function () { return clock; } } : Date,
         setTimeout: function (callback, delay) {
             var id = timersNext++;
             timers.push({ id: id, callback: callback, delay: delay, interval: false });
@@ -151,6 +156,7 @@ function playerFixture(trackOptions, mediaItem) {
         starts: function () { return starts; }, plays: function () { return plays; },
         adapters: function () { return adapters; },
         playerSettings: playerSettings, timers: timers,
+        advance: function (milliseconds) { clock += milliseconds; },
         findButton: findButton, click: click, key: key, settle: settle
     };
 }
@@ -363,7 +369,41 @@ async function introRemainsVisibleAndRemoteActionIsSingleShot() {
     } finally { app.dom.window.close(); }
 }
 
+async function adaptiveRecoveryPreservesTheSession() {
+    var app = playerFixture({ adaptiveQuality: true, remote: true, audioId: 11, subtitleId: 21,
+        subtitleSidecar: true, cues: [] });
+    try {
+        await app.settle();
+        assert.strictEqual(app.playerSettings[0].quality, "1080", "Remote Auto negotiates an honest initial cap");
+        assert.strictEqual(app.playerSettings[0].adaptiveQuality, true);
+        var stale = app.callbacks.avplay;
+        app.advance(31000);
+        app.callbacks.avplay.onEvent({ type: "buffering", detail: true });
+        app.advance(9000);
+        app.callbacks.avplay.onEvent({ type: "buffering", detail: false });
+        await app.settle();
+        assert.strictEqual(app.starts(), 2, "A sustained post-start rebuffer creates one recovery pipeline");
+        assert.strictEqual(app.playerSettings[1].quality, "720");
+        assert.strictEqual(app.playerSettings[1].offset, 45000);
+        assert.strictEqual(app.playerSettings[1].audioId, 11);
+        assert.strictEqual(app.playerSettings[1].subtitleId, 21);
+        assert.strictEqual(app.playerSettings[1].subtitleSidecar, true);
+        stale.onEvent({ type: "buffering", detail: false });
+        await app.settle();
+        assert.strictEqual(app.starts(), 2, "A replaced adapter cannot trigger another adaptation");
+        app.click("Pause / Play");
+        await app.settle();
+        app.advance(90000);
+        app.callbacks.avplay.onEvent({ type: "buffering", detail: true });
+        app.advance(9000);
+        app.callbacks.avplay.onEvent({ type: "buffering", detail: false });
+        await app.settle();
+        assert.strictEqual(app.starts(), 2, "Paused buffering never restarts playback");
+    } finally { app.dom.window.close(); }
+}
+
 async function run() {
+    await adaptiveRecoveryPreservesTheSession();
     await introRemainsVisibleAndRemoteActionIsSingleShot();
     await hudAndPanels();
     await upNextAndTracks();

@@ -14,6 +14,30 @@
 Original quality is not an instruction to ignore subtitle, audio, container or
 decoder constraints.
 
+## Opt-in adaptive quality
+
+Adaptive quality defaults off, independently of Direct Play Auto. When enabled,
+known local connections begin at the selected quality ceiling; known remote
+connections begin no higher than 1080p/8 Mbps. Unknown connections are not
+mislabelled local or remote. Force Direct Play disables adaptation, and choosing
+a quality explicitly in the playing-item menu fixes that session's quality.
+The saved ceiling is never silently rewritten by adaptation.
+
+For conversion, Vemm advertises ABR with the documented `autoAdjustQuality=1`
+and passes `location=lan/wan` only when discovery supplied that classification.
+The direct-file request omits the ABR flag. AVPlay's handling of the actual HLS
+representations still needs named-model acceptance.
+
+The independent rebuffer policy excludes the first 30 seconds of each pipeline,
+ignores stalls shorter than 1.5 seconds, and reduces one rung after an 8-second
+stall or two stalls within 60 seconds. Changes are at least 60 seconds apart,
+never move up automatically and stop at the 480p floor. Restart uses the same
+item/version, playhead, explicit tracks, text cues and subtitle identity.
+Paused/background/menu interaction cannot trigger an adaptive restart.
+These thresholds are conservative implementation limits, not measured per-TV
+performance budgets. Synthetic controller and real-UI/fake-adapter tests cover
+the limits, cancellation and no-unintended-autoplay behavior.
+
 ## Inputs
 
 `js/playback.js` evaluates:

@@ -70,7 +70,8 @@
     var subtitleSearchGeneration = 0;
     var preferences = { quality: "original", nextEpisode: "countdown", language: "en", continueAction: "details",
         skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low", subtitleColor: "white",
-        subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false };
+        subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false,
+        adaptiveQuality: false };
     var preferenceError = "";
     var graphics = null;
     var graphicsFailure = false;
@@ -2534,7 +2535,9 @@
             audioId: settings.audioId,
             subtitleId: settings.subtitleId,
             paused: snapshot.state === "paused",
-            subtitleSidecar: settings.subtitleSidecar
+            subtitleSidecar: settings.subtitleSidecar,
+            adaptivePolicy: settings.adaptivePolicy,
+            adaptiveDisabled: settings.adaptiveDisabled
         };
         if (settings.overlaySubtitle && externalCues) { tracks.cues = externalCues; }
         stopPlayer(function () { startPlayer(item, client, position, settings.mediaIndex, tracks); });
@@ -2968,8 +2971,19 @@
         playerClient = client;
         playerPosition = offset || 0;
         playerDuration = item.duration || 0;
+        var adaptive = trackOptions && trackOptions.adaptivePolicy;
+        if (!adaptive && preferences.adaptiveQuality && item.type !== "track" &&
+                !(trackOptions && trackOptions.adaptiveDisabled)) {
+            adaptive = window.VemmPlayback.adaptivePolicy({ enabled: true, quality: preferences.quality,
+                directPlay: preferences.directPlay, location: client.location });
+        }
         playerSettings = {
-            offset: offset || 0, mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            offset: offset || 0, mediaIndex: mediaIndex || 0,
+            quality: adaptive ? adaptive.quality() : preferences.quality,
+            adaptiveQuality: !!(adaptive && adaptive.enabled),
+            adaptivePolicy: adaptive,
+            adaptiveDisabled: !!(trackOptions && trackOptions.adaptiveDisabled),
+            location: client.location,
             audioId: trackOptions ? trackOptions.audioId : undefined,
             subtitleId: trackOptions ? trackOptions.subtitleId : undefined,
             overlaySubtitle: !!(trackOptions && trackOptions.cues),
@@ -3126,6 +3140,11 @@
                         hudBuffering = !!event.detail;
                         setStatus(event.detail ? "Buffering..." : "");
                         showHud();
+                        if (adaptive && adaptive.buffer(!!event.detail, Date.now(),
+                                player.snapshot().state === "playing" && !document.hidden &&
+                                !document.getElementById("player-menu") && !playerPanel && !subtitleTiming)) {
+                            recoverPlayer(false);
+                        }
                     } else if (event.type === "state") {
                         pauseControl.className = pauseControl.className.replace(/menu-icon-(pause|play)/,
                             event.state === "paused" ? "menu-icon-play" : "menu-icon-pause");
@@ -3162,6 +3181,7 @@
             setStatus("Asking Plex for a compatible stream...");
             player.start().then(function () {
                 if (player === ownPlayer) {
+                    if (adaptive) { adaptive.ready(Date.now()); }
                     setStatus("");
                     showHud();
                 }
@@ -3291,7 +3311,11 @@
                 });
             }
         });
-        if (!menu.querySelector("button")) { menu.appendChild(element("p", "", translate("No markers available."))); }
+        if (!menu.querySelector("button")) {
+            menu.appendChild(element("p", "", translate("No markers available.")));
+            menu.appendChild(element("p", "help-text", translate(
+                "Plex did not return intro or credits markers. Check server analysis, media availability and Plex Pass requirements. Vemm cannot create missing markers.")));
+        }
         button(menu, "Close menu", closePlayerMenu);
         screen.appendChild(menu);
         var control = menu.querySelectorAll("button")[0];
@@ -3308,6 +3332,7 @@
         var position = player.snapshot().position;
         var version = playerSettings.mediaIndex;
         var options = { audioId: audioId, subtitleId: subtitleId, paused: player.snapshot().state === "paused",
+            adaptivePolicy: playerSettings.adaptivePolicy, adaptiveDisabled: playerSettings.adaptiveDisabled,
             subtitleSidecar: cues ? (subtitleSidecar === undefined ?
                 playerSettings.subtitleSidecar : !!subtitleSidecar) : false };
         if (cues) { options.cues = cues; }
@@ -3559,7 +3584,8 @@
             var client = playerClient;
             var position = player.snapshot().position;
             var tracks = { audioId: playerSettings.audioId, subtitleId: playerSettings.subtitleId, cues: externalCues,
-                paused: player.snapshot().state === "paused" };
+                paused: player.snapshot().state === "paused", subtitleSidecar: playerSettings.subtitleSidecar,
+                adaptiveDisabled: true };
             preferences.quality = quality;
             stopPlayer(function () { startPlayer(item, client, position, version, tracks); });
         }
@@ -3823,6 +3849,10 @@
             });
         preferenceChoice(playbackSettings, "Direct play", "directPlay", ["auto", "force", "off"],
             function (value) { return { auto: "Auto", force: "Force", off: "Off" }[value]; });
+        preferenceChoice(playbackSettings, "Adaptive quality", "adaptiveQuality", [false, true],
+            function (value) { return value ? "On" : "Off"; });
+        playbackSettings.appendChild(element("p", "help-text", translate(
+            "Opt-in adaptation stays below your quality ceiling. Remote playback starts at up to 8 Mbps. Repeated buffering can lower quality; Force and manual playback quality choices stay fixed.")));
         button(playbackSettings, translate("Continue Watching: {state}", {
             state: translate(preferences.continueAction === "play" ? "Play" : "Open details")
         }), function () {
@@ -3853,7 +3883,7 @@
         }, false, "language");
         if (accountToken || currentClient) {
             var graphicsSettings = group(menu, translate("Graphics"), "settings-group");
-            var graphicsToggle = button(graphicsSettings, translate("New graphics enhancements: {state}", {
+            var graphicsToggle = button(graphicsSettings, translate("Experimental artwork: {state}", {
                 state: translate(preferences.enhancedGraphics ? "On" : "Off")
             }), function () {
                 var previous = preferences.enhancedGraphics;
@@ -3865,7 +3895,7 @@
             }, false, "settings");
             graphicsToggle.setAttribute("aria-pressed", String(preferences.enhancedGraphics));
             graphicsSettings.appendChild(element("p", "help-text", translate(
-                "Optional WebGL artwork rendering. Off by default. Existing Home acceleration and AVPlay stay enabled. Unsupported features automatically use the existing renderer.")));
+                "Experimental WebGL artwork, with no demonstrated performance benefit. Off by default. Existing Home acceleration and AVPlay remain enabled.")));
             graphicsSettings.appendChild(element("p", "help-text", translate(graphicsFailure ?
                 "New graphics enhancements are unavailable here. Existing graphics remain active." :
                 preferences.enhancedGraphics ?
