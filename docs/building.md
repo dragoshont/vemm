@@ -88,6 +88,15 @@ startup/update and physical panel/audio acceptance. Heap absence is `null`,
 not zero; timing is not presented FPS. Stop the owned fixture server and
 release only owned links/forwards when the bounded run ends.
 
+Inspect the actual WGT, not only the stage or a green toolkit audit. The
+program's pinned toolkit `pack` and source-based `package` commands were
+observed to restage assets and omit Vemm's root notices and `licenses/`.
+Those outputs are not approved Vemm packages. Keep the independent static
+audit, but package the exact repository-created stage without that asset-only
+restage. Separately authorized SDK signing must use the approved existing
+profile and retain that payload. Do not create a new certificate or export it
+to another installer to work around a packaging error.
+
 ## Separate Vemm distribution
 
 Vemm uses `VemmTvApp0` / `VemmTvApp0.Vemm`, `vemm-tizen-*` storage,
@@ -121,6 +130,14 @@ The default local build uses that version. Explicit `stage(app, X.Y.Z)` stamps
 both files in the staged copy, so About and both PMS/account protocol headers
 agree with the package version without rewriting source or retaining a
 historical client version. This metadata agreement is not release acceptance.
+Before SDK packaging the local builder snapshots the staged file bytes;
+afterward `samsung.build.verify_package` rejects missing, additional, modified,
+duplicate or symbolic-link payloads and unknown directory entries. Only the
+SDK's root author/distributor signature files may be additional files.
+The output is not moved to `dist` or checksummed if that inventory/content
+gate fails. The same gate can check an isolated QA payload against its
+prepared stage. It does not establish signature trust, installed version,
+native functionality or author continuity.
 The notices are legal payload,
 not executable dependencies. Review actual archive entries and preserve matching
 complete-source availability under GPL section 6(d).

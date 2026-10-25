@@ -7,7 +7,9 @@ Output: samsung/dist/Vemm-VERSION.wgt (+ .sha256). Install it with
     python samsung/install.py TV_IP samsung/dist/Vemm-VERSION.wgt
 
 Signing uses an author certificate plus the public Tizen distributor that ships with
-Tizen Studio, so the package installs on Developer Mode TVs without a Samsung account.
+Tizen Studio. Retail-TV certificate acceptance is model/profile-specific, not guaranteed
+by this build. This legacy local builder can create an author when none is configured;
+do not use that fallback for an existing-author update.
 The author certificate is VEMM_AUTHOR_P12 + VEMM_AUTHOR_PW if set, otherwise your own one in
 ~/.config/vemm/samsung-author (VEMM_AUTHOR_DIR), created on first use. Preserve that
 author for future Vemm updates. Vemm is a separate app and does not update or read the
@@ -158,6 +160,27 @@ def es5_check():
         run(node, ROOT / "tools/tizen/check-es5.js", HERE / "Vemm")
 
 
+def verify_package(package, expected):
+    """Check final payload bytes, independently of SDK signature validation."""
+    with zipfile.ZipFile(package) as archive:
+        entries = archive.infolist()
+        names = [entry.filename for entry in entries]
+        if len(names) != len(set(names)):
+            raise ValueError("WGT contains duplicate payload entries")
+        if any((entry.external_attr >> 16) & 0o170000 == 0o120000 for entry in entries):
+            raise ValueError("WGT payload inventory contains a symbolic link")
+        if any(entry.is_dir() and not any(name.startswith(entry.filename) for name in expected)
+               for entry in entries):
+            raise ValueError("WGT directory inventory differs from approved staging")
+        files = {entry.filename for entry in entries if not entry.is_dir()}
+        signatures = {"author-signature.xml", "signature1.xml"}
+        if files - signatures != set(expected):
+            raise ValueError("WGT payload inventory differs from approved staging")
+        for name, data in expected.items():
+            if archive.getinfo(name).file_size != len(data) or archive.read(name) != data:
+                raise ValueError("WGT payload content differs from approved staging")
+
+
 def build(version, out_dir=HERE / "dist"):
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         fail("Usage: python samsung/build.py [VERSION]   (e.g. 0.2.0)")
@@ -179,6 +202,8 @@ def build(version, out_dir=HERE / "dist"):
             cert, pw = author_cert(tizen, work)
             app = work / "app"
             stage(app, version)
+            expected = {p.relative_to(app).as_posix(): p.read_bytes()
+                        for p in app.rglob("*") if p.is_file()}
             if backup is None:
                 # A fresh data directory (e.g. a CI cache hit on the CLI alone) has no
                 # profiles.xml, and `security-profiles add` refuses to create one.
@@ -202,6 +227,7 @@ def build(version, out_dir=HERE / "dist"):
         pkgs = list(pkg_dir.glob("*.wgt"))
         if len(pkgs) != 1:
             fail("Packaging produced no .wgt (see the Tizen CLI log in tizen-studio-data/cli/logs)")
+        verify_package(pkgs[0], expected)
         with zipfile.ZipFile(pkgs[0]) as z:
             if "signature1.xml" not in z.namelist():
                 fail("Package is not signed")
