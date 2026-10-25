@@ -109,6 +109,66 @@ gated; personal-PMS playback remains separate.
 These public references were read for the 0.2.0 feasibility work on 2026-10-25.
 They do not grant service access, certify a device or authorize publication.
 
+## Styled and image subtitles: bounded fallback decision
+
+Primary sources were read again on 2026-10-25. Samsung's
+[subtitle guide](https://developer.samsung.com/smarttv/develop/guides/multimedia/subtitles.html)
+documents common SAMI, SMPTE-TT and DFXP paths; external AVPlay subtitle files
+require absolute local paths. This does not establish complete ASS styling or
+PGS/VobSub image rendering. Vemm's bounded SRT/WebVTT DOM overlay is a separate
+implementation; cleaning embedded text is not a styled-subtitle renderer.
+
+| Format | Current supported request policy | Unaccepted output criterion |
+| --- | --- | --- |
+| ASS / SSA | Preserve the selected stream and request PMS video burn-in; do not flatten a styled track into a claimed equivalent local rendering. | Actual fonts, positioning, drawing, animation, timing and conversion output. |
+| PGS | Preserve the selected stream and request PMS video burn-in, not text decoding or copied-video Direct Stream. | Actual bitmap placement, language/forced selection and timing. |
+| VobSub | Preserve the selected stream and request PMS video burn-in, independently of PGS. | Actual bitmap palette, placement, selected language and timing. |
+
+Format-labelled `playback.test.js` sessions exercise negotiation and owned
+teardown for each row. Force Direct Play refuses required burn-in before
+stream selection, conversion allocation or AVPlay calls. These are request
+contracts, not proof that PMS rendered a particular subtitle correctly.
+
+There are real local-renderer candidates, not a finding of impossibility.
+[libass](https://github.com/libass/libass/blob/master/COPYING) itself is ISC
+licensed; that does not settle every wrapper, dependency or bundled font's
+licence. Current [JASSUB](https://github.com/ThaUnknown/jassub#requirements)
+requires WebAssembly, OffscreenCanvas, workers, Proxy and modern playback
+timing APIs; its documented modern-browser floor is not the shipped M47
+baseline in Samsung's [engine table](https://developer.samsung.com/smarttv/develop/specifications/web-engine-specifications.html).
+[SubtitlesOctopus](https://github.com/libass/JavascriptSubtitlesOctopus)
+documents an asm.js worker fallback, manual canvas timing and cache limits,
+so WebAssembly absence alone cannot rule out all local ASS rendering.
+Its default bitmap/glyph-cache limits are unlimited; worker scheduling, total
+memory, rendering cost and disposal still need exact old/new-TV measurements.
+Neither project alone supplies PGS/VobSub decoding or proves AVPlay video-plane
+composition. No renderer, font download service or additional dependency is
+enabled by this investigation.
+
+The 0.2.0 choice is the existing explicit PMS-rendered fallback, not an
+unmeasured local renderer. Named-TV format correctness and CPU/memory/frame
+comparisons remain open while SDK access is blocked. Unicode numeric entities
+in the supported text path now retain valid supplementary-plane characters
+using ES5 surrogate pairs; malformed surrogate entities remain literal.
+
+## Audio-control feasibility
+
+The [AVPlay reference](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html)
+marks its sound-analysis listener and 32-band callback deprecated since 2.4.
+That callback supplies analysis data; it is not a documented PCM write,
+dialog-isolation, gain-processing or normalization hook. The subtitle guide
+explicitly defines positive/negative `setSubtitlePosition` as subtitle timing
+in milliseconds. It cannot justify an audio-delay control.
+
+Vemm therefore exposes only the documented PMS percent-loudness request for
+converted audio, with its unchanged default and original-file exclusion.
+This is not isolated dialog boost, measured normalization or AV sync.
+No supported local output-control contract for those three functions has
+been established; that is not a claim that all devices or external sound
+systems lack such controls. Audible converted-volume behavior, entitlement
+and exact-model output/timing acceptance remain open. No private audio API,
+additional privilege or persistent TV audio-setting change is introduced.
+
 ## Future platforms
 
 Future clients may supply native capability providers and playback backends,

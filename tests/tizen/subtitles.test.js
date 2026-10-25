@@ -18,6 +18,16 @@ assert.strictEqual(subtitles.clean("{\\an8}Top\\NLine\\hend"), "Top\nLine end");
 assert.strictEqual(subtitles.clean("<i>Tom &amp; Jerry</i> &lt;3"), "Tom & Jerry <3");
 assert.strictEqual(subtitles.clean("<font color=\"#ff0\">a</font>\r\n\n\nb"), "a\nb");
 assert.strictEqual(subtitles.clean(null), "");
+assert.strictEqual(subtitles.clean("Music &#119070; / &#x1F600;"), "Music \uD834\uDD1E / \uD83D\uDE00",
+    "Valid astral numeric entities must not be truncated to unrelated BMP characters");
+assert.strictEqual(subtitles.clean("&#xD800; / &#xDFFF; / &#1114112;"),
+    "&#xD800; / &#xDFFF; / &#1114112;",
+    "Malformed numeric entities stay literal instead of creating lone surrogate characters");
+var unicodeCues = subtitles.parse("1\n00:00:01,000 --> 00:00:03,000\n&#x1F600;\nMusic &#119070;");
+assert.strictEqual(subtitles.at(unicodeCues, 1000), "\uD83D\uDE00\nMusic \uD834\uDD1E");
+assert.strictEqual(subtitles.at(unicodeCues, 3000), "");
+assert.strictEqual(subtitles.at(unicodeCues, 1500), "\uD83D\uDE00\nMusic \uD834\uDD1E",
+    "Seeking back retains complete Unicode and multiline text");
 cues = subtitles.parse("1\n00:00:01,000 --> 00:00:02,000\nA<br/>B");
 assert.strictEqual(subtitles.at(cues, 1500), "A\nB");
 var fs = require("fs");

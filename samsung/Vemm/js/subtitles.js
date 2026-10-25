@@ -23,7 +23,10 @@
             .replace(/&(#\d{1,6}|#x[0-9a-f]{1,6}|[a-z]+);/gi, function (whole, name) {
                 if (name.charAt(0) === "#") {
                     var code = name.charAt(1).toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-                    return code > 0 && code < 0x110000 ? String.fromCharCode(code) : whole;
+                    if (code <= 0 || code >= 0x110000 || code >= 0xD800 && code <= 0xDFFF) { return whole; }
+                    if (code <= 0xFFFF) { return String.fromCharCode(code); }
+                    code -= 0x10000;
+                    return String.fromCharCode(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF));
                 }
                 return Object.prototype.hasOwnProperty.call(ENTITIES, name.toLowerCase()) ? ENTITIES[name.toLowerCase()] : whole;
             })

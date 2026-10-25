@@ -35,7 +35,7 @@ negative findings require evidence, not speculation.
 | REQ-PB-01 | Complete playback recovery/lifecycle. | Network/PMS interruption supports retry/cancel, preserves intended pause/resume and selected tracks, avoids unintended autoplay, and passes stop/read-back, long-session and standby cases. | Vemm | pending | |
 | REQ-PB-02 | Explain playback and export safe diagnostics. | Plain-language reason/next action, actual versus requested output, and previewable redacted support record work without token, DUID, server or title leakage. | Vemm | pending | |
 | REQ-ST-01 | Finish audio/subtitle ranking and persistence. | Multi-language, forced/default/SDH and duplicate cases have deterministic ranking and clear per-item/profile persistence; verify actual selected output. | Vemm | pending | |
-| REQ-ST-02 | Finish subtitle reliability. | Unicode/multiline timing survives seek, pause and version changes; native/overlay/burned paths and download failure/recovery have per-format visible acceptance. | Vemm | pending | |
+| REQ-ST-02 | Finish subtitle reliability. | Unicode/multiline timing survives seek, pause and version changes; native/overlay/burned paths and download failure/recovery have per-format visible acceptance. | Vemm | in_progress | Observed failing regression: valid supplementary-plane numeric entities were truncated into unrelated BMP characters by String.fromCharCode. ES5 surrogate-pair decoding now preserves valid astral text and leaves malformed surrogate entities literal. subtitles.test covers decimal/hex entities, multiline cue boundaries and seeking back; playback/player-layout regressions retain existing behavior. This corrects source text handling, not named-TV glyph, pause/version or burned-format acceptance. |
 | REQ-AC-01 | Complete safe profile/server switching. | Explicit profile changes preserve PIN boundaries and correct library/watch state; denied/unavailable servers recover; restart and saved-sign-in behavior match settings. | Vemm | pending | |
 | REQ-UX-03 | Finish large-library browse/search return. | Detail/player return retains item identity, filter and cursor; bounded large synthetic libraries meet measured memory ceilings; stale requests cannot replace the current view. | Vemm | pending | |
 | REQ-AU-01 | Complete remote accessibility/legibility. | Focus, Back and held/repeated keys work throughout; text/captions fit; reduced motion and text-size feasibility are resolved; Samsung TTS/Caption obligations are assessed for intended Store targets. | Vemm | in_progress | Manual legacy-compatible reduced motion and larger interface text implemented; document language follows locale. Remote UI regression covers persistence/restart/reset and storage refusal. Samsung primary TTS/caption/Store obligations mapped in platform-capabilities; actual Voice Guide, locale clipping and intended-country certification remain unaccepted. |
@@ -47,7 +47,7 @@ negative findings require evidence, not speculation.
 | REQ-TV-01 | Complete personal Live TV/DVR. | Entitled tuner allocation, keepalive/release, cancellation, live output, conflicts and DVR operations pass against a disposable backend without leaking tuner ownership. | Vemm | pending | |
 | REQ-SO-01 | Resolve synchronized co-viewing feasibility. | Establish demand, protocol/entitlement and session-ownership evidence; determine supported synchronization/reconnect/seek/pause behavior or record a specific externally gated outcome. | Vemm | blocked | Actual public Web rooms request and official partial-withdrawal note retained; not universally dead. No supported third-party room/auth/session-ownership or sync/reconnect contract, nor disposable service account, is established. platform-capabilities records this service-contract barrier; no fake synchronization or household session used. |
 | REQ-NT-01 | Define and implement supported local-first recovery. | Scoped authentication/grant policy and bounded cached metadata work during supported outages; no PIN/entitlement bypass and no conflation with media downloads. | Vemm | in_progress | RAM-only Home snapshot capped by shelf/card/serialized-size limits and five-minute TTL; explicit cached status and Retry. home-cache-ui reproduces and repairs profile-selection retention and covers authorization refusal, changed profile, expiry and no persistent storage; session-ui retains account/server recovery. Native outage/PIN journeys remain open. |
-| REQ-ST-03 | Resolve styled/image subtitle feasibility. | Source/legal/device evidence and measured older/newer-TV CPU/memory/frame impact support the chosen ASS/image-subtitle renderer or truthful supported fallback. | Vemm | pending | |
+| REQ-ST-03 | Resolve styled/image subtitle feasibility. | Source/legal/device evidence and measured older/newer-TV CPU/memory/frame impact support the chosen ASS/image-subtitle renderer or truthful supported fallback. | Vemm | in_progress | Samsung subtitle/engine, libass ISC, JASSUB requirements and SubtitlesOctopus asm.js/cache/manual-canvas references assessed in platform-capabilities. WebAssembly absence does not rule out all local rendering; current modern JASSUB is not the M47 baseline and no unmeasured renderer/font service is enabled. Chosen source policy preserves ASS, SSA, PGS and VobSub selections for PMS burn-in; per-format playback sessions verify requested burn, no copied-video route, owned cleanup and Force refusal before side effects. Actual per-format output, old/new-TV CPU/memory/frame comparison and backend font/render correctness remain open, not a claimed fallback acceptance. |
 | REQ-AD-01 | Resolve audio-sync/dialog/normalization controls. | Establish actual API, entitlement and output feasibility; implement supported controls or record concrete external blockers; do not confuse this with codec passthrough. | Vemm | in_progress | Documented PMS audioBoost percent-loudness control implemented with unchanged default, bounded choices and original-file exclusion; playback/preference/interop fixtures cover persistence and conversion fallback. No verified local audio-delay/dialog-isolation/normalization hook; spectrum analysis is not DSP. Server/audible native acceptance and full feasibility assessment remain open. |
 | REQ-DS-01 | Complete the community-distribution adapter pilot. | An isolated synthetic pilot verifies AVPlay, privileges, auth storage, lifecycle, update/rollback and exact models; no production-app replacement or licence stripping. | Vemm | pending | |
 | REQ-DS-02 | Resolve Samsung Store feasibility. | Establish seller/country/model eligibility, GPL/service/branding/privacy/accessibility obligations, reviewer-backend and update-identity requirements; do not claim submission or approval without evidence. | Vemm | blocked | Primary Seller Office Web-WGT/pretest and non-US partnership requirements plus TTS/caption obligations documented. Seller/countries/model groups, reviewer backend, GPL/Store terms and Plex/brand rights require an actual owner/seller/legal decision; no blanket GPL acceptance, submission or approval claimed. Existing-author TV updates remain separately authorized. |
@@ -72,6 +72,7 @@ negative findings require evidence, not speculation.
 | 2026-10-25 | add | Existing signing and Samsung targets | Reuse existing matching-author SDK signing and saved DUID coverage for the available known household TVs. No new identity, certificate rotation, permission bypass, TV reboot, public release/tag, main merge, telemetry or household Plex writes is authorized. Real host/security prompts remain mandatory. |
 | 2026-10-25 | add | SDB recovery | Owner previously explicitly approved restarting SDB in this conversation. Reuse that limited authorization when needed; it is not TV reboot or security-bypass authorization. |
 | 2026-10-25 | revise | REQ-REVIEW-01 | Independent frozen-baseline verdict is REVISE. Repair the concrete gaps without rewriting working inherited behavior; retain all 34 rows and require a separate final-candidate review. |
+| 2026-10-25 | revise | Execution while SDK access is blocked | After the observed five-TV connection failure and the approved SDB-only recovery attempt, the owner selected "Continue source work while device access remains blocked". Continue source implementation; native acceptance and the authorized rollout remain open, not waived or cancelled. |
 
 ## Execution and acceptance
 
@@ -96,6 +97,14 @@ negative findings require evidence, not speculation.
 
 ## Handoff
 
+Active isolated source lane: playback diagnostics session
+`6e881844-fa5a-4679-b6dd-d38c12dcbf00`, explicitly stacked from the integrated
+`b706da56` candidate. It owns REQ-PB-02, its main.js/file-info/localization/UI
+tests and related diagnostics prose only. Do not duplicate that implementation;
+integrate its committed result when notified. It has no device/account/signing
+or public-mutation permission. The coordinator continues subtitle/feasibility
+work independently and retains the single device lane.
+
 Continue this ledger on `dragoshont-vemm-product-backlog`; do not restart the
 requirements intake. Skip/watched regressions, Home paging/personalization,
 adaptive policy, scoped outage recovery, accessibility preferences, converted
@@ -103,7 +112,8 @@ audio volume, bounded music/photo journeys and version agreement are integrated.
 `0d211396` integrates the completed video playlist/queue slice after those
 changes. The full combined host gate and unsigned product build passed on that
 clean commit; neither is native or real-PMS acceptance. No implementation child
-is still active. All 34 rows remain in scope.
+from the earlier music/photo/Home/video slices is still active. All 34 rows
+remain in scope.
 
 The separate credential-free QA widget is prepared from `a2383fdb` with app ID
 `VemmQaApp0.NativeQa`, not the production Vemm ID. Its unsigned package passed
@@ -116,6 +126,11 @@ this owned QA identity was installed; production Vemm was not updated or
 uninstalled. Freshly rediscover and identity-match before every new process;
 retain private ownership/install receipts and resolve read-back before claiming
 acceptance. The last complete discovery matched all five saved original TVs.
+The parent confirmed the proven raw command is `sdb -s SERIAL shell 0 vd_applist`:
+start each record at `app_id`, normalize hyphen-decorated keys/values, and retain
+title/version fields that precede `app_tizen_id`. The private install helper's
+parser now passes that synthetic record-order regression; no fresh native
+version read-back was possible. Do not invent an alternative app-info command.
 
 Use the private session artifacts for source-bound QA staging, generated media
 and the bounded fixture server. They contain no real Plex credentials. Run
