@@ -10,7 +10,7 @@
     var currentSection = null;
     var homeSections = [];
     var homeCache = null;
-    var watchRevision = 0;
+    var metadataRevision = 0;
     var currentItems = [];
     var currentOffset = 0;
     var viewGeneration = 0;
@@ -199,8 +199,10 @@
         if (restoreView) {
             var controls = Array.prototype.slice.call(screen.querySelectorAll("button, input, select"));
             var focusedItem = document.activeElement && document.activeElement.vemmCard;
+            var detailMore = screen.querySelector(".detail-more");
             navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
-                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className });
+                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className,
+                detailMore: !!detailMore && !detailMore.hidden });
             if (navigation.length > 20) { navigation.shift(); }
         }
         action();
@@ -1521,9 +1523,7 @@
         if (currentClient.getVideoPlaylists) {
             button(nav, "Video playlists", function () {
                 visit(function () {
-                    openListing(translate("Video playlists"), function (start) {
-                        return currentClient.getVideoPlaylists(start);
-                    }, currentClient);
+                    openSavedPlaylists(currentClient);
                 });
             });
         }
@@ -1574,9 +1574,9 @@
         var offset = currentOffset;
         var filters = JSON.parse(JSON.stringify(libraryFilters));
         var photoTotal = photoLibraryTotal;
-        var retainedRevision = watchRevision;
+        var retainedRevision = metadataRevision;
         return function () {
-            var refresh = retainedRevision !== watchRevision;
+            var refresh = retainedRevision !== metadataRevision;
             var start = offset - items.length;
             if (refresh && pendingRestore && pendingRestore.mediaKey) {
                 items.some(function (item, index) {
@@ -1700,13 +1700,17 @@
 
     function openListing(title, loader, client, offset, retained, cached, navigation) {
         var generation = ++viewGeneration;
-        var retainedRevision = watchRevision;
+        var retainedRevision = metadataRevision;
         clear(screen);
         viewClients.push(client);
         resetImages();
         retryView = function () { openListing(title, loader, client, offset, retained, null, navigation); };
         function addShowAction() {
-            if (!navigation || !navigation.showRatingKey) { return; }
+            if (!navigation) { return; }
+            if (navigation.playlists) {
+                button(screen, "Create playlist", function () { visit(function () { openPlaylistName(null, client, null); }); });
+            }
+            if (!navigation.showRatingKey) { return; }
             button(screen, "Go to show", function () {
                 visit(function () { openDetail(navigation.showRatingKey, client); });
             });
@@ -1720,7 +1724,7 @@
             if (generation !== viewGeneration) { return; }
             var items = retained.concat(container.Metadata || []).slice(-200);
             restoreView = function () {
-                if (retainedRevision === watchRevision) {
+                if (retainedRevision === metadataRevision) {
                     openListing(title, loader, client, offset, retained, container, navigation);
                     return;
                 }
@@ -2195,6 +2199,15 @@
             detailAction(actions, "Playlist items", "list", function () {
                 visit(function () { openVideoPlaylist(item, client, 0); });
             });
+            detailAction(more, "Rename playlist", "edit", function () {
+                visit(function () { openPlaylistName(null, client, item); });
+            });
+            detailAction(more, "Delete playlist", "delete", function () {
+                confirmPlaylistWrite(translate("Delete playlist {title}?", { title: item.title }), client,
+                    function () { return client.deleteVideoPlaylist(item.ratingKey, item.title); },
+                    function () { openSavedPlaylists(client); },
+                    "This deletes the playlist, not the media. This cannot be undone.");
+            });
         }
         if (["movie", "episode", "clip"].indexOf(item.type) !== -1) {
             detailAction(more, "Add to playlist", "add", function () {
@@ -2326,6 +2339,10 @@
         }
         setStatus("Choose Play or Resume to start playback. Browsing does not update watch history.");
         var restoringFocus = !!pendingRestore;
+        if (pendingRestore && pendingRestore.detailMore) {
+            more.hidden = false;
+            moreButton.setAttribute("aria-expanded", "true");
+        }
         focusFirst();
         if (playable && !restoringFocus) { primary.focus(); }
     }
@@ -2357,7 +2374,7 @@
                     return action === "remove" ? client.removeContinueWatching(item.ratingKey) :
                         client.setWatched(item.ratingKey, action === "watched");
                 }).then(function () {
-                    watchRevision += 1;
+                    metadataRevision += 1;
                     homeCache = null;
                     if (generation !== viewGeneration) { return; }
                     setStatus("Plex accepted the change. Refreshing details...");
@@ -3077,9 +3094,11 @@
         pump();
     }
 
-    function confirmServiceWrite(title, write, refresh) {
+    function confirmServiceWrite(title, write, refresh, client, description) {
         visit(function () {
             var generation = serviceView(title, refresh, "confirmation");
+            if (client) { viewClients.push(client); }
+            if (description) { screen.appendChild(element("p", "help-text", translate(description))); }
             screen.appendChild(element("p", "help-text", translate("This changes your Plex account or server. Nothing changes until you confirm.")));
             screen.appendChild(element("p", "help-text",
                 translate("A request already sent to Plex may finish after you leave. Check Plex before repeating it.")));
@@ -3205,11 +3224,63 @@
         return playlist.smart === undefined || [false, 0, "0"].indexOf(playlist.smart) !== -1;
     }
 
+    function confirmPlaylistWrite(title, client, write, refresh, description) {
+        confirmServiceWrite(title, function () {
+            metadataRevision += 1;
+            homeCache = null;
+            return write();
+        }, refresh, client, description);
+    }
+
+    function openSavedPlaylists(client) {
+        openListing(translate("Video playlists"), function (start) { return client.getVideoPlaylists(start); },
+            client, 0, null, null, { playlists: true });
+    }
+
+    function openPlaylistName(item, client, playlist, draft) {
+        var input;
+        var restore = function () { openPlaylistName(item, client, playlist, input.value); };
+        var generation = serviceView(playlist ? "Rename playlist" : "Create playlist", restore, "playlist-name");
+        viewClients.push(client);
+        screen.appendChild(element("p", "help-text", playlist || item ? (playlist || item).title :
+            translate("The playlist starts empty. Add videos from their details.")));
+        var label = element("label", "setting-row", translate("Playlist name"));
+        input = element("input", "remote-input");
+        input.type = "text"; input.maxLength = 128;
+        input.value = draft === undefined ? playlist ? playlist.title : "" : draft;
+        label.appendChild(input); screen.appendChild(label);
+        button(screen, "Continue", function () {
+            if (generation !== viewGeneration) { return; }
+            var title = input.value.trim();
+            if (!title || title.length > 128 || /[\x00-\x1f\x7f]/.test(input.value)) {
+                setStatus("Enter a playlist name of 1 to 128 characters without control characters.", true);
+                input.focus(); return;
+            }
+            if (playlist && title === playlist.title) { setStatus("Choose a different playlist name.", true); return; }
+            var created = null;
+            confirmPlaylistWrite(playlist ?
+                translate("Rename {title} to {playlist}?", { title: playlist.title, playlist: title }) :
+                item ? translate("Create {playlist} with {title}?", { playlist: title, title: item.title }) :
+                    translate("Create empty playlist {playlist}?", { playlist: title }), client,
+            function () {
+                return (playlist ? client.renameVideoPlaylist(playlist.ratingKey, title, playlist.title) :
+                    client.createVideoPlaylist(title, item && item.ratingKey)).then(function (result) { created = result; });
+            }, function () {
+                if (playlist || created) { openDetail((playlist || created).ratingKey, client, true); }
+                else if (item) { openPlaylistPicker(item, client, 0); }
+                else { openSavedPlaylists(client); }
+            });
+        });
+        setStatus("Enter a name, then review the change. Nothing changes until you confirm.");
+        if (pendingRestore) { focusFirst(); } else { input.focus(); }
+    }
+
     function openPlaylistPicker(item, client, offset) {
         var restore = function () { openPlaylistPicker(item, client, offset); };
         var generation = serviceView("Add to playlist", restore, "playlist-picker");
         viewClients.push(client);
         screen.appendChild(element("p", "help-text", item.title));
+        button(screen, "Create playlist", function () { visit(function () { openPlaylistName(item, client, null); }); });
         client.getVideoPlaylists(offset).then(function (container) {
             if (generation !== viewGeneration) { return; }
             var rows = container.Metadata;
@@ -3224,7 +3295,7 @@
             var choices = group(screen, "", "selection-list");
             rows.filter(standardPlaylist).forEach(function (playlist) {
                 button(choices, playlist.title || "Playlist", function () {
-                    confirmServiceWrite(translate("Add {title} to {playlist}?", { title: item.title, playlist: playlist.title }),
+                    confirmPlaylistWrite(translate("Add {title} to {playlist}?", { title: item.title, playlist: playlist.title }), client,
                         function () { return client.addVideoPlaylistItem(playlist.ratingKey, item.ratingKey); },
                         function () { openVideoPlaylist(playlist, client, 0); });
                 }, true);
@@ -3261,7 +3332,7 @@
                 button(row, "Details", function () { visit(function () { openDetail(item.ratingKey, client); }); });
                 if (standardPlaylist(playlist)) {
                     button(row, "Remove from playlist", function () {
-                        confirmServiceWrite(translate("Remove {title} from {playlist}?", { title: item.title, playlist: playlist.title }),
+                        confirmPlaylistWrite(translate("Remove {title} from {playlist}?", { title: item.title, playlist: playlist.title }), client,
                             function () {
                                 return client.removeVideoPlaylistItem(playlist.ratingKey, item.playlistItemID, item.ratingKey,
                                     { offset: offset, totalSize: container.totalSize, Metadata: items });

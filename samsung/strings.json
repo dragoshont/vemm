@@ -1,4 +1,48 @@
 {
+  "Create playlist": { "es": "Crear lista", "be": "Стварыць спіс прайгравання" },
+  "Create empty playlist {playlist}?": {
+    "es": "¿Crear la lista vacía {playlist}?",
+    "be": "Стварыць пусты спіс прайгравання {playlist}?"
+  },
+  "The playlist starts empty. Add videos from their details.": {
+    "es": "La lista se crea vacía. Añade vídeos desde sus detalles.",
+    "be": "Спіс будзе пусты. Дадавайце відэа са старонак з іх звесткамі."
+  },
+  "Rename playlist": { "es": "Cambiar nombre de la lista", "be": "Перайменаваць спіс прайгравання" },
+  "Delete playlist": { "es": "Eliminar lista", "be": "Выдаліць спіс прайгравання" },
+  "Playlist name": { "es": "Nombre de la lista", "be": "Назва спіса прайгравання" },
+  "Enter a playlist name of 1 to 128 characters without control characters.": {
+    "es": "Introduce un nombre de lista de 1 a 128 caracteres, sin caracteres de control.",
+    "be": "Увядзіце назву спіса ад 1 да 128 знакаў без кіравальных сімвалаў."
+  },
+  "Choose a different playlist name.": {
+    "es": "Elige un nombre de lista diferente.",
+    "be": "Выберыце іншую назву спіса."
+  },
+  "Enter a name, then review the change. Nothing changes until you confirm.": {
+    "es": "Introduce un nombre y revisa el cambio. Nada cambia hasta que lo confirmes.",
+    "be": "Увядзіце назву і праверце змену. Нічога не зменіцца без пацверджання."
+  },
+  "Rename {title} to {playlist}?": {
+    "es": "¿Cambiar el nombre de {title} a {playlist}?",
+    "be": "Перайменаваць {title} у {playlist}?"
+  },
+  "Create {playlist} with {title}?": {
+    "es": "¿Crear {playlist} con {title}?",
+    "be": "Стварыць {playlist} з {title}?"
+  },
+  "Delete playlist {title}?": {
+    "es": "¿Eliminar la lista {title}?",
+    "be": "Выдаліць спіс прайгравання {title}?"
+  },
+  "This deletes the playlist, not the media. This cannot be undone.": {
+    "es": "Se elimina la lista, no el contenido multimedia. No se puede deshacer.",
+    "be": "Будзе выдалены спіс, а не медыяфайлы. Гэта нельга адмяніць."
+  },
+  "Plex did not confirm the new playlist. Check Plex before repeating it.": {
+    "es": "Plex no confirmó la nueva lista. Comprueba Plex antes de repetir la operación.",
+    "be": "Plex не пацвердзіў новы спіс. Праверце Plex перад паўторнай спробай."
+  },
   "Add to playlist": { "es": "Añadir a una lista", "be": "Дадаць у спіс прайгравання" },
   "Remove from playlist": { "es": "Quitar de la lista", "be": "Выдаліць са спіса прайгравання" },
   "Add {title} to {playlist}?": { "es": "¿Añadir {title} a {playlist}?", "be": "Дадаць {title} у {playlist}?" },

@@ -39,7 +39,15 @@ Movie/episode/clip More offers a paged standard-playlist picker. Adding a video
 or removing its exact saved entry requires item/playlist confirmation and
 complete bounded identity/order read-back, not HTTP success alone. Duplicate
 media entries remain distinct. Smart playlists do not expose manual item edits.
-Creation/renaming/deletion and smart-rule editing remain source gaps.
+Create a named standard playlist from the selected video through that picker,
+or create an empty playlist from Video playlists.
+Playlist details > More provides confirmed rename and deletion, with a fresh
+identity/title check and independent read-back. Deletion removes the playlist,
+not its media. Pending confirmations own the actual source server; leaving
+preflight prevents a late write even when another server is globally selected.
+Cancel restores the opening field/control and expanded More state. Changes
+invalidate retained metadata so Back cannot reuse an old name or deleted card.
+Smart-rule editing remains a source gap.
 Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
 
 ## Brand commitments

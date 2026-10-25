@@ -62,12 +62,14 @@ async function run() {
         if (name !== "main.js" && name.indexOf("$WEBAPIS") < 0) { w.eval(fs.readFileSync(path.join(root, name), "utf8")); }
     }
     w.__client = w.PlexApi.createClient({ baseUrl: "https://pms.synthetic.invalid", token: "synthetic-token", fetch: w.fetch });
+    w.__primaryClient = w.PlexApi.createClient({ baseUrl: "https://primary.synthetic.invalid", token: "synthetic-primary-token",
+        fetch: function () { throw new Error("Playlist edits must not contact the primary server."); } });
     w.__item = item;
     var source = fs.readFileSync(path.join(root, "main.js"), "utf8");
     var boundary = source.lastIndexOf('    addConnectForm("");');
     assert(boundary > 0);
     w.eval(source.slice(0, boundary) +
-        '    currentClient = window.__client; currentServerId = "wrong-global-server"; renderDetail(window.__item, currentClient); }());');
+        '    currentClient = window.__primaryClient; currentServerId = "wrong-global-server"; renderDetail(window.__item, window.__client); }());');
     function control(label, parent) {
         return Array.from((parent || w.document).querySelectorAll("button")).find(function (node) {
             return node.textContent.trim() === label;
@@ -76,6 +78,7 @@ async function run() {
     function press(label, parent) {
         var node = control(label, parent);
         assert(node, "Missing playlist action: " + label);
+        assert(!node.closest("[hidden]"), "Playlist action must be visible: " + label);
         node.focus();
         w.document.dispatchEvent(new w.KeyboardEvent("keydown", { keyCode: 13, bubbles: true }));
         w.document.dispatchEvent(new w.KeyboardEvent("keyup", { keyCode: 13, bubbles: true }));
@@ -119,8 +122,16 @@ async function run() {
         assert.strictEqual(writes.length, 3, "Unchanged HTTP success is not replayed");
         press("Cancel"); await settle();
         unchanged = false;
+        hold = true;
+        press("Remove from playlist", w.document.querySelector(".playlist-entry"));
+        press("Confirm"); await settle();
+        assert(release);
+        press("Cancel");
+        release(); await settle();
+        assert.strictEqual(writes.length, 3, "Leaving a secondary-client removal prevents a late write");
         press("Back"); await settle();
-        press("More"); press("Add to playlist"); await settle();
+        assert.strictEqual(w.document.activeElement.textContent, "Add to playlist");
+        press("Add to playlist"); await settle();
         press("Next page"); await settle();
         press(playlist.title); await settle();
         press("Confirm"); press("Cancel"); await settle();

@@ -162,6 +162,9 @@ explicit video API selection; the default music behavior is unchanged.
 | Reorder an existing playlist | Explicit Move to beginning, then Confirm, uses `PUT /playlists/{id}/items/{playlistItemID}/move` without `after`, as documented. This changes the saved playlist, not an already-created playback queue. Smart playlists are not manually reordered. |
 | Add one video | `PUT /playlists/{id}/items?uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/2`. The source client freshly reads its own identity and the selected movie/episode/clip, not a global server ID or an arbitrary pasted URL. |
 | Remove one saved entry | `DELETE /playlists/{id}/items/{playlistItemID}`. The OpenAPI's DELETE path calls this parameter `generatorId`, but its description explicitly deletes an item from a non-smart playlist. Duplicate library IDs are not interchangeable entry IDs. |
+| Create a standard playlist | `POST /playlists?type=video&smart=0&title=...&uri=...` uses the freshly verified selected video's same-client URI; empty creation omits `uri`, following the bundled blank-playlist contract. The returned single ID is independently fetched, and its exact name, standard/video type and zero/one expected initial entries must match. |
+| Rename a playlist | `PUT /playlists/{id}?title.value=...&title.locked=1` after freshly matching the selected ID/title; read back that exact ID and requested name. This uses the documented metadata-edit form, not an arbitrary path or a playback queue. |
+| Delete a playlist | `DELETE /playlists/{id}` after freshly matching ID/title. Only a subsequent same-server typed HTTP 404 confirms deletion; unchanged metadata, 401/403, a malformed response or transport error does not. Never delete media or retry the mutation as cleanup. |
 
 Playlist reordering checks the displayed page's entry IDs and total immediately
 before writing, then independently reads page zero and checks the first entry
@@ -186,6 +189,9 @@ mutation may finish; it cannot be undone or replayed as cancellation cleanup.
 An in-flight per-playlist edit blocks another add/remove/move. Refresh replaces
 the completed confirmation in Back history; failed verification also offers
 read-only Refresh, not another Confirm.
+The confirmation owns the originating client, including a secondary server
+whose details were opened from another server's Home; leaving it cancels that
+client's pending verification, not only the globally selected server's reads.
 
 The independently implemented request forms also agree with the public
 [Python-PlexAPI playlist documentation](https://python-plexapi.readthedocs.io/en/latest/modules/playlist.html)
@@ -195,8 +201,23 @@ This is protocol evidence, not code copying or a real-PMS acceptance run.
 `playlist-edits` and `playlist-edits-ui` exercise the actual API/main.js,
 duplicate media entries, all pages, empty/maximum/over-limit containers, explicit
 confirmation, denied/unchanged/concurrent results, repeated OK, pre/post-send
-cancellation and originating focus. Creation/renaming/deletion and smart-rule
-editing are still missing source workflows, not merely hardware-test gaps.
+cancellation and originating focus.
+
+`REQ-QU-LIFE-01` extends the same client ownership, phase deadline and edit
+interlock to create/rename/delete. Names are trimmed, nonempty, limited to 128
+characters and reject control characters. Rename must change the name; changing
+the target title elsewhere requires a new confirmation. Create/rename validate
+the requested result; deletion requires typed absence rather than accepting
+authentication loss as success. Their UI offers explicit named confirmation,
+retains the draft and originating control on Cancel, and invalidates bounded
+metadata/Home snapshots before an attempted mutation. Refresh is read-only
+even after uncertainty and never points back into a deleted detail.
+
+The public Python-PlexAPI playlist creation/deletion and
+[title-edit source documentation](https://python-plexapi.readthedocs.io/en/latest/_modules/plexapi/mixins/edit.html#TitleMixin.editTitle)
+corroborate these request parameters. `playlist-lifecycle` and
+`playlist-lifecycle-ui` use synthetic API/actual-main.js journeys; no live PMS
+or Samsung acceptance is implied. Smart-rule editing remains a source gap.
 
 Video retains the PMS version/count/offset and exact string entry IDs. Pages
 retain at most 200 entries, and every next/previous transition validates fresh
