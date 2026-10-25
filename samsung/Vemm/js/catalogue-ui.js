@@ -95,14 +95,27 @@
                     openSearch(input.value.trim(), true);
                 }
                 options.button(options.screen, "Search", search);
+                var results = options.element("section", "catalogue-results");
+                options.screen.appendChild(results);
                 input.addEventListener("keydown", function (event) {
                     if (event.keyCode === 13) { event.preventDefault(); search(); }
                 });
-                options.focus();
-                if (!run) { options.status("Search Plex metadata. Licensed catalogue streaming is not enabled."); return; }
-                Promise.resolve().then(function () { return account().searchCatalogue(query); }).then(function (items) {
+                input.addEventListener("input", function () {
+                    options.retire(function () { openSearch(input.value, false); });
+                    while (results.firstChild) { results.removeChild(results.firstChild); }
+                    options.status("");
+                });
+                if (!run) {
+                    options.focus();
+                    options.status("Search Plex metadata. Licensed catalogue streaming is not enabled.");
+                    return;
+                }
+                Promise.resolve().then(function () {
                     if (generation !== options.generation()) { return; }
-                    var list = options.group(options.screen, "", "catalogue-grid");
+                    return account().searchCatalogue(query);
+                }).then(function (items) {
+                    if (generation !== options.generation()) { return; }
+                    var list = options.group(results, "", "catalogue-grid");
                     if (!items.length) { list.appendChild(options.element("p", "empty-state", options.translate("No matching media found."))); }
                     items.forEach(function (item) {
                         options.tile(list, item, function () {
@@ -112,7 +125,10 @@
                     options.status(items.length ? "Showing up to 30 catalogue results. Refine the query for more." : "No matching media found.");
                     options.focus();
                 }).catch(function (error) {
-                    if (generation === options.generation()) { options.status(root.VemmI18n.error(error), true); }
+                    if (generation !== options.generation()) { return; }
+                    options.status(root.VemmI18n.error(error), true);
+                    options.button(results, "Retry", function () { openSearch(query, true); });
+                    options.focus();
                 });
             }
             return { watchlist: openWatchlist, item: openItem, search: openSearch };

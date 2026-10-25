@@ -438,16 +438,28 @@
                 }).then(function (container) {
                     if (!Array.isArray(container.SearchResults)) { throw new Error("Plex returned invalid catalogue search results."); }
                     var items = [];
-                    container.SearchResults.forEach(function (group) {
-                        if (group.id !== "external") { return; }
+                    container.SearchResults.some(function (group) {
+                        if (!group || typeof group !== "object") { throw new Error("Plex returned an invalid catalogue search group."); }
+                        if (group.id !== "external") { return false; }
                         if (!Array.isArray(group.SearchResult)) { throw new Error("Plex returned an invalid catalogue search group."); }
-                        group.SearchResult.forEach(function (result) {
-                            if (result.Metadata && ["movie", "show"].indexOf(result.Metadata.type) !== -1) {
-                                items.push(result.Metadata);
+                        group.SearchResult.some(function (result) {
+                            if (!result || typeof result !== "object") { throw new Error("Plex returned invalid catalogue search results."); }
+                            var item = result.Metadata;
+                            if (item && ["movie", "show"].indexOf(item.type) !== -1) {
+                                var identity = /^plex:\/\/(movie|show)\/([0-9a-f]{24})$/i.exec(String(item.guid || ""));
+                                if (!identity || identity[1].toLowerCase() !== item.type ||
+                                        item.key !== "/library/metadata/" + identity[2]) {
+                                    throw new Error("Plex returned invalid catalogue search results.");
+                                }
+                                if (!items.some(function (entry) { return entry.guid.toLowerCase() === item.guid.toLowerCase(); })) {
+                                    items.push(item);
+                                }
                             }
+                            return items.length >= 30;
                         });
+                        return items.length >= 30;
                     });
-                    return items.slice(0, 30);
+                    return items;
                 });
             },
             catalogueDetails: function (item) {
@@ -457,7 +469,8 @@
                 }
                 return cloud("metadata.provider.plex.tv", item.key, "GET", { includeUserState: 1 }).then(function (container) {
                     var items = listFrom(container, "Metadata");
-                    if (!items.length || items[0].guid && items[0].guid !== item.guid) {
+                    if (items.length !== 1 || typeof items[0].guid !== "string" ||
+                            items[0].guid.toLowerCase() !== item.guid.toLowerCase() || items[0].type !== item.type) {
                         throw new Error("Plex returned mismatched catalogue details.");
                     }
                     return items[0];

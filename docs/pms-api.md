@@ -47,6 +47,19 @@ The privately retained observations are independently authored JSON, not bundles
 or account records. These comparisons and the protocol/DOM tests are partial
 REQ-WEB-01 evidence, **not** full Web parity or Samsung acceptance.
 
+The subsequent `REQ-SEARCH-ONLINE-01` integration reuses the already documented
+Discover search/details and exact local GUID association contract in the
+[client specification](samsung-tizen-client-spec.md). Its provenance is pinned
+Python-PlexAPI, not a successful online-search observation in the public Web
+startup above. Main Search now includes online movie/show metadata with the
+linked profile's account token, while library search/availability keep each
+server's grant. Catalogue identities/keys and detail GUID/type are validated;
+duplicates are collapsed by GUID and only 30 online results are retained.
+Actual-main.js synthetic journeys cover no-server access, account/server token
+separation, cloud/library partial failures and Retry, query-edit cancellation,
+exact local availability, and GUID/server-key Back focus. These contracts do
+not establish live cloud availability or licensed streaming rights.
+
 Marker availability is external to the client. Plex's
 [credits documentation](https://support.plex.tv/articles/credits-detection/)
 requires PMS 1.31.0 or newer, administrator Plex Pass for analysis and a qualifying

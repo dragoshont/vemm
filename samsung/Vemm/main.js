@@ -203,6 +203,8 @@
             navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
                 mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className,
                 mediaServer: focusedItem && focusedItem.options.serverId || null,
+                catalogueGuid: document.activeElement && document.activeElement.getAttribute ?
+                    document.activeElement.getAttribute("data-catalogue-guid") : null,
                 detailMore: !!detailMore && !detailMore.hidden });
             if (navigation.length > 20) { navigation.shift(); }
         }
@@ -437,6 +439,9 @@
     function titleTile(parent, item, action, client, caption) {
         var node = button(parent, "", action);
         node.className = "title-tile";
+        if (/^plex:\/\/(?:movie|show)\/[0-9a-f]{24}$/i.test(String(item.guid || ""))) {
+            node.setAttribute("data-catalogue-guid", item.guid.toLowerCase());
+        }
         var art = element("img", "title-tile-art");
         art.alt = "";
         art.src = placeholderArt();
@@ -530,6 +535,16 @@
         if (pendingRestore) {
             var previous = pendingRestore;
             pendingRestore = null;
+            if (previous.catalogueGuid) {
+                var catalogueTile = Array.prototype.filter.call(controls, function (node) {
+                    return node.getAttribute && node.getAttribute("data-catalogue-guid") === previous.catalogueGuid;
+                })[0];
+                if (catalogueTile) {
+                    catalogueTile.focus();
+                    screen.scrollTop = previous.scroll || 0;
+                    return;
+                }
+            }
             if (previous.mediaKey) {
                 var cards = Array.prototype.filter.call(controls, function (node) { return node.vemmCard; });
                 var retainedCard = cards.filter(function (node) {
@@ -779,8 +794,10 @@
         var generation = ++viewGeneration;
         clear(screen);
         resetBrowsing("servers");
+        servers = [];
         page(translate("Choose a server"), "servers");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
+        button(screen, "Search Plex catalogue", function () { visit(function () { openSearch(""); }); });
         setStatus("Discovering your Plex Media Servers...");
         accountClient.getServers().then(function (result) {
             if (generation !== viewGeneration) { return; }
@@ -1875,18 +1892,28 @@
         });
     }
 
+    function retireSearch(restore) {
+        viewGeneration += 1;
+        pendingRestore = null;
+        cancelViewRequests();
+        resetImages();
+        restoreView = restore;
+        retryView = restore;
+    }
+
     function openSearch(savedQuery) {
         var generation = ++viewGeneration;
         retryView = null;
         clear(screen);
         resetImages();
-        page(translate("Search your servers"), "search");
+        var searchTitle = accountClient ? "Search Plex and your servers" : "Search your servers";
+        page(translate(searchTitle), "search");
         var input = element("input", "remote-input");
         input.type = "search";
         input.maxLength = 200;
         input.value = typeof savedQuery === "string" ? savedQuery : "";
         retryView = function () { openSearch(input.value); };
-        input.setAttribute("aria-label", translate("Search your servers"));
+        input.setAttribute("aria-label", translate(searchTitle));
         screen.appendChild(input);
         var recents = element("section", "search-recents");
         var results = element("div", "search-results");
@@ -1921,13 +1948,54 @@
             resetImages();
             restoreView = function () { openSearch(query); };
             retryView = restoreView;
-            setStatus("Searching reachable Plex servers...");
-            var targets = servers.length ? servers.slice() : [null];
+            var searchAccount = accountClient;
+            setStatus(searchAccount ? "Searching Plex catalogue and reachable servers..." : "Searching reachable Plex servers...");
+            var targets = servers.length ? servers.slice() : currentClient ? [null] : [];
             var index = 0;
             var active = 0;
             var finished = 0;
             var failures = 0;
             var shown = 0;
+            var localShown = 0;
+            var libraryLimit = searchAccount ? 170 : 200;
+            var catalogueDone = !searchAccount;
+            function finish() {
+                if (searchGeneration !== viewGeneration || finished !== targets.length || !catalogueDone) { return; }
+                if (!shown && !failures && !results.querySelector(".empty-state")) {
+                    results.appendChild(element("p", "empty-state", translate("No matching media found.")));
+                }
+                if (failures) { button(results, "Retry", search); }
+                setStatus(failures ? "Some search sources could not be reached. Retry your search." :
+                    localShown >= libraryLimit || shown >= 200 ? "Result limit reached. Refine your search for more." :
+                        shown ? "Search complete." : "No matching media found.", failures > 0);
+                if (pendingRestore) { focusFirst(); }
+            }
+            if (searchAccount) {
+                var catalogueResults = group(results, translate("Plex catalogue"), "online-search-results");
+                var catalogueRow = group(catalogueResults, "", "catalogue-grid");
+                Promise.resolve().then(function () {
+                    if (searchGeneration !== viewGeneration) { return; }
+                    return searchAccount.searchCatalogue(query).then(function (items) {
+                        if (searchGeneration !== viewGeneration) { return; }
+                        items.slice(0, 30).forEach(function (item) {
+                            titleTile(catalogueRow, item, function () {
+                                visit(function () { catalogueUi().item(item); });
+                            }, null, item.year ? String(item.year) : "");
+                            shown += 1;
+                        });
+                        if (!items.length) {
+                            catalogueRow.appendChild(element("p", "empty-state", translate("No matching media found.")));
+                        }
+                    });
+                }).catch(function (error) {
+                    if (searchGeneration !== viewGeneration) { return; }
+                    failures += 1;
+                    catalogueRow.appendChild(element("p", "inline-error", errorText(error)));
+                }).then(function () {
+                    catalogueDone = true;
+                    finish();
+                });
+            }
             function pump() {
                 while (active < 2 && index < targets.length) {
                     (function (server) {
@@ -1942,9 +2010,9 @@
                             return client.search(query).then(function (container) {
                                 if (searchGeneration !== viewGeneration) { return; }
                                 (container.Hub || []).forEach(function (hub) {
-                                    if (shown >= 200) { return; }
+                                    if (localShown >= libraryLimit) { return; }
                                     if (hub.type === "actor" || hub.type === "director") {
-                                        var matches = (hub.Directory || []).slice(0, Math.max(0, Math.min(50, 200 - shown)));
+                                        var matches = (hub.Directory || []).slice(0, Math.max(0, Math.min(50, libraryLimit - localShown)));
                                         if (!matches.length) { return; }
                                         var people = element("section", "people-results");
                                         people.appendChild(element("h3", "", hub.title || "Cast and crew"));
@@ -1953,6 +2021,7 @@
                                                 visit(function () { openPerson(person, client); });
                                             }, true);
                                             shown += 1;
+                                            localShown += 1;
                                         });
                                         results.appendChild(people);
                                         return;
@@ -1966,8 +2035,9 @@
                                     shelf.appendChild(element("h3", "", (server ? server.name + " / " : "") + hub.title));
                                     var row = element("div", "shelf-row");
                                     shelf.appendChild(row);
-                                    items.slice(0, Math.max(0, Math.min(50, 200 - shown))).forEach(function (item) {
-                                        card(row, item, client, null, { serverId: server ? server.id : currentServerId }); shown += 1;
+                                    items.slice(0, Math.max(0, Math.min(50, libraryLimit - localShown))).forEach(function (item) {
+                                        card(row, item, client, null, { serverId: server ? server.id : currentServerId });
+                                        shown += 1; localShown += 1;
                                     });
                                     results.appendChild(shelf);
                                 });
@@ -1981,18 +2051,14 @@
                             active -= 1;
                             finished += 1;
                             if (searchGeneration !== viewGeneration) { return; }
-                            if (finished === targets.length) {
-                                if (!shown && !failures) { results.appendChild(element("p", "empty-state", translate("No matching media found."))); }
-                                setStatus(failures ? "Some servers could not be searched. Retry or change server." :
-                                    shown >= 200 ? "Showing 200 results. Refine your search for more." :
-                                        results.firstChild ? "Search complete." : "No matching media found.", failures > 0);
-                                if (pendingRestore) { focusFirst(); }
-                            } else { pump(); }
+                            if (finished === targets.length) { finish(); }
+                            else { pump(); }
                         });
                     }(targets[index++]));
                 }
             }
             pump();
+            if (!targets.length && !searchAccount) { setStatus("Choose a server or link a Plex account to search.", true); }
         }
         button(screen, "Search", search);
         button(screen, "Back", backView);
@@ -2002,13 +2068,8 @@
             if (event.keyCode === 13) { event.preventDefault(); search(); }
         });
         input.addEventListener("input", function () {
-            viewGeneration += 1;
-            pendingRestore = null;
-            cancelViewRequests();
+            retireSearch(function () { openSearch(input.value); });
             clear(results);
-            resetImages();
-            restoreView = function () { openSearch(input.value); };
-            retryView = restoreView;
             renderRecents();
             setStatus("");
         });
@@ -3050,6 +3111,7 @@
             account: function () { return accountClient; }, screen: screen, view: serviceView,
             generation: function () { return viewGeneration; }, element: element, button: button,
             translate: translate, visit: visit, status: setStatus, focus: focusFirst, confirm: confirmServiceWrite,
+            retire: retireSearch,
             find: findCatalogueItem, group: group, tile: titleTile,
             artwork: function () { return currentClient; }
         });
@@ -3084,13 +3146,14 @@
                                         return client.findGuid(section.key, item.guid).then(function (items) {
                                             if (generation !== viewGeneration) { return; }
                                             items.slice(0, 200 - shown).forEach(function (match) {
-                                                if (options.labelled) {
+                                                if (options.labelled || server) {
                                                     var media = (match.Media || [])[0] || {};
                                                     screen.appendChild(element("p", "card-meta", [server ? server.name : "",
                                                         section.title, media.videoResolution ? media.videoResolution + (/^[0-9]+$/.test(media.videoResolution) ? "p" : "") : ""]
                                                         .filter(Boolean).join(" / ")));
                                                 }
-                                                card(screen, match, client); shown += 1;
+                                                card(screen, match, client, null, { serverId: server ? server.id : currentServerId });
+                                                shown += 1;
                                             });
                                         });
                                     });

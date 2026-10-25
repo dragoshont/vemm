@@ -426,6 +426,16 @@ GUIDs are checked again in the response. It is not a title-only guess.
 Source: the pinned client's `searchDiscover`, `_toOnlineMetadata`, and
 [LibrarySection.getGuid](https://github.com/pushingkarmaorg/python-plexapi/blob/8a9ade7f364582cabb6d5bc200994fddb2113d48/plexapi/library.py).
 Catalogue search displays at most 30 returned results, local matching at most 200 cards.
+Main Search includes this online catalogue alongside owned/shared-library results;
+it is also reachable from server selection without a personal server. Linked-profile
+search reserves 30 unique validated online results and 170 library results within
+the shared 200-result retention bound; server-only search retains 200.
+Online identities and metadata detail GUID/type must agree, never a title-only
+or numeric-PMS-ID substitute. Query edits cancel both sources, partial failures
+offer Retry without hiding successful results, and Back restores online GUID or
+server/rating-key identity after asynchronous results arrive. Standalone catalogue
+search uses the same cancellation/focus ownership. These are synthetic host
+contracts, not independently observed Plex Web cloud behavior or live/native acceptance.
 Licensed/ad-supported playback remains disabled: personal-library decision schemas do not
 establish cloud streaming authorization, ad obligations or DRM. The absence of a DRM flag in
 that schema is not evidence that catalogue content is unprotected.

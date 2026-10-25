@@ -14,12 +14,16 @@ async function run() {
     var mode = "complete";
     var clip = { ratingKey: "2", type: "clip", title: "Synthetic clip" };
     var playlist = { ratingKey: "7", type: "playlist", playlistType: "video", title: "Synthetic playlist", smart: "0" };
+    var core = ["movie", "show", "episode"].map(function (type, i) {
+        return { ratingKey: String(9 + i), type: type, title: "Synthetic search " + type };
+    });
     function response(container) {
         return { ok: true, status: 200, json: function () { return Promise.resolve({ MediaContainer: container }); } };
     }
     var hubs = [{ type: "clip", title: "Clips", Metadata: [clip] },
         { type: "playlist", title: "Playlists", Metadata: [playlist,
-            { ratingKey: "8", type: "playlist", playlistType: "audio", title: "Unsupported audio playlist" }] }];
+            { ratingKey: "8", type: "playlist", playlistType: "audio", title: "Unsupported audio playlist" }] },
+        { type: "movie", title: "Movies and TV", Metadata: core }];
     w.TextDecoder = TextDecoder;
     w.fetch = function (target, request) {
         var url = new URL(target);
@@ -32,6 +36,9 @@ async function run() {
                 return new Promise(function (resolve) { pending = function () { resolve(response({ Hub: hubs })); }; });
             }
             return Promise.resolve(response({ Hub: hubs }));
+        }
+        if (/^\/library\/metadata\/(?:9|10|11)$/.test(url.pathname)) {
+            return Promise.resolve(response({ Metadata: [core[Number(url.pathname.split("/").pop()) - 9]] }));
         }
         assert.strictEqual(url.pathname, "/playlists/7", "A playlist result must not use /library/metadata/7");
         return Promise.resolve(response({ Metadata: [playlist] }));
@@ -57,6 +64,23 @@ async function run() {
     try {
         search("Synthetic"); await settle();
         assert(w.document.querySelector(".search-results").textContent.includes(clip.title), "Supported clip results must not disappear");
+        for (var item of core) {
+            var coreResult = Array.from(w.document.querySelectorAll(".media-card")).find(function (node) {
+                return node.textContent.includes(item.title);
+            });
+            assert(coreResult, "Core movie/show/episode search results remain reachable");
+            coreResult.focus();
+            w.document.dispatchEvent(new w.KeyboardEvent("keydown", { keyCode: 13, bubbles: true }));
+            w.document.dispatchEvent(new w.KeyboardEvent("keyup", { keyCode: 13, bubbles: true }));
+            await settle();
+            assert(w.document.querySelector(".screen-detail"));
+            assert(w.document.body.textContent.includes(item.title));
+            w.document.dispatchEvent(new w.KeyboardEvent("keydown", { keyCode: 10009, bubbles: true }));
+            w.document.dispatchEvent(new w.KeyboardEvent("keyup", { keyCode: 10009, bubbles: true }));
+            await settle();
+            assert.strictEqual(w.document.querySelector("input").value, "Synthetic");
+            assert(w.document.activeElement.textContent.includes(item.title));
+        }
         var result = Array.from(w.document.querySelectorAll(".media-card")).find(function (node) { return node.textContent.includes(playlist.title); });
         assert(result, "Supported video-playlist results must not disappear");
         assert(!w.document.querySelector(".search-results").textContent.includes("Unsupported audio playlist"));
