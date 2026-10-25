@@ -19,15 +19,26 @@ var photos = [1, 2].map(function (id) {
 });
 async function run() {
     var dom = new JSDOM(fs.readFileSync(path.join(app, "index.html"), "utf8"), {
-        url: "https://app.synthetic.invalid", runScripts: "outside-only"
+        url: "https://app.synthetic.invalid", runScripts: "outside-only", pretendToBeVisual: true
     });
     var window = dom.window;
     var calls = [];
     var revoked = [];
     var state = "NONE";
     var watchlisted = true;
+    var ignoreWatchlistWrite = false;
+    var recordingOrder = ["19", "18"];
+    var ignorePriorityWrite = false;
     var listener;
     var time = 0;
+    var queueVersion = 1;
+    function musicQueue(shuffled) {
+        return { playQueueID: "9007199254740993", playQueueSelectedItemID: "9007199254740995",
+            playQueueSelectedItemOffset: 0, playQueueTotalCount: 2, playQueueVersion: queueVersion,
+            playQueueShuffled: !!shuffled, Metadata: tracks.map(function (track, index) {
+                return Object.assign({}, track, { playQueueItemID: "900719925474099" + (5 + index) });
+            }) };
+    }
     window.URL.createObjectURL = function () { return "blob:synthetic-" + calls.length; };
     window.URL.revokeObjectURL = function (url) { revoked.push(url); };
     window.TextDecoder = TextDecoder;
@@ -44,7 +55,9 @@ async function run() {
         calls.push({ path: url.pathname, method: options.method, query: url.searchParams });
         var container;
         if (url.pathname === "/api/v2/home/users") {
-            return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ users: [] }); } });
+            return Promise.resolve({ ok: true, status: 200, json: function () {
+                return Promise.resolve({ users: [{ uuid: "synthetic-owner", title: "Synthetic owner", admin: true }] });
+            } });
         } else if (url.pathname === "/api/v2/resources") {
             return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve([{
                 clientIdentifier: "synthetic-server", name: "Synthetic PMS", provides: "server", owned: true,
@@ -68,10 +81,13 @@ async function run() {
         else if (url.pathname === "/actions/addToWatchlist") { watchlisted = true; container = {}; }
         else if (url.pathname === "/actions/removeFromWatchlist") {
             assert.strictEqual(options.headers["X-Plex-Token"], "synthetic-account-token");
-            watchlisted = false; container = {};
+            if (!ignoreWatchlistWrite) { watchlisted = false; }
+            container = {};
         } else if (url.pathname === "/library/sections") {
             container = { Directory: [{ key: "3", type: "artist", title: "Music" }, { key: "4", type: "photo", title: "Photos" },
-                { key: "2", type: "show", title: "TV library" }, { key: "1", type: "movie", title: "Movies" }] };
+                { key: "2", type: "show", title: "TV library", Location: [
+                    { id: 5, path: "/synthetic/recordings/primary" }, { id: 6, path: "/synthetic/recordings/secondary" }
+                ] }, { key: "1", type: "movie", title: "Movies" }] };
         } else if (url.pathname === "/hubs/promoted") { container = { Hub: [] }; }
         else if (url.pathname === "/media/providers") {
             container = { MediaProvider: [{ identifier: "tv.plex.providers.epg.cloud:12", title: "Synthetic guide",
@@ -87,7 +103,16 @@ async function run() {
             container = { SubscriptionTemplate: [{ MediaSubscription: [{ title: "This Episode", type: 4,
                 parameters: "hints%5Bguid%5D=plex%3A%2F%2Fepisode%2Fabc" }] }] };
         } else if (url.pathname === "/media/subscriptions") {
-            container = { MediaSubscription: [{ key: "18", title: "Synthetic recording", Setting: [] }] };
+            container = { MediaSubscription: recordingOrder.map(function (id) {
+                return { key: id, title: id === "18" ? "Synthetic recording" : "Synthetic other recording", Setting: [] };
+            }) };
+        } else if (url.pathname === "/media/subscriptions/scheduled") {
+            container = { MediaGrabOperation: [{ title: "Synthetic conflicted recording", status: "conflict" }] };
+        } else if (url.pathname === "/media/subscriptions/18/move") {
+            assert.strictEqual(options.method, "PUT");
+            assert(!url.searchParams.has("after"));
+            if (!ignorePriorityWrite) { recordingOrder = ["18", "19"]; }
+            container = {};
         } else if (url.pathname === "/media/subscriptions/18") { container = {}; }
         else if (url.pathname === "/library/sections/3/all") { container = { Metadata: [album], totalSize: 1, offset: 0 }; }
         else if (url.pathname === "/library/sections/4/all") { container = { Metadata: photos, totalSize: 2, offset: 0 }; }
@@ -95,15 +120,30 @@ async function run() {
         else if (url.pathname === "/library/metadata/30/children") { container = { Metadata: tracks, totalSize: 2 }; }
         else if (/^\/library\/metadata\/[12]$/.test(url.pathname)) {
             container = { Metadata: [tracks[Number(url.pathname.split("/").pop()) - 1]] };
-        } else if (url.pathname === "/music/:/transcode/universal/decision") {
+        }         else if (url.pathname === "/playQueues") {
+            assert.strictEqual(options.method, "POST");
+            assert.strictEqual(url.searchParams.get("type"), "audio");
+            container = musicQueue(false);
+        } else if (url.pathname === "/playQueues/9007199254740993/shuffle") {
+            queueVersion += 1; container = musicQueue(true);
+        } else if (url.pathname === "/playQueues/9007199254740993") {
+            container = musicQueue(true);
+            container.Metadata = [container.Metadata[1]];
+        } else if (url.pathname === "/playQueues/9007199254740993/items") { container = {}; }
+        else if (url.pathname === "/music/:/transcode/universal/decision") {
             assert.strictEqual(url.searchParams.get("audioCodec"), "mp3"); container = { generalDecisionCode: 1001 };
         } else if (/^\/library\/parts\/2[12]$/.test(url.pathname) ||
                 url.pathname === "/:/timeline" || url.pathname === "/music/:/transcode/universal/stop") { container = {}; }
         else if (url.pathname === "/photo/:/transcode") {
             assert.strictEqual(url.searchParams.get("width"), "1920");
             assert.strictEqual(options.headers["X-Plex-Token"], "synthetic-server-token");
-            return Promise.resolve({ ok: true, status: 200, body: new ReadableStream({
-                start: function (controller) { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close(); }
+            return Promise.resolve({ ok: true, status: 200,
+                headers: { get: function (name) { return name === "Content-Type" ? "image/jpeg" : null; } },
+                body: new ReadableStream({
+                start: function (controller) {
+                    controller.enqueue(new Uint8Array([255, 216, 255, 192, 0, 8, 8, 4, 56, 7, 128, 1]));
+                    controller.close();
+                }
             }) });
         } else { return Promise.resolve({ ok: false, status: 404 }); }
         return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ MediaContainer: container }); } });
@@ -112,15 +152,28 @@ async function run() {
         window.eval(fs.readFileSync(path.join(app, "js", name + ".js"), "utf8"));
     });
     window.localStorage.setItem("vemm-tizen-account", JSON.stringify({ version: 2, storage: "unencrypted", token: "synthetic-account-token" }));
-    window.eval(fs.readFileSync(path.join(app, "main.js"), "utf8"));
+    var source = fs.readFileSync(path.join(app, "main.js"), "utf8");
+    var startup = source.lastIndexOf('    addConnectForm("");');
+    window.eval(source.slice(0, startup) +
+        '    window.__deferredCatalogue = function () { visit(function () { catalogueUi().search(); }); };\n' + source.slice(startup));
     function click(label) {
         var node = Array.from(window.document.querySelectorAll("button")).find(function (button) { return button.textContent === label; });
         assert(node, "Missing control: " + label + "; current screen: " + window.document.body.textContent);
+        node.focus();
         node.click();
     }
     async function settle() {
         for (var i = 0; i < 50; i += 1) { await Promise.resolve(); }
         await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+    }
+    async function photoReady() {
+        var deadline = Date.now() + 2000;
+        while (Date.now() < deadline) {
+            var image = window.document.querySelector(".photo-display");
+            if (image && image.src.startsWith("blob:") && typeof image.onload === "function") { return image; }
+            await new Promise(function (resolve) { window.setTimeout(resolve, 1); });
+        }
+        assert.fail("Photo header/decode setup did not finish: " + window.document.getElementById("status").textContent);
     }
     try {
         await settle();
@@ -135,15 +188,27 @@ async function run() {
         click("Remove from Watchlist"); await settle();
         click("Cancel"); await settle();
         assert(watchlisted, "Cancelled Watchlist changes must not write");
+        ignoreWatchlistWrite = true;
         click("Remove from Watchlist"); await settle();
         click("Confirm"); click("Confirm"); await settle();
-        assert.strictEqual(calls.filter(function (call) { return call.path === "/actions/removeFromWatchlist"; }).length, 1);
+        assert(/not confirmed/i.test(window.document.getElementById("status").textContent),
+            "HTTP success with unchanged Watchlist membership cannot report acceptance");
+        assert(watchlisted);
+        click("Cancel"); await settle();
+        ignoreWatchlistWrite = false;
+        click("Remove from Watchlist"); await settle();
+        click("Confirm"); click("Confirm"); await settle();
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/actions/removeFromWatchlist"; }).length, 2,
+            "Only the two explicitly confirmed actions write; repeated OK or failed read-back cannot replay writes");
         click("Refresh"); await settle();
         assert(window.document.body.textContent.includes("Your Watchlist is empty."));
         click("Back"); await settle();
         click("Back"); await settle();
-        click("Back"); await settle();
-        click("Plex catalogue"); await settle();
+        assert(window.document.querySelector(".screen-home"),
+            "Refresh replaces the completed confirmation rather than retaining it in Back history");
+        assert(!Array.from(window.document.querySelectorAll("button")).some(function (node) { return node.textContent === "Plex catalogue"; }),
+            "Home does not promote deferred catalogue/distribution search");
+        window.__deferredCatalogue(); await settle();
         window.document.querySelector('input[type="search"]').value = "Synthetic";
         click("Search"); await settle();
         click("Synthetic Watchlist movie"); await settle();
@@ -166,28 +231,37 @@ async function run() {
         window.document.querySelector(".media-card").click(); await settle();
         assert(window.document.querySelector(".detail-cover"), "Music uses square artwork rather than a movie poster layout");
         click("Play album"); await settle();
+        assert(calls.some(function (call) { return call.path === "/playQueues" && call.query.get("type") === "audio"; }),
+            "Music must create a PMS audio PlayQueue rather than a local album list");
         assert.strictEqual(state, "PLAYING");
         assert(window.document.body.textContent.includes("Track 1"));
         click("More");
-        click("Shuffle / On or off"); click("Repeat / Off, one, all");
+        click("Shuffle / On or off"); await settle(); click("Repeat / Off, one, all");
         listener.onstreamcompleted(); await settle();
         assert(window.document.body.textContent.includes("Track 1"), "Repeat-one must replay the same track");
         click("More");
         click("Next track"); await settle();
-        assert(window.document.body.textContent.includes("Track 2"), "Manual next must bypass repeat-one");
+        assert(window.document.body.textContent.includes("Track 2"), "Manual next must bypass repeat-one: " +
+            window.document.querySelector(".screen").textContent + "\n" +
+            calls.slice(-12).map(function (call) { return call.path + "?" + call.query; }).join("\n"));
+        assert(calls.some(function (call) { return call.path === "/:/timeline" &&
+            call.query.get("playQueueItemID") === "9007199254740996"; }), "Music timelines use the selected string queue entry");
         click("More");
         click("Stop and return to details"); await settle();
+        assert(calls.some(function (call) { return call.path === "/playQueues/9007199254740993/items" &&
+            call.method === "DELETE"; }), "Stop clears the owned music queue");
         click("Back"); await settle();
         click("Back to Home"); await settle();
         click("Photos"); await settle();
         window.document.querySelector(".media-card").click(); await settle();
         assert(window.document.querySelector(".screen-photos .photo-controls"), "Photo navigation is grouped below the image");
-        var image = window.document.querySelector(".photo-display");
+        var image = await photoReady();
         assert(image.src.startsWith("blob:"));
         image.onload();
         assert.strictEqual(window.document.querySelector(".screen h2").textContent, "Photo 1");
         var timelines = calls.filter(function (call) { return call.path === "/:/timeline"; }).length;
         click("Next photo"); await settle();
+        image = await photoReady();
         image.onload();
         assert.strictEqual(window.document.querySelector(".screen h2").textContent, "Photo 2");
         click("Back"); await settle();
@@ -209,24 +283,52 @@ async function run() {
         click("Record / This Episode"); await settle();
         click("TV library"); await settle();
         assert(!calls.some(function (call) { return call.path === "/media/subscriptions" && call.method === "POST"; }));
+        click("/synthetic/recordings/secondary"); await settle();
+        click("Cancel"); await settle();
+        assert.strictEqual(window.document.activeElement.textContent, "/synthetic/recordings/secondary");
+        click("/synthetic/recordings/secondary"); await settle();
         click("Confirm"); click("Confirm"); await settle();
         var scheduled = calls.filter(function (call) { return call.path === "/media/subscriptions" && call.method === "POST"; });
         assert.strictEqual(scheduled.length, 1);
         assert.strictEqual(scheduled[0].query.get("hints[guid]"), "plex://episode/abc");
         assert.strictEqual(scheduled[0].query.get("targetLibrarySectionID"), "2");
+        assert.strictEqual(scheduled[0].query.get("targetSectionLocationID"), "6");
         click("Refresh"); await settle();
         click("Back"); await settle();
+        assert(window.document.querySelector(".screen-program"),
+            "A completed recording skips the discarded destination confirmation on Back");
         click("Back"); await settle();
         click("Back"); await settle();
-        click("Back"); await settle();
-        click("Recording subscriptions"); await settle();
-        click("Cancel recording subscription"); await settle();
-        assert(!calls.some(function (call) { return call.method === "DELETE"; }));
+        assert(window.document.querySelector(".screen-television"));
+        click("Scheduled recordings"); await settle();
+        assert(window.document.querySelector(".screen-recordings").textContent.includes("conflict"));
+        click("Recording priorities"); await settle();
+        click("Move to highest priority"); await settle();
         click("Cancel"); await settle();
-        assert(!calls.some(function (call) { return call.method === "DELETE"; }));
+        assert(!calls.some(function (call) { return call.path === "/media/subscriptions/18/move"; }));
+        ignorePriorityWrite = true;
+        click("Move to highest priority"); click("Confirm"); click("Confirm"); await settle();
+        assert(window.document.getElementById("status").textContent.includes("not confirmed"));
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/media/subscriptions/18/move"; }).length, 1);
+        click("Cancel"); await settle();
+        ignorePriorityWrite = false;
+        click("Move to highest priority"); click("Confirm"); click("Confirm"); await settle();
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/media/subscriptions/18/move"; }).length, 2);
+        click("Refresh"); await settle();
+        assert(window.document.querySelector(".recording-row h3").textContent.includes("Synthetic recording"));
+        click("Back"); await settle();
+        assert(window.document.querySelector(".screen-recordings").textContent.includes("conflict"),
+            "Verified priority ordering must not claim the server's tuner conflict is resolved");
+        click("Recording priorities"); await settle();
+        click("Cancel recording subscription"); await settle();
+        assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));
+        click("Cancel"); await settle();
+        assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));
         click("Cancel recording subscription"); await settle();
         click("Confirm"); click("Confirm"); await settle();
-        assert.strictEqual(calls.filter(function (call) { return call.method === "DELETE"; }).length, 1,
+        assert.strictEqual(calls.filter(function (call) {
+            return call.method === "DELETE" && call.path === "/media/subscriptions/18";
+        }).length, 1,
             "Explicit recording cancellation must not repeat");
         console.log("Tizen linked-account Watchlist/catalogue GUID match/music/photos/DVR confirmation journeys: passed");
     } finally { dom.window.close(); }

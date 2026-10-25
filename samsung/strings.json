@@ -1,4 +1,422 @@
 {
+  "the server selects the requested audio track": {
+    "es": "el servidor selecciona la pista de audio solicitada",
+    "be": "сервер выбірае запытаную аўдыядарожку"
+  },
+  "Another version uses matching language tracks or its own defaults. External subtitle timing is not reused.": {
+    "es": "Otra versión usa pistas del mismo idioma o sus valores predeterminados. No se reutiliza la sincronización de subtítulos externos.",
+    "be": "Іншая версія выкарыстоўвае дарожкі адпаведнай мовы або ўласныя стандартныя налады. Час знешніх субтытраў не пераносіцца."
+  },
+  "Edit smart rules": { "es": "Editar reglas inteligentes", "be": "Змяніць разумныя правілы" },
+  "These smart rules cannot be safely edited. Nothing was changed.": {
+    "es": "Estas reglas no se pueden editar de forma segura. No se cambió nada.",
+    "be": "Гэтыя правілы немагчыма бяспечна змяніць. Нічога не зменена."
+  },
+  "Choose a smart video playlist to edit its rules.": {
+    "es": "Elige una lista de vídeo inteligente para editar sus reglas.",
+    "be": "Выберыце разумны спіс відэа, каб змяніць яго правілы."
+  },
+  "Choose different smart rules before confirming.": {
+    "es": "Cambia las reglas antes de confirmar.", "be": "Змяніце правілы перад пацвярджэннем."
+  },
+  "Plex did not confirm the smart rules. Reload before editing.": {
+    "es": "Plex no confirmó las reglas. Vuelve a cargar antes de editar.",
+    "be": "Plex не пацвердзіў правілы. Перазагрузіце перад рэдагаваннем."
+  },
+  "Loading this server's smart rules...": {
+    "es": "Cargando las reglas inteligentes de este servidor...",
+    "be": "Загрузка разумных правіл гэтага сервера..."
+  },
+  "Draft only. Review and confirm to replace the saved rules.": {
+    "es": "Solo es un borrador. Revisa y confirma para reemplazar las reglas guardadas.",
+    "be": "Гэта толькі чарнавік. Праверце і пацвердзіце замену захаваных правіл."
+  },
+  "Match all conditions": { "es": "Cumplir todas las condiciones", "be": "Выконваць усе ўмовы" },
+  "Match any condition": { "es": "Cumplir cualquier condición", "be": "Выконваць любую ўмову" },
+  "Conditions": { "es": "Condiciones", "be": "Умовы" },
+  "Condition": { "es": "Condición", "be": "Умова" },
+  "Edit group {number}": { "es": "Editar grupo {number}", "be": "Змяніць групу {number}" },
+  "Add condition": { "es": "Añadir condición", "be": "Дадаць умову" },
+  "Add condition group": { "es": "Añadir grupo de condiciones", "be": "Дадаць групу ўмоў" },
+  "Remove group": { "es": "Eliminar grupo", "be": "Выдаліць групу" },
+  "Plex default order": { "es": "Orden predeterminado de Plex", "be": "Стандартны парадак Plex" },
+  "Result limit": { "es": "Límite de resultados", "be": "Абмежаванне вынікаў" },
+  "No result limit": { "es": "Sin límite de resultados", "be": "Без абмежавання вынікаў" },
+  "Review rule changes": { "es": "Revisar cambios de reglas", "be": "Праверыць змены правіл" },
+  "Replace smart rules in {playlist}?": { "es": "¿Reemplazar las reglas de {playlist}?", "be": "Замяніць правілы ў {playlist}?" },
+  "Up to 32 conditions, four nested groups deep and five sort fields. Unknown rules are never discarded.": {
+    "es": "Hasta 32 condiciones, cuatro niveles de grupos y cinco campos de orden. No se descartan reglas desconocidas.",
+    "be": "Да 32 умоў, чатырох узроўняў груп і пяці палёў сартавання. Невядомыя правілы не адкідаюцца."
+  },
+  "Choose another field": { "es": "Elegir otro campo", "be": "Выбраць іншае поле" },
+  "Condition value": { "es": "Valor de la condición", "be": "Значэнне ўмовы" },
+  "Use 1 for yes or 0 for no.": { "es": "Usa 1 para sí o 0 para no.", "be": "Увядзіце 1 для «так» або 0 для «не»." },
+  "Enter a number. Commas match multiple values.": {
+    "es": "Introduce un número. Separa varios valores con comas.",
+    "be": "Увядзіце лік. Аддзяляйце некалькі значэнняў коскамі."
+  },
+  "Use Unix seconds or a relative date such as -30d.": {
+    "es": "Usa segundos Unix o una fecha relativa como -30d.",
+    "be": "Выкарыстоўвайце секунды Unix або адносную дату, напрыклад -30d."
+  },
+  "Enter exact text or a server value. Commas match multiple values.": {
+    "es": "Introduce el texto exacto o un valor del servidor. Separa varios valores con comas.",
+    "be": "Увядзіце дакладны тэкст або значэнне сервера. Аддзяляйце некалькі значэнняў коскамі."
+  },
+  "Use condition": { "es": "Usar condición", "be": "Ужыць умову" },
+  "Remove condition": { "es": "Eliminar condición", "be": "Выдаліць умову" },
+  "Smart playlists support up to 32 editable conditions.": {
+    "es": "Las listas inteligentes permiten editar hasta 32 condiciones.",
+    "be": "У разумным спісе можна рэдагаваць да 32 умоў."
+  },
+  "Nothing changes on Plex while you edit this draft.": {
+    "es": "No cambia nada en Plex mientras editas este borrador.",
+    "be": "Падчас рэдагавання чарнавіка ў Plex нічога не змяняецца."
+  },
+  "Remove sort {sort}": { "es": "Eliminar orden {sort}", "be": "Выдаліць сартаванне {sort}" },
+  "Remove a sort field before adding another.": {
+    "es": "Elimina un campo de orden antes de añadir otro.",
+    "be": "Выдаліце поле сартавання перад даданнем новага."
+  },
+  "Sort fields apply in the order shown. Remove all to use Plex default order.": {
+    "es": "Los campos se aplican en el orden mostrado. Elimina todos para usar el orden de Plex.",
+    "be": "Палі ўжываюцца ў паказаным парадку. Выдаліце ўсе для стандартнага парадку Plex."
+  },
+  "Enter 1 to 100000, or leave empty for no limit.": {
+    "es": "Introduce de 1 a 100000, o deja vacío para no limitar.",
+    "be": "Увядзіце ад 1 да 100000 або пакіньце пустым без абмежавання."
+  },
+  "Use limit": { "es": "Usar límite", "be": "Ужыць абмежаванне" },
+  "Recording storage": { "es": "Almacenamiento de grabaciones", "be": "Сховішча запісаў" },
+  "Choose another library": { "es": "Elegir otra biblioteca", "be": "Выбраць іншую бібліятэку" },
+  "The recording library is no longer available.": {
+    "es": "La biblioteca de grabaciones ya no está disponible.",
+    "be": "Бібліятэка запісаў больш недаступная."
+  },
+  "Plex returned invalid recording storage locations.": {
+    "es": "Plex devolvió ubicaciones de grabación no válidas.",
+    "be": "Plex вярнуў няправільныя месцы захавання запісаў."
+  },
+  "Schedule {title}?": { "es": "¿Programar {title}?", "be": "Запланаваць {title}?" },
+  "Library: {library}. Storage: {location}.": {
+    "es": "Biblioteca: {library}. Almacenamiento: {location}.",
+    "be": "Бібліятэка: {library}. Сховішча: {location}."
+  },
+  "Storage location {id}": { "es": "Ubicación de almacenamiento {id}", "be": "Месца захавання {id}" },
+  "Use Plex default storage": { "es": "Usar el almacenamiento predeterminado de Plex", "be": "Выкарыстаць стандартнае сховішча Plex" },
+  "Plex default storage": { "es": "Almacenamiento predeterminado de Plex", "be": "Стандартнае сховішча Plex" },
+  "Choose a storage location. Nothing changes until you confirm.": {
+    "es": "Elige una ubicación. Nada cambia hasta que lo confirmes.",
+    "be": "Выберыце месца захавання. Нічога не зменіцца без пацверджання."
+  },
+  "Plex did not advertise storage locations. You may explicitly use its default or choose another library.": {
+    "es": "Plex no indicó ubicaciones de almacenamiento. Puedes elegir su opción predeterminada u otra biblioteca.",
+    "be": "Plex не паведаміў месцы захавання. Вы можаце відавочна выбраць стандартнае сховішча або іншую бібліятэку."
+  },
+  "Recording priorities": { "es": "Prioridades de grabación", "be": "Прыярытэты запісу" },
+  "Higher subscriptions get recording priority. Plex may still report tuner conflicts.": {
+    "es": "Las suscripciones superiores tienen prioridad. Plex aún puede indicar conflictos de sintonizador.",
+    "be": "Падпіскі вышэй у спісе маюць прыярытэт запісу. Plex усё яшчэ можа паведамляць пра канфлікты цюнара."
+  },
+  "Move to highest priority": { "es": "Dar máxima prioridad", "be": "Надаць найвышэйшы прыярытэт" },
+  "Give {title} highest recording priority?": {
+    "es": "¿Dar a {title} la máxima prioridad de grabación?",
+    "be": "Надаць {title} найвышэйшы прыярытэт запісу?"
+  },
+  "This changes recording priority, not tuner availability. Review scheduled recordings afterward.": {
+    "es": "Esto cambia la prioridad, no la disponibilidad del sintonizador. Revisa después las grabaciones programadas.",
+    "be": "Гэта змяняе прыярытэт, а не даступнасць цюнара. Пасля праверце запланаваныя запісы."
+  },
+  "Plex did not provide a complete editable recording-priority list.": {
+    "es": "Plex no proporcionó una lista completa y editable de prioridades de grabación.",
+    "be": "Plex не прадаставіў поўны спіс прыярытэтаў запісу для рэдагавання."
+  },
+  "Recording priorities can verify up to 200 subscriptions.": {
+    "es": "Se pueden comprobar las prioridades de hasta 200 suscripciones.",
+    "be": "Можна праверыць прыярытэты не больш чым 200 падпісак."
+  },
+  "Plex returned invalid recording priorities.": {
+    "es": "Plex devolvió prioridades de grabación no válidas.",
+    "be": "Plex вярнуў няправільныя прыярытэты запісу."
+  },
+  "Wait for the previous recording priority change to finish.": {
+    "es": "Espera a que termine el cambio anterior de prioridad.",
+    "be": "Пачакайце завяршэння папярэдняй змены прыярытэту запісу."
+  },
+  "The recording change was cancelled.": { "es": "Se canceló el cambio de grabación.", "be": "Змена запісу скасавана." },
+  "Recording verification timed out. Reload before editing.": {
+    "es": "Se agotó el tiempo de comprobación de las grabaciones. Vuelve a cargar antes de editar.",
+    "be": "Час праверкі запісаў скончыўся. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "Plex returned incomplete recording priorities. Reload before editing.": {
+    "es": "Plex devolvió una lista incompleta de prioridades. Vuelve a cargar antes de editar.",
+    "be": "Plex вярнуў няпоўныя прыярытэты запісу. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "The recording priorities changed on Plex. Reload before editing.": {
+    "es": "Las prioridades de grabación cambiaron en Plex. Vuelve a cargar antes de editar.",
+    "be": "Прыярытэты запісу змяніліся ў Plex. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "Plex did not confirm the recording priority. Reload before editing.": {
+    "es": "Plex no confirmó la prioridad de grabación. Vuelve a cargar antes de editar.",
+    "be": "Plex не пацвердзіў прыярытэт запісу. Перазагрузіце іх перад рэдагаваннем."
+  },
+  "Create playlist": { "es": "Crear lista", "be": "Стварыць спіс прайгравання" },
+  "Create empty playlist {playlist}?": {
+    "es": "¿Crear la lista vacía {playlist}?",
+    "be": "Стварыць пусты спіс прайгравання {playlist}?"
+  },
+  "The playlist starts empty. Add videos from their details.": {
+    "es": "La lista se crea vacía. Añade vídeos desde sus detalles.",
+    "be": "Спіс будзе пусты. Дадавайце відэа са старонак з іх звесткамі."
+  },
+  "Rename playlist": { "es": "Cambiar nombre de la lista", "be": "Перайменаваць спіс прайгравання" },
+  "Delete playlist": { "es": "Eliminar lista", "be": "Выдаліць спіс прайгравання" },
+  "Playlist name": { "es": "Nombre de la lista", "be": "Назва спіса прайгравання" },
+  "Enter a playlist name of 1 to 128 characters without control characters.": {
+    "es": "Introduce un nombre de lista de 1 a 128 caracteres, sin caracteres de control.",
+    "be": "Увядзіце назву спіса ад 1 да 128 знакаў без кіравальных сімвалаў."
+  },
+  "Choose a different playlist name.": {
+    "es": "Elige un nombre de lista diferente.",
+    "be": "Выберыце іншую назву спіса."
+  },
+  "Enter a name, then review the change. Nothing changes until you confirm.": {
+    "es": "Introduce un nombre y revisa el cambio. Nada cambia hasta que lo confirmes.",
+    "be": "Увядзіце назву і праверце змену. Нічога не зменіцца без пацверджання."
+  },
+  "Rename {title} to {playlist}?": {
+    "es": "¿Cambiar el nombre de {title} a {playlist}?",
+    "be": "Перайменаваць {title} у {playlist}?"
+  },
+  "Create {playlist} with {title}?": {
+    "es": "¿Crear {playlist} con {title}?",
+    "be": "Стварыць {playlist} з {title}?"
+  },
+  "Delete playlist {title}?": {
+    "es": "¿Eliminar la lista {title}?",
+    "be": "Выдаліць спіс прайгравання {title}?"
+  },
+  "This deletes the playlist, not the media. This cannot be undone.": {
+    "es": "Se elimina la lista, no el contenido multimedia. No se puede deshacer.",
+    "be": "Будзе выдалены спіс, а не медыяфайлы. Гэта нельга адмяніць."
+  },
+  "Plex did not confirm the new playlist. Check Plex before repeating it.": {
+    "es": "Plex no confirmó la nueva lista. Comprueba Plex antes de repetir la operación.",
+    "be": "Plex не пацвердзіў новы спіс. Праверце Plex перад паўторнай спробай."
+  },
+  "Add to playlist": { "es": "Añadir a una lista", "be": "Дадаць у спіс прайгравання" },
+  "Remove from playlist": { "es": "Quitar de la lista", "be": "Выдаліць са спіса прайгравання" },
+  "Add {title} to {playlist}?": { "es": "¿Añadir {title} a {playlist}?", "be": "Дадаць {title} у {playlist}?" },
+  "Remove {title} from {playlist}?": { "es": "¿Quitar {title} de {playlist}?", "be": "Выдаліць {title} з {playlist}?" },
+  "Playlist": { "es": "Lista de reproducción", "be": "Спіс прайгравання" },
+  "Choose a standard video playlist. Nothing changes until you confirm.": {
+    "es": "Elige una lista de vídeo normal. Nada cambia hasta que lo confirmes.",
+    "be": "Выберыце звычайны спіс відэа. Нічога не зменіцца без пацверджання."
+  },
+  "No editable video playlists on this page. Smart playlists use rules.": {
+    "es": "No hay listas de vídeo editables en esta página. Las listas inteligentes usan reglas.",
+    "be": "На гэтай старонцы няма спісаў відэа для рэдагавання. Разумныя спісы выкарыстоўваюць правілы."
+  },
+  "Wait for the previous playlist edit to finish.": {
+    "es": "Espera a que termine el cambio anterior de la lista.",
+    "be": "Пачакайце завяршэння папярэдняй змены спіса."
+  },
+  "Playlist verification timed out. Reload before editing.": {
+    "es": "Se agotó el tiempo de comprobación de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Час праверкі спіса скончыўся. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "Choose a standard video playlist. Smart playlists use rules.": {
+    "es": "Elige una lista de vídeo normal. Las listas inteligentes usan reglas.",
+    "be": "Выберыце звычайны спіс відэа. Разумныя спісы выкарыстоўваюць правілы."
+  },
+  "Playlist edits can verify up to 1000 entries. Nothing was confirmed.": {
+    "es": "La edición puede comprobar hasta 1000 entradas. No se confirmó ningún cambio.",
+    "be": "Пры рэдагаванні можна праверыць да 1000 запісаў. Ніводная змена не пацверджана."
+  },
+  "Choose a playable video for this playlist.": {
+    "es": "Elige un vídeo reproducible para esta lista.",
+    "be": "Выберыце відэа, якое можна прайграць, для гэтага спіса."
+  },
+  "Plex returned an invalid server identity.": {
+    "es": "Plex devolvió una identidad de servidor no válida.",
+    "be": "Plex вярнуў няправільны ідэнтыфікатар сервера."
+  },
+  "Plex did not confirm the playlist change. Reload before editing.": {
+    "es": "Plex no confirmó el cambio de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Plex не пацвердзіў змену спіса. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "A request already sent to Plex may finish after you leave. Check Plex before repeating it.": {
+    "es": "Una solicitud enviada a Plex puede finalizar después de salir. Comprueba Plex antes de repetirla.",
+    "be": "Запыт, ужо адпраўлены ў Plex, можа завяршыцца пасля вашага выхаду. Праверце Plex перад паўторнай спробай."
+  },
+  "Support record": { "es": "Registro de soporte", "be": "Запіс для падтрымкі" },
+  "Copy support record": { "es": "Copiar registro de soporte", "be": "Скапіяваць запіс для падтрымкі" },
+  "Scroll record up": { "es": "Desplazar registro hacia arriba", "be": "Пракруціць запіс уверх" },
+  "Scroll record down": { "es": "Desplazar registro hacia abajo", "be": "Пракруціць запіс уніз" },
+  "Requested ceiling": { "es": "Límite solicitado", "be": "Запытаная мяжа якасці" },
+  "Server-reported output": { "es": "Salida indicada por el servidor", "be": "Вывад паводле сервера" },
+  "Native output": { "es": "Salida nativa", "be": "Натыўны вывад" },
+  "Next action": { "es": "Siguiente acción", "be": "Наступнае дзеянне" },
+  "Not measured: decoded video, panel HDR and physical audio output.": {
+    "es": "No medidos: vídeo decodificado, HDR del panel y salida de audio física.",
+    "be": "Не вымерана: дэкадаванае відэа, HDR панэлі і фізічны аўдыявывад."
+  },
+  "Preview only. No uploads. Only allowlisted playback facts are included; no account, server, device or media identity.": {
+    "es": "Solo vista previa. Sin subidas. Solo incluye datos de reproducción permitidos; no identifica cuentas, servidores, dispositivos ni contenido.",
+    "be": "Толькі папярэдні прагляд. Без адпраўкі даных. Уключаны толькі дазволеныя звесткі пра прайграванне; без ідэнтыфікатараў уліковага запісу, сервера, прылады або медыя."
+  },
+  "To change the requested ceiling, use More > Quality and version. Inspecting this record changes nothing.": {
+    "es": "Para cambiar el límite solicitado, usa Más > Calidad y versión. Consultar este registro no cambia nada.",
+    "be": "Каб змяніць запытаную мяжу, адкрыйце Яшчэ > Якасць і версія. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "To change Direct Play, stop playback and use Settings. Inspecting this record changes nothing.": {
+    "es": "Para cambiar la reproducción directa, detén la reproducción y abre Ajustes. Consultar este registro no cambia nada.",
+    "be": "Каб змяніць прамое прайграванне, спыніце прайграванне і адкрыйце Налады. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "To reduce conversion, review More > Audio and subtitles. Inspecting this record changes nothing.": {
+    "es": "Para reducir la conversión, revisa Más > Audio y subtítulos. Consultar este registro no cambia nada.",
+    "be": "Каб паменшыць пераўтварэнне, праверце Яшчэ > Аўдыя і субцітры. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "If playback fails, allow server conversion in Settings instead of Force Direct Play, then explicitly retry.": {
+    "es": "Si falla la reproducción, permite la conversión del servidor en Ajustes en lugar de forzar la reproducción directa y vuelve a intentarlo explícitamente.",
+    "be": "Калі прайграванне не ўдаецца, дазвольце пераўтварэнне на серверы ў Наладах замест прымусовага прамога прайгравання, затым паўтарыце спробу ўручную."
+  },
+  "No active playback. Start a video or song, then use More > Support record for server-reported output.": {
+    "es": "No hay reproducción activa. Inicia un vídeo o una canción y abre Más > Registro de soporte para ver la salida indicada por el servidor.",
+    "be": "Няма актыўнага прайгравання. Запусціце відэа або песню, затым адкрыйце Яшчэ > Запіс для падтрымкі, каб убачыць вывад паводле сервера."
+  },
+  "No change is needed if playback works. Verify HDR and audio on the TV or receiver; this record does not measure them.": {
+    "es": "Si la reproducción funciona, no hace falta cambiar nada. Comprueba el HDR y el audio en el televisor o receptor; este registro no los mide.",
+    "be": "Калі прайграванне працуе, змены не патрэбныя. Праверце HDR і аўдыя на тэлевізары або рэсіверы; гэты запіс іх не вымярае."
+  },
+  "Copy is unavailable on this TV. Read the preview; nothing was exported.": {
+    "es": "La copia no está disponible en este televisor. Lee la vista previa; no se ha exportado nada.",
+    "be": "Капіяванне на гэтым тэлевізары недаступнае. Прачытайце папярэдні прагляд; нічога не экспартавана."
+  },
+  "Copy failed or was denied. Nothing was exported; read the preview instead.": {
+    "es": "La copia ha fallado o se ha denegado. No se ha exportado nada; lee la vista previa.",
+    "be": "Капіяванне не ўдалося або было забаронена. Нічога не экспартавана; скарыстайцеся папярэднім праглядам."
+  },
+  "Support record copied.": { "es": "Registro de soporte copiado.", "be": "Запіс для падтрымкі скапіяваны." },
+  "Video playlists": { "es": "Listas de vídeo", "be": "Спісы прайгравання відэа" },
+  "Move to beginning": { "es": "Mover al principio", "be": "Перамясціць у пачатак" },
+  "Move this playlist entry to the beginning?": { "es": "¿Mover esta entrada de la lista al principio?", "be": "Перамясціць гэты запіс спіса ў пачатак?" },
+  "Confirming playlist order...": { "es": "Confirmando el orden de la lista...", "be": "Пацвярджэнне парадку спіса..." },
+  "Reload playlist": { "es": "Volver a cargar la lista", "be": "Перазагрузіць спіс" },
+  "Playlist order confirmed.": { "es": "Orden de la lista confirmado.", "be": "Парадак спіса пацверджаны." },
+  "Loading video queue...": { "es": "Cargando la cola de vídeo...", "be": "Загрузка чаргі відэа..." },
+  "Wait for the cancelled video queue request to finish.": {
+    "es": "Espera a que termine la solicitud cancelada de la cola de vídeo.",
+    "be": "Дачакайцеся завяршэння скасаванага запыту чаргі відэа."
+  },
+  "Wait for the cancelled music queue request to finish.": {
+    "es": "Espera a que termine la solicitud cancelada de la cola de música.",
+    "be": "Дачакайцеся завяршэння скасаванага запыту чаргі музыкі."
+  },
+  "The previous music queue still needs cleanup. Retry cleanup before playing again.": {
+    "es": "La cola de música anterior aún debe vaciarse. Reintenta la limpieza antes de reproducir de nuevo.",
+    "be": "Папярэднюю чаргу музыкі яшчэ трэба ачысціць. Паўтарыце ачыстку перад новым прайграваннем."
+  },
+  "The previous video queue still needs cleanup. Retry cleanup before playing again.": {
+    "es": "La cola de vídeo anterior aún debe vaciarse. Reintenta la limpieza antes de reproducir de nuevo.",
+    "be": "Папярэднюю чаргу відэа яшчэ трэба ачысціць. Паўтарыце ачыстку перад новым прайграваннем."
+  },
+  "Previous video": { "es": "Vídeo anterior", "be": "Папярэдняе відэа" },
+  "Next video": { "es": "Siguiente vídeo", "be": "Наступнае відэа" },
+  "Plex did not confirm the playlist order. Reload before editing.": {
+    "es": "Plex no confirmó el orden de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Plex не пацвердзіў парадак спіса. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "The playlist changed on Plex. Reload before editing.": {
+    "es": "La lista cambió en Plex. Vuelve a cargarla antes de editar.",
+    "be": "Спіс змяніўся ў Plex. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "The play queue changed on Plex. Stop and reopen it.": {
+    "es": "La cola cambió en Plex. Detén la reproducción y vuelve a abrirla.",
+    "be": "Чарга змянілася ў Plex. Спыніце прайграванне і адкрыйце яе зноў."
+  },
+  "Version {version}": { "es": "Versión {version}", "be": "Версія {version}" },
+  "Customize Home": { "es": "Personalizar Inicio", "be": "Наладзіць галоўны экран" },
+  "Featured title: {state}": { "es": "Título destacado: {state}", "be": "Рэкамендаваны твор: {state}" },
+  "Optional, on this TV only, for this server and profile. Back discards unsaved changes. New shelves follow your saved order. Reset restores server defaults.": {
+    "es": "Opcional, solo en este TV, para este servidor y perfil. Atrás descarta los cambios sin guardar. Las filas nuevas siguen el orden guardado. Restablecer recupera los valores del servidor.",
+    "be": "Неабавязкова, толькі на гэтым тэлевізары, для гэтага сервера і профілю. Назад скасоўвае незахаваныя змены. Новыя паліцы ідуць пасля захаванага парадку. Скід вяртае налады сервера."
+  },
+  "Home customization requires a verified server and profile.": {
+    "es": "Para personalizar Inicio se necesitan un servidor y un perfil verificados.",
+    "be": "Для наладжвання галоўнага экрана патрэбны правераныя сервер і профіль."
+  },
+  "Home customization could not be loaded. Retry or reset all Home layouts.": {
+    "es": "No se pudo cargar la personalización de Inicio. Reintenta o restablece todos los diseños de Inicio.",
+    "be": "Не ўдалося загрузіць налады галоўнага экрана. Паўтарыце спробу або скіньце ўсе макеты галоўнага экрана."
+  },
+  "Reset all Home layouts": { "es": "Restablecer todos los diseños de Inicio", "be": "Скінуць усе макеты галоўнага экрана" },
+  "Could not reset Home layouts. Check app storage permissions.": {
+    "es": "No se pudieron restablecer los diseños de Inicio. Comprueba los permisos de almacenamiento.",
+    "be": "Не ўдалося скінуць макеты галоўнага экрана. Праверце дазволы на сховішча праграмы."
+  },
+  "This shelf has no unique stable identifier and stays visible.": {
+    "es": "Esta fila no tiene un identificador único estable y permanece visible.",
+    "be": "Гэтая паліца не мае ўнікальнага сталага ідэнтыфікатара і застаецца бачнай."
+  },
+  "Show {shelf}": { "es": "Mostrar {shelf}", "be": "Паказаць {shelf}" },
+  "Hide {shelf}": { "es": "Ocultar {shelf}", "be": "Схаваць {shelf}" },
+  "Move {shelf} up": { "es": "Subir {shelf}", "be": "Перамясціць {shelf} вышэй" },
+  "Move {shelf} down": { "es": "Bajar {shelf}", "be": "Перамясціць {shelf} ніжэй" },
+  "Save Home": { "es": "Guardar Inicio", "be": "Захаваць галоўны экран" },
+  "Could not save Home. Check app storage permissions and retry.": {
+    "es": "No se pudo guardar Inicio. Comprueba los permisos de almacenamiento y reintenta.",
+    "be": "Не ўдалося захаваць галоўны экран. Праверце дазволы на сховішча праграмы і паўтарыце спробу."
+  },
+  "Reset this Home": { "es": "Restablecer este Inicio", "be": "Скінуць гэты галоўны экран" },
+  "No visible Home shelves. Use Account, then Customize Home or Settings to restore shelves.": {
+    "es": "No hay filas visibles en Inicio. Ve a Cuenta y luego a Personalizar Inicio o Ajustes para restaurarlas.",
+    "be": "Няма бачных паліц галоўнага экрана. Адкрыйце ўліковы запіс, затым налады галоўнага экрана або налады, каб аднавіць паліцы."
+  },
+  "Accessibility": { "es": "Accesibilidad", "be": "Даступнасць" },
+  "Reduced motion": { "es": "Movimiento reducido", "be": "Менш анімацыі" },
+  "Interface text": { "es": "Texto de la interfaz", "be": "Тэкст інтэрфейсу" },
+  "Larger": { "es": "Más grande", "be": "Большы" },
+  "Standard": { "es": "Estándar", "be": "Стандартны" },
+  "These TV-local controls reduce interface animations and enlarge labels and help text. Subtitle appearance is configured separately. They do not enable Samsung Voice Guide or certify screen-reader support.": {
+    "es": "Estos controles locales reducen las animaciones y amplían las etiquetas y la ayuda. La apariencia de los subtítulos se configura aparte. No activan la guía de voz de Samsung ni certifican la compatibilidad con lectores de pantalla.",
+    "be": "Гэтыя лакальныя налады памяншаюць анімацыю і павялічваюць надпісы ды падказкі. Выгляд субцітраў наладжваецца асобна. Яны не ўключаюць галасавы гід Samsung і не пацвярджаюць падтрымку чытальнікаў экрана."
+  },
+  "Converted audio volume": { "es": "Volumen del audio convertido", "be": "Гучнасць перакадзіраванага аўдыя" },
+  "The converted audio volume is invalid.": {
+    "es": "El volumen del audio convertido no es válido.",
+    "be": "Недапушчальная гучнасць перакадзіраванага аўдыя."
+  },
+  "Server-converted audio only; 100% keeps original loudness. This is not dialog isolation or loudness normalization and does not change Direct Play audio. Higher values may distort.": {
+    "es": "Solo audio convertido en el servidor; 100% conserva el volumen original. No aísla los diálogos ni normaliza el volumen y no cambia el audio de reproducción directa. Los valores altos pueden distorsionar.",
+    "be": "Толькі аўдыя, перакадзіраванае на серверы; 100% захоўвае арыгінальную гучнасць. Гэта не вылучэнне дыялогаў і не нармалізацыя гучнасці; на прамое прайграванне не ўплывае. Высокія значэнні могуць выклікаць скажэнні."
+  },
+  "Cached Home: limited recent metadata, up to five minutes old. Actions still require a reachable server. Select Retry to reconnect.": {
+    "es": "Inicio en caché: metadatos recientes limitados, de hasta cinco minutos. Las acciones siguen necesitando un servidor accesible. Selecciona Reintentar para reconectar.",
+    "be": "Кэшаваны галоўны экран: абмежаваныя нядаўнія звесткі ўзростам да пяці хвілін. Для дзеянняў па-ранейшаму патрэбны даступны сервер. Выберыце паўторную спробу для падключэння."
+  },
+  "Adaptive quality": { "es": "Calidad adaptativa", "be": "Адаптыўная якасць" },
+  "Opt-in adaptation stays below your quality ceiling. Remote playback starts at up to 8 Mbps. Repeated buffering can lower quality; Force and manual playback quality choices stay fixed.": {
+    "es": "La adaptación opcional respeta tu límite de calidad. La reproducción remota empieza a un máximo de 8 Mbps. Las pausas de carga repetidas pueden reducir la calidad; Forzar y las opciones manuales de reproducción permanecen fijas.",
+    "be": "Неабавязковая адаптацыя не перавышае абраны ліміт якасці. Аддаленае прайграванне пачынаецца з хуткасцю да 8 Мбіт/с. Паўторная буферызацыя можа знізіць якасць; прымусовы рэжым і ручны выбар якасці застаюцца нязменнымі."
+  },
+  "Plex did not return intro or credits markers. Check server analysis, media availability and Plex Pass requirements. Vemm cannot create missing markers.": {
+    "es": "Plex no devolvió marcadores de introducción o créditos. Comprueba el análisis del servidor, la disponibilidad del contenido y los requisitos de Plex Pass. Vemm no puede crear marcadores ausentes.",
+    "be": "Plex не вярнуў маркеры ўступу або тытраў. Праверце аналіз сервера, даступнасць медыя і патрабаванні Plex Pass. Vemm не можа стварыць адсутныя маркеры."
+  },
+  "Experimental artwork: {state}": {
+    "es": "Imágenes experimentales: {state}",
+    "be": "Эксперыментальныя ілюстрацыі: {state}"
+  },
+  "Experimental WebGL artwork, with no demonstrated performance benefit. Off by default. Existing Home acceleration and AVPlay remain enabled.": {
+    "es": "Imágenes WebGL experimentales, sin ventajas de rendimiento demostradas. Desactivadas por defecto. La aceleración actual de Inicio y AVPlay siguen activas.",
+    "be": "Эксперыментальныя ілюстрацыі WebGL без даказанай перавагі ў прадукцыйнасці. Па змаўчанні выключаны. Наяўнае паскарэнне галоўнага экрана і AVPlay застаюцца ўключанымі."
+  },
+  "See all": { "es": "Ver todo", "be": "Паказаць усё" },
+  "The requested watched state is not yet confirmed by Plex. Refresh details before retrying.": {
+    "es": "Plex aún no ha confirmado el estado de reproducción solicitado. Actualiza los detalles antes de volver a intentarlo.",
+    "be": "Plex яшчэ не пацвердзіў запытаны стан прагляду. Абнавіце звесткі перад паўторнай спробай."
+  },
   "Graphics": { "es": "Gráficos", "be": "Графіка" },
   "New graphics enhancements: {state}": {
     "es": "Nuevas mejoras gráficas: {state}",
@@ -77,6 +495,7 @@
   "Play next episode": { "es": "Reproducir siguiente episodio", "be": "Прайграць наступны эпізод" },
   "Artwork unavailable": { "es": "Imagen no disponible", "be": "Выява недаступная" },
   "Profile PIN": { "es": "PIN del perfil", "be": "PIN профілю" },
+  "Plex shelf": { "es": "Fila de Plex", "be": "Паліца Plex" },
   "Plex shelves": { "es": "Filas de Plex", "be": "Паліцы Plex" },
   "Sort": { "es": "Orden", "be": "Парадак" },
   "Ascending": { "es": "Ascendente", "be": "Па ўзрастанні" },
@@ -88,6 +507,9 @@
   "Playback options": { "es": "Opciones de reproducción", "be": "Параметры прайгравання" },
   "Plex server transcode: HLS / H.264 + AAC.": { "es": "Transcodificación del servidor Plex: HLS / H.264 + AAC.", "be": "Транскадаванне серверам Plex: HLS / H.264 + AAC." },
   "Search your servers": { "es": "Buscar en tus servidores", "be": "Пошук на вашых серверах" },
+  "Search Plex and your servers": { "es": "Buscar en Plex y en tus servidores", "be": "Пошук у Plex і на вашых серверах" },
+  "No Plex servers are available to check this title.": { "es": "No hay servidores Plex disponibles para comprobar este título.", "be": "Няма даступных сервераў Plex для праверкі гэтай назвы." },
+  "Choose a server or link a Plex account to search.": { "es": "Elige un servidor o vincula una cuenta de Plex para buscar.", "be": "Выберыце сервер або звяжыце ўліковы запіс Plex для пошуку." },
   "Who is watching?": { "es": "¿Quién está viendo?", "be": "Хто глядзіць?" },
   "Choose a server": { "es": "Elegir un servidor", "be": "Выбраць сервер" },
   "Sort and filters": { "es": "Orden y filtros", "be": "Сартаванне і фільтры" },
@@ -167,6 +589,8 @@
   "Channel layout": { "es": "Distribución de canales", "be": "Схема каналаў" },
   "Bitrate": { "es": "Tasa de bits", "be": "Бітрэйт" },
   "Forced": { "es": "Forzado", "be": "Прымусовыя" },
+  "Default": { "es": "Predeterminado", "be": "Па змаўчанні" },
+  "{track} / Track {number}": { "es": "{track} / Pista {number}", "be": "{track} / Дарожка {number}" },
   "Default track": { "es": "Pista predeterminada", "be": "Дарожка па змаўчанні" },
   "Server-selected track": { "es": "Pista seleccionada por el servidor", "be": "Дарожка, выбраная серверам" },
   "Hearing impaired": { "es": "Accesibilidad auditiva", "be": "Для людзей з парушэннем слыху" },
@@ -218,6 +642,9 @@
   "Loading...": { "es": "Cargando...", "be": "Загрузка..." },
   "Loading details...": { "es": "Cargando detalles...", "be": "Загрузка звестак..." },
   "Searching reachable Plex servers...": { "es": "Buscando en los servidores Plex disponibles...", "be": "Пошук на даступных серверах Plex..." },
+  "Searching Plex catalogue and reachable servers...": { "es": "Buscando en el catálogo Plex y en los servidores disponibles...", "be": "Пошук у каталогу Plex і на даступных серверах..." },
+  "Some search sources could not be reached. Retry your search.": { "es": "No se pudo acceder a algunas fuentes. Reintenta la búsqueda.", "be": "Некаторыя крыніцы пошуку недаступныя. Паўтарыце пошук." },
+  "Result limit reached. Refine your search for more.": { "es": "Se alcanzó el límite de resultados. Refina la búsqueda para ver más.", "be": "Дасягнуты ліміт вынікаў. Удакладніце пошук, каб убачыць больш." },
   "Search complete.": { "es": "Búsqueda completada.", "be": "Пошук завершаны." },
   "No matching movies or television found.": { "es": "No se encontraron películas ni series.", "be": "Адпаведныя фільмы і серыялы не знойдзены." },
   "Buffering...": { "es": "Almacenando en búfer...", "be": "Буферызацыя..." },
@@ -351,6 +778,7 @@
   "Record / {title}": { "es": "Grabar / {title}", "be": "Запісаць / {title}" },
   "Auto-play next episode: {state}": { "es": "Reproducir siguiente episodio: {state}", "be": "Аўтапрайграванне наступнага эпізоду: {state}" },
   "The change was not confirmed. Check Plex before retrying.": { "es": "No se confirmó el cambio. Comprueba Plex antes de reintentar.", "be": "Змена не пацверджаная. Праверце Plex перад паўторнай спробай." },
+  "Plex did not confirm the Watchlist change. Reload your Watchlist before retrying.": { "es": "Plex no confirmó el cambio en la lista de seguimiento. Recarga la lista antes de reintentar.", "be": "Plex не пацвердзіў змену спіса для прагляду. Перазагрузіце спіс перад паўторнай спробай." },
   "Watchlist": { "es": "Lista de seguimiento", "be": "Спіс для прагляду" },
   "Watchlist filter / {filter}": { "es": "Filtro de lista / {filter}", "be": "Фільтр спіса / {filter}" },
   "all": { "es": "todo", "be": "усё" },

@@ -48,7 +48,10 @@ function harness(saved, failure, persistence) {
             return {
                 getProfiles: function () {
                     return expired ? Promise.reject({ status: 401, scope: "account", message: "Expired" }) :
-                        Promise.resolve([{ uuid: "synthetic-profile", title: "Protected", protected: true }]);
+                        Promise.resolve([
+                            { uuid: "synthetic-owner", title: "Synthetic owner", admin: true, protected: false },
+                            { uuid: "synthetic-profile", title: "Protected", protected: true }
+                        ]);
                 },
                 switchProfile: function (uuid, pin) {
                     switches += 1;

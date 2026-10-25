@@ -15,6 +15,7 @@
         var duration = 0;
         var pending = null;
         var pendingSeek = null;
+        var seekSequence = 0;
         var timer = null;
 
         function notify(type, detail) { emit({ type: type, state: state, position: position, duration: duration, detail: detail }); }
@@ -27,6 +28,14 @@
         function requireState(allowed, operation) {
             if (!avplay) { throw new Error("Samsung AVPlay is not available in this runtime."); }
             if (allowed.indexOf(state) === -1) { throw new Error("Cannot " + operation + " while playback is " + state + "."); }
+        }
+        function requireSeekSettled() {
+            if (pendingSeek) { throw new Error("A seek is already in progress. Wait before seeking again."); }
+        }
+        function currentPosition() {
+            var value = avplay.getCurrentTime();
+            if (typeof value !== "number" || !isFinite(value) || value < 0) { throw error("position"); }
+            return Math.round(value);
         }
         function cancelPending() {
             if (timer !== null) { clearTimeout(timer); timer = null; }
@@ -69,6 +78,15 @@
                     transition("error");
                     reject(error(operation));
                 }
+                function streamFailed(operation) {
+                    if (ownGeneration !== generation) { return; }
+                    if (pending) { failed("prepare"); }
+                    else {
+                        generation += 1;
+                        if (pendingSeek) { pendingSeek(new Error("Seek cancelled.")); }
+                        transition("error"); notify("error", error(operation).message);
+                    }
+                }
                 try {
                     avplay.open(url);
                     avplay.setDisplayRect(0, 0, 1920, 1080);
@@ -81,7 +99,14 @@
                             if (ownGeneration === generation) { notify("buffer-progress", percent); }
                         },
                         onbufferingcomplete: function () {
-                            if (ownGeneration === generation) { notify("buffering", false); }
+                            if (ownGeneration !== generation) { return; }
+                            try {
+                                if (!pendingSeek && (state === "playing" || state === "paused" || state === "ready")) {
+                                    position = currentPosition();
+                                    notify("time");
+                                }
+                                if (ownGeneration === generation && (!pendingSeek || !pendingSeek.slow)) { notify("buffering", false); }
+                            } catch (failure) { streamFailed("position"); }
                         },
                         oncurrentplaytime: function (time) {
                             if (ownGeneration === generation && typeof time === "number" && isFinite(time)) {
@@ -103,13 +128,7 @@
                             }
                         },
                         onerror: function () {
-                            if (ownGeneration !== generation) { return; }
-                            if (pending) { failed("prepare"); }
-                            else {
-                                generation += 1;
-                                if (pendingSeek) { pendingSeek(new Error("Seek cancelled.")); }
-                                transition("error"); notify("error", error("stream").message);
-                            }
+                            streamFailed("stream");
                         }
                     });
                     timer = setTimeout(function () { failed("prepare-timeout"); }, options.prepareTimeout || 25000);
@@ -118,91 +137,112 @@
                         try {
                             duration = Math.max(0, Number(avplay.getDuration()) || 0);
                             transition("ready");
+                            if (ownGeneration !== generation || !pending) { return; }
                             var resumeWait = options.resumeSeekTimeout || 8000;
-                            function play(resumed) {
-                                if (ownGeneration !== generation || !pending) { return; }
-                                try {
-                                    avplay.play();
-                                    if (paused) { avplay.pause(); }
-                                    position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0));
-                                    clearTimeout(timer);
-                                    timer = null;
-                                    pending = null;
-                                    transition(paused ? "paused" : "playing");
-                                    resolve();
-                                } catch (failure) { failed("play"); return; }
-                                if (!resumed) { seekWhilePlaying(); }
-                            }
-                            // A READY-state seek is unreliable for HLS on Tizen: on a UE55MU6172 it never
-                            // called back. Retry the resume from PLAYING, which Samsung documents as safe.
-                            function seekWhilePlaying() {
-                                var done = false;
-                                function lost() {
-                                    if (done || ownGeneration !== generation) { return; }
-                                    done = true;
-                                    notify("resume-failed", offset);
-                                }
-                                var guard = setTimeout(lost, resumeWait);
-                                try {
-                                    avplay.seekTo(offset, function () {
-                                        if (done || ownGeneration !== generation) { return; }
-                                        done = true;
-                                        clearTimeout(guard);
-                                        position = offset;
-                                        notify("time");
-                                    }, function () { clearTimeout(guard); lost(); });
-                                } catch (failure) { clearTimeout(guard); lost(); }
-                            }
+                            // READY-state HLS seeks can never call back on older TVs.
+                            // Start first, then use the same owned seek as remote actions.
+                            avplay.play();
+                            if (ownGeneration !== generation || !pending) { return; }
+                            if (paused && !(offset > 0)) { avplay.pause(); }
+                            position = currentPosition();
+                            clearTimeout(timer);
+                            timer = null;
+                            pending = null;
+                            transition(paused ? "paused" : "playing");
                             if (offset > 0) {
-                                var readySettled = false;
-                                var readyGuard = setTimeout(function () {
-                                    if (readySettled) { return; }
-                                    readySettled = true;
-                                    play(false);
-                                }, resumeWait);
-                                var settleReady = function (resumed) {
-                                    if (readySettled) { return; }
-                                    readySettled = true;
-                                    clearTimeout(readyGuard);
-                                    play(resumed);
-                                };
-                                try {
-                                    avplay.seekTo(offset, function () { settleReady(true); }, function () { settleReady(false); });
-                                } catch (failure) { settleReady(false); }
-                            } else { play(true); }
+                                seek(offset, resumeWait).then(resolve, function (failure) {
+                                    failure.playbackPhase = "resume";
+                                    reject(failure);
+                                });
+                            }
+                            else { resolve(); }
                         } catch (failure) { failed("prepare"); }
                     }, function () { failed("prepare"); });
                 } catch (failure) { failed("open"); }
             });
         }
-        function seek(target) {
+        function seek(target, wait) {
             try { requireState(["playing", "paused", "ready"], "seek"); }
             catch (failure) { return Promise.reject(failure); }
             if (typeof target !== "number" || !isFinite(target)) { return Promise.reject(new Error("Invalid seek position.")); }
-            if (pendingSeek) { return Promise.reject(new Error("A seek is already in progress. Wait before seeking again.")); }
+            try { requireSeekSettled(); } catch (failure) { return Promise.reject(failure); }
             var ownGeneration = generation;
+            var ownSeek = ++seekSequence;
+            var intendedState = state;
             target = Math.max(0, Math.min(duration || target, Math.round(target)));
             return new Promise(function (resolve, reject) {
                 var settled = false;
-                var timeout = setTimeout(function () { finish(error("seek-timeout")); }, options.seekTimeout || 10000);
-                function finish(failure, landed) {
+                var timedOut = false;
+                var timeout = setTimeout(function () {
                     if (settled) { return; }
+                    if (!wait) {
+                        finish.slow = true;
+                        notify("buffering", true);
+                        return;
+                    }
+                    settled = true;
+                    timedOut = true;
+                    var failure = error("seek-timeout");
+                    transition("error");
+                    notify("error", failure.message);
+                    reject(failure);
+                }, wait || options.seekTimeout || 10000);
+                function retainState() {
+                    var expected = intendedState.toUpperCase();
+                    var nativeState = avplay.getState();
+                    if (ownGeneration !== generation) { throw new Error("Seek cancelled."); }
+                    // Native completion must match the latest owned Play/Pause
+                    // intent, including changes made while seeking.
+                    if (intendedState === "paused" && nativeState === "PLAYING") { avplay.pause(); }
+                    else if (intendedState === "playing" && nativeState === "PAUSED") { avplay.play(); }
+                    if (ownGeneration !== generation) { throw new Error("Seek cancelled."); }
+                    if (avplay.getState() !== expected) { throw error("seek-state"); }
+                }
+                function stateFailure() {
+                    if (ownGeneration !== generation) { return new Error("Seek cancelled."); }
+                    var failure = error("seek-state");
+                    generation += 1;
+                    if (pendingSeek === finish) { pendingSeek = null; }
+                    transition("error");
+                    notify("error", failure.message);
+                    return failure;
+                }
+                function finish(failure) {
+                    if (settled) {
+                        if (ownGeneration !== generation) {
+                            if (pendingSeek === finish) { pendingSeek = null; }
+                        } else if (timedOut && ownSeek === seekSequence && pendingSeek === finish) {
+                            pendingSeek = null;
+                            try { retainState(); } catch (nativeFailure) { stateFailure(); }
+                        }
+                        return;
+                    }
                     settled = true;
                     clearTimeout(timeout);
                     pendingSeek = null;
+                    if (ownGeneration === generation) {
+                        try {
+                            retainState();
+                            if (ownGeneration !== generation) { throw new Error("Seek cancelled."); }
+                            if (!failure) {
+                                var landed = currentPosition();
+                                if (ownGeneration !== generation) { throw new Error("Seek cancelled."); }
+                                position = landed;
+                            }
+                        } catch (nativeFailure) {
+                            failure = stateFailure();
+                        }
+                    } else if (!failure) { failure = new Error("Seek cancelled."); }
                     if (failure) { reject(failure); }
-                    else { resolve(landed); }
+                    else { resolve(position); notify("time"); }
+                    if (ownGeneration === generation && !wait) { notify("buffering", false); }
                 }
                 pendingSeek = finish;
+                pendingSeek.intent = function (next) { intendedState = next; };
                 try {
                     avplay.seekTo(target, function () {
-                        if (settled) { return; }
                         if (ownGeneration !== generation) { finish(new Error("Seek cancelled.")); return; }
-                        try {
-                            position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0));
-                            finish(null, position);
-                            notify("time");
-                        } catch (failure) { finish(error("seek")); }
+                        finish(null);
                     }, function () { finish(error("seek")); });
                 } catch (failure) { finish(error("seek")); }
             });
@@ -212,18 +252,28 @@
             snapshot: function () { return { state: state, position: position, duration: duration }; },
             pause: function () {
                 requireState(["playing"], "pause");
-                try { avplay.pause(); transition("paused"); } catch (failure) { throw error("pause"); }
+                try {
+                    if (pendingSeek) { pendingSeek.intent("paused"); }
+                    else { avplay.pause(); }
+                    transition("paused");
+                } catch (failure) { throw error("pause"); }
             },
             play: function () {
                 requireState(["paused", "ready"], "play");
-                try { avplay.play(); transition("playing"); } catch (failure) { throw error("play"); }
+                try {
+                    if (pendingSeek) { pendingSeek.intent("playing"); }
+                    else { avplay.play(); }
+                    transition("playing");
+                } catch (failure) { throw error("play"); }
             },
             tracks: function () {
                 requireState(["ready", "playing", "paused"], "list tracks");
+                requireSeekSettled();
                 try { return avplay.getTotalTrackInfo(); } catch (failure) { throw error("tracks"); }
             },
             selectTrack: function (type, index) {
                 requireState(["playing", "paused"], "change track");
+                requireSeekSettled();
                 if (["AUDIO", "TEXT"].indexOf(type) === -1 || typeof index !== "number" || index < 0) {
                     throw new Error("Invalid playback track.");
                 }
@@ -241,14 +291,17 @@
             },
             subtitles: function (enabled) {
                 requireState(["playing", "paused"], "change subtitles");
+                requireSeekSettled();
                 try { avplay.setSilentSubtitle(!enabled); } catch (failure) { throw error("subtitles"); }
             },
             suspend: function () {
                 requireState(["playing", "paused"], "suspend");
+                requireSeekSettled();
                 try { avplay.suspend(); transition("suspended"); } catch (failure) { throw error("suspend"); }
             },
             restore: function () {
                 requireState(["suspended"], "restore");
+                requireSeekSettled();
                 try { avplay.restore(); transition("paused"); } catch (failure) { throw error("restore"); }
             }
         };

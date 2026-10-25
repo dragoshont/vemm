@@ -1,0 +1,269 @@
+"use strict";
+var assert = require("assert");
+var av = require("../../samsung/Vemm/js/avplay.js");
+var playback = require("../../samsung/Vemm/js/playback.js");
+
+function fixture(initial) {
+    var nativeState = "NONE", time = 0, listener, completion, outstanding = false;
+    var calls = [], events = [];
+    var native = {
+        getState: function () { return nativeState; },
+        open: function () { nativeState = "IDLE"; },
+        close: function () { nativeState = "NONE"; outstanding = false; },
+        stop: function () { nativeState = "IDLE"; outstanding = false; },
+        setDisplayRect: function () {}, setDisplayMethod: function () {},
+        setListener: function (value) { listener = value; },
+        prepareAsync: function (done) { nativeState = "READY"; done(); },
+        getDuration: function () { return 100000; },
+        getCurrentTime: function () { assert(!outstanding, "Wait for the native seek callback before reading time"); return time; },
+        play: function () {
+            assert(!outstanding, "Do not call native Play during asynchronous seek");
+            assert.notStrictEqual(nativeState, "PLAYING", "Do not play an already playing decoder during a seek");
+            calls.push("play"); nativeState = "PLAYING";
+        },
+        pause: function () {
+            assert(!outstanding, "Do not call native Pause during asynchronous seek");
+            assert.strictEqual(nativeState, "PLAYING", "Pause only a playing decoder");
+            calls.push("pause"); nativeState = "PAUSED";
+        },
+        seekTo: function (target, done, failed) {
+            calls.push("seek-" + nativeState);
+            nativeState = "PLAYING"; outstanding = true;
+            completion = function (result, state) {
+                outstanding = false;
+                nativeState = state || "PLAYING"; time = Math.floor(target / 1000) * 1000;
+                if (result === "failed") { failed(); } else { done(); }
+            };
+        }
+    };
+    var adapter = av.create({ avplay: native, seekTimeout: 5, resumeSeekTimeout: 5,
+        onEvent: function (event) { events.push(event); } });
+    return { native: native, adapter: adapter, calls: calls, events: events,
+        start: async function (offset) { await adapter.open("https://synthetic.invalid/media", offset || 0, initial === "paused"); },
+        complete: function (result, state) { completion(result, state); },
+        bufferLanding: function (position) {
+            listener.onbufferingstart(); time = position; listener.onbufferingcomplete();
+        },
+        fail: function () { listener.onerror(); }, state: function () { return nativeState; } };
+}
+
+var cases = {
+    "resume-controller-timeout": async function (f) {
+        var source = { ratingKey: "10", duration: 100000, Media: [{
+            container: "mp4", videoCodec: "h264", audioCodec: "aac", width: 1920, height: 1080,
+            Part: [{ id: "20", key: "/library/parts/20/file.mp4", Stream: [{ streamType: 1, codec: "h264" }] }]
+        }] };
+        var decisions = [], outstanding = false;
+        var seek = f.native.seekTo, state = f.native.getState;
+        f.native.seekTo = function (target, done, failed) {
+            outstanding = true;
+            seek(target, function () { outstanding = false; done(); },
+                function () { outstanding = false; failed(); });
+        };
+        f.native.getState = function () { assert(!outstanding, "No native query before resume callback"); return state(); };
+        var configuration = { adapter: f.adapter, item: source, client: {
+            request: function (path, method, query) {
+                decisions.push(query.directPlay);
+                return Promise.resolve({ generalDecisionCode: 1001, Metadata: [{ Media: [{
+                    Part: [{ decision: query.directPlay ? "directplay" : "transcode" }]
+                }] }] });
+            },
+            streamUrl: function () { return "https://synthetic.invalid/media"; }
+        }, settings: { quality: "original", offset: 5000, paused: true, profile: {
+            evidence: "synthetic", containers: ["mp4"], video: ["h264"], audio: ["aac"],
+            maxWidth: 1920, maxHeight: 1080
+        } } };
+        var controller = playback.create(configuration);
+        var failure;
+        try { await controller.start(); } catch (error) { failure = error; }
+        f.complete();
+        assert.deepStrictEqual(decisions, [1], "An owned resume timeout must not negotiate decoder fallback or reopen");
+        assert(failure);
+        assert.strictEqual(failure.code, "avplay-seek-timeout", "Preserve the original failure, not a competing close error");
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.state(), "PAUSED", "The still-owned late callback retains pause");
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+        assert.strictEqual(f.adapter.snapshot().position, 0);
+
+        controller = playback.create(configuration);
+        var rejected = controller.start().catch(function (error) { failure = error; });
+        await new Promise(setImmediate);
+        f.complete("failed"); await rejected;
+        assert.deepStrictEqual(decisions, [1, 1], "A native resume error is not decoder rejection either");
+        assert.strictEqual(failure.code, "avplay-seek");
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.state(), "PAUSED");
+
+        controller = playback.create(configuration);
+        rejected = controller.start().catch(function (error) { failure = error; });
+        await new Promise(setImmediate);
+        f.fail(); await rejected; f.complete("failed");
+        assert.deepStrictEqual(decisions, [1, 1, 1], "Terminal native retirement cannot silently reopen the source");
+        assert.match(failure.message, /cancelled/);
+        assert.strictEqual(failure.playbackPhase, "resume");
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+    },
+    "paused-success": async function (f) {
+        var pending = f.adapter.seek(12555);
+        f.complete();
+        assert.strictEqual(await pending, 12000);
+        assert.strictEqual(f.state(), "PAUSED", "Seek completion must restore actual native pause, not just the adapter enum");
+    },
+    "paused-failure": async function (f) {
+        var pending = assert.rejects(f.adapter.seek(12555), /seek/);
+        f.complete("failed"); await pending;
+        assert.strictEqual(f.state(), "PAUSED", "Failed seeks cannot leave a paused viewer playing");
+    },
+    "paused-timeout": async function (f) {
+        var pending = f.adapter.seek(12555);
+        pending.catch(function () {});
+        await new Promise(function (done) { setTimeout(done, 15); });
+        assert.strictEqual(f.adapter.snapshot().state, "paused", "A slow scrub stays recoverable instead of terminal Retry");
+        assert(f.events.some(function (event) { return event.type === "buffering" && event.detail; }));
+        assert(!f.events.some(function (event) { return event.type === "error"; }));
+        await assert.rejects(f.adapter.seek(5000), /already/, "A slow seek still owns its callback; no overlap");
+        f.complete();
+        assert.strictEqual(await pending, 12000);
+        assert.strictEqual(f.state(), "PAUSED", "A late callback for the latest owned seek cannot resume paused output");
+        assert.strictEqual(f.adapter.snapshot().state, "paused");
+    },
+    "user-play": async function (f) {
+        var pending = f.adapter.seek(12555);
+        pending.catch(function () {});
+        f.adapter.play();
+        f.complete(); await pending;
+        assert.strictEqual(f.state(), "PLAYING", "A new explicit Play supersedes pre-seek pause");
+        assert.strictEqual(f.adapter.snapshot().state, "playing");
+    },
+    "user-pause": async function (f) {
+        f.adapter.play();
+        var pending = f.adapter.seek(12555);
+        pending.catch(function () {});
+        f.adapter.pause();
+        f.complete(); await pending;
+        assert.strictEqual(f.state(), "PAUSED", "A new explicit Pause wins over native completion resuming");
+    },
+    "playing-success": async function (f) {
+        f.adapter.play();
+        var pending = f.adapter.seek(12555);
+        f.complete(undefined, "PAUSED"); await pending;
+        assert.strictEqual(f.state(), "PLAYING", "Playing seeks retain playing intent");
+    },
+    "retired-success": async function (f) {
+        var pending = assert.rejects(f.adapter.seek(12555), /cancelled/);
+        f.adapter.close(); await pending;
+        await f.adapter.open("https://synthetic.invalid/new-media", 0);
+        var pauses = f.calls.filter(function (call) { return call === "pause"; }).length;
+        f.complete();
+        assert.strictEqual(f.state(), "PLAYING");
+        assert.strictEqual(f.adapter.snapshot().position, 0);
+        assert.strictEqual(f.calls.filter(function (call) { return call === "pause"; }).length, pauses,
+            "An old callback cannot pause a new source");
+    },
+    "native-error": async function (f) {
+        var pending = assert.rejects(f.adapter.seek(12555), /cancelled/);
+        var pauses = f.calls.filter(function (call) { return call === "pause"; }).length;
+        f.fail(); await pending; f.complete();
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+        assert.strictEqual(f.calls.filter(function (call) { return call === "pause"; }).length, pauses);
+    },
+    "pause-refused": async function (f) {
+        f.native.pause = function () {};
+        var pending = assert.rejects(f.adapter.seek(12555), /seek/);
+        f.complete(); await pending;
+        assert.strictEqual(f.adapter.snapshot().state, "error", "An unverified native pause is an explicit failure");
+    },
+    "post-callback-buffering": async function (f) {
+        var pending = f.adapter.seek(18021);
+        f.complete(); await pending;
+        f.bufferLanding(19029);
+        assert.strictEqual(f.adapter.snapshot().position, 19029,
+            "A second buffering cycle after success must publish the final native landing, not the provisional callback time");
+        assert.strictEqual(f.state(), "PAUSED");
+    },
+    "unreadable-buffer-position": async function (f) {
+        f.native.getCurrentTime = function () { throw new Error("synthetic private native error"); };
+        f.bufferLanding(19029);
+        assert.strictEqual(f.adapter.snapshot().state, "error", "A failed native position read cannot be a successful landing");
+    },
+    "invalid-buffer-position": async function (f) {
+        f.native.getCurrentTime = function () { return NaN; };
+        f.bufferLanding(19029);
+        assert.strictEqual(f.adapter.snapshot().state, "error", "An invalid native position cannot silently become zero");
+    },
+    "buffer-before-callback": async function (f) {
+        var pending = f.adapter.seek(18021);
+        f.bufferLanding(19029);
+        assert.strictEqual(f.adapter.snapshot().state, "paused", "Buffer completion cannot read time before the native callback");
+        f.complete(); await pending;
+        f.bufferLanding(19029);
+        assert.strictEqual(f.adapter.snapshot().position, 19029);
+    },
+    "latest-pending-intent": async function (f) {
+        var pending = f.adapter.seek(18021);
+        f.adapter.play(); f.adapter.pause();
+        f.complete(); await pending;
+        assert.strictEqual(f.state(), "PAUSED", "Only the latest queued intent is applied after the native callback");
+        assert.strictEqual(f.calls.filter(function (call) { return call === "play"; }).length, 1);
+    },
+    "other-pending-native-operations": async function (f) {
+        var pending = f.adapter.seek(18021);
+        pending.catch(function () {});
+        assert.throws(function () { f.adapter.tracks(); }, /seek is already/);
+        assert.throws(function () { f.adapter.selectTrack("AUDIO", 0); }, /seek is already/);
+        assert.throws(function () { f.adapter.subtitles(false); }, /seek is already/);
+        assert.throws(function () { f.adapter.suspend(); }, /seek is already/);
+        f.complete(); await pending;
+    },
+    "owned-resume-controls": async function (f) {
+        f.adapter.close();
+        var opening = f.start(12555);
+        opening.catch(function () {});
+        assert(f.calls.includes("seek-PLAYING"), "Resume must use the shared owned PLAYING-state seek");
+        f.adapter.play(); f.adapter.pause();
+        f.complete(); await opening;
+        assert.strictEqual(f.state(), "PAUSED");
+        assert.strictEqual(f.adapter.snapshot().position, 12000);
+    },
+    "owned-resume-timeout": async function (f) {
+        f.adapter.close();
+        await assert.rejects(f.start(12555), /seek-timeout/);
+        f.complete();
+        assert.strictEqual(f.state(), "PAUSED");
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+        assert.strictEqual(f.adapter.snapshot().position, 0);
+    },
+    "invalid-seek-position": async function (f) {
+        var pending = assert.rejects(f.adapter.seek(12555), /seek/);
+        f.native.getCurrentTime = function () { return NaN; };
+        f.complete(); await pending;
+        assert.strictEqual(f.adapter.snapshot().state, "error", "A successful callback cannot turn an invalid native clock into zero");
+    },
+    "native-error-during-restoration": async function (f) {
+        var pause = f.native.pause;
+        f.native.pause = function () { pause(); f.fail(); };
+        var pending = assert.rejects(f.adapter.seek(12555), /cancelled/);
+        f.complete(); await pending;
+        assert.strictEqual(f.adapter.snapshot().state, "error");
+        assert.strictEqual(f.adapter.snapshot().position, 0);
+    },
+    "close-during-restoration": async function (f) {
+        f.native.pause = function () { f.adapter.close(); };
+        var pending = assert.rejects(f.adapter.seek(12555), /cancelled/);
+        f.complete(); await pending;
+        assert.strictEqual(f.adapter.snapshot().state, "idle", "A retired callback cannot turn explicit Close into error");
+    }
+};
+
+async function run() {
+    var failures = [];
+    for (var name of Object.keys(cases)) {
+        var f = fixture("paused");
+        try { await f.start(); await cases[name](f); }
+        catch (error) { failures.push(name + ": " + error.message); }
+        finally { f.adapter.close(); }
+    }
+    assert.deepStrictEqual(failures, []);
+    console.log("Tizen native seek intent, failure, user controls and retired callbacks: passed");
+}
+run().catch(function (error) { console.error(error); process.exitCode = 1; });

@@ -24,7 +24,9 @@ function harness() {
             pollAuthorization: function () { return Promise.resolve({ status: "pending" }); }
         }; },
         createAccountClient: function () { return {
-            getProfiles: function () { return Promise.resolve([]); },
+            getProfiles: function () {
+                return Promise.resolve([{ uuid: "synthetic-owner", title: "Synthetic owner", admin: true }]);
+            },
             getServers: function () {
                 return Promise.resolve([{ id: "synthetic-server", name: "Synthetic", token: "synthetic-server-token",
                     connections: [{ uri: "https://server.synthetic.invalid" }] }]);

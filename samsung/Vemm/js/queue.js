@@ -60,5 +60,115 @@
             }
         };
     }
-    return { create: create };
+    function createServer(client, initial, kind) {
+        var video = kind === "video";
+        function request(name, args) {
+            return client[name.replace("Music", video ? "Video" : "Music")].apply(client, args);
+        }
+        var projection = initial;
+        var selected = initial.items.filter(function (item) {
+            return String(item.playQueueItemID) === initial.itemId;
+        })[0];
+        if (!selected) { throw new Error("The selected play queue entry is unavailable."); }
+        var position = initial.offset;
+        var repeat = "off";
+        var closed = false;
+        var revision = 0;
+        var pending = null;
+        var closing = null;
+        function active() {
+            if (closed) { throw new Error("The play queue was closed."); }
+            if (pending) { throw new Error("Wait for the play queue request to finish."); }
+        }
+        function run(request, receive) {
+            active();
+            var ownRevision = revision;
+            pending = request().then(function (result) {
+                if (closed || revision !== ownRevision) {
+                    var error = new Error("The play queue request was cancelled.");
+                    error.code = "cancelled";
+                    throw error;
+                }
+                return receive(result);
+            });
+            return pending.then(function (result) { pending = null; return result; },
+                function (error) { pending = null; throw error; });
+        }
+        return {
+            current: function () { return selected; },
+            snapshot: function () {
+                return { id: projection.id, itemId: String(selected.playQueueItemID), version: projection.version };
+            },
+            position: function () { return position; },
+            items: function () { return projection.items.slice(); },
+            repeat: function (mode) {
+                if (["off", "one", "all"].indexOf(mode) === -1) { throw new Error("Invalid queue repeat mode."); }
+                repeat = mode;
+                return repeat;
+            },
+            peek: function (direction, automatic) {
+                active();
+                if (direction !== -1 && direction !== 1) { return Promise.reject(new Error("Choose previous or next track.")); }
+                if (automatic && repeat === "one" || direction < 0 && position === 0 && repeat !== "all") {
+                    return Promise.resolve({ item: selected, position: position, revision: revision });
+                }
+                var target = position + direction;
+                if (target >= projection.total && repeat !== "all") { return Promise.resolve(null); }
+                target = (target + projection.total) % projection.total;
+                if (target === position) { return Promise.resolve({ item: selected, position: position, revision: revision }); }
+                return run(function () {
+                    return request("getMusicPlayQueue", [projection.id, String(selected.playQueueItemID), direction]);
+                }, function (page) {
+                    if (page.id !== projection.id || page.version !== projection.version || page.total !== projection.total) {
+                        throw new Error("The play queue changed on Plex. Stop and reopen it.");
+                    }
+                    var item = page.items[direction > 0 ? 0 : page.items.length - 1];
+                    if (!item || String(item.playQueueItemID) === String(selected.playQueueItemID) && projection.total > 1) {
+                        throw new Error("Plex did not return the next play queue page. Retry or stop playback.");
+                    }
+                    return { item: item, position: target, revision: revision, page: page };
+                });
+            },
+            select: function (candidate) {
+                active();
+                if (candidate.revision !== revision) { throw new Error("The play queue selection is out of date."); }
+                selected = candidate.item;
+                position = candidate.position;
+                if (candidate.page) { projection = candidate.page; }
+            },
+            shuffle: function (enabled) {
+                return run(function () { return request("shuffleMusicPlayQueue", [projection.id, enabled]); }, function (page) {
+                    var current = page.items.filter(function (item) {
+                        return String(item.playQueueItemID) === String(selected.playQueueItemID);
+                    })[0];
+                    if (page.id !== projection.id || page.version < projection.version ||
+                            page.itemId !== String(selected.playQueueItemID) || !current || page.shuffled !== enabled) {
+                        throw new Error("Plex did not confirm the play queue order. Stop and reopen it.");
+                    }
+                    projection = page;
+                    selected = current;
+                    position = page.offset;
+                    revision += 1;
+                    return enabled;
+                });
+            },
+            cancel: function () {
+                revision += 1;
+                request("cancelMusicQueueRequests", [projection.id]);
+                return Promise.resolve(pending).then(function () {}, function () {});
+            },
+            close: function () {
+                if (closing) { return closing; }
+                closed = true;
+                revision += 1;
+                request("cancelMusicQueueRequests", [projection.id]);
+                // Mutations finish before clearing; cancelling their HTTP response would lose ownership.
+                closing = Promise.resolve(pending).then(function () {}, function () {}).then(function () {
+                    return request("clearMusicPlayQueue", [projection.id]);
+                }).catch(function (error) { closing = null; throw error; });
+                return closing;
+            }
+        };
+    }
+    return { create: create, createServer: createServer };
 }));

@@ -2,6 +2,27 @@
 
 **Status:** implementation in progress; Samsung runtime acceptance outstanding
 
+The 0.2.0 work adds a remote-reachable See all action to expandable Home shelves.
+It requests `/hubs/items` by the server's hub identifier in 50-item pages, reuses
+the 200-card listing bound, and restores the opening Home shelf on Back.
+Account > Customize Home optionally hides/shows and orders shelves and hides/shows
+the featured title, using the existing remote value-row/selection-list pattern.
+Nothing changes until Save Home; Back discards the draft and returns focus to
+Customize Home. Defaults remain server order, all shelves visible and the
+existing manually cycled hero. Hidden shelves also leave the hero candidate pool.
+First-shelf Up returns to navigation when the hero is hidden. All-hidden Home
+keeps Account and the editor available; Reset this Home restores server defaults.
+Layouts are TV-local, bounded and keyed by verified server/profile identities,
+not credentials, origins or media. Unidentified direct-server sessions cannot
+save a layout. Failed saves retain their draft and Retry repeats the save;
+load corruption/refusal is explicit, with retry and a separately labelled
+Reset all Home layouts recovery. See [the architecture contract](vemm/03-architecture.md#optional-home-layouts)
+for identity, retention and reset rules.
+Watched/unwatched confirmations now compare read-back metadata with the selected
+movie/episode or show/season scope. An accepted request whose read-back has not
+changed is explicitly unconfirmed, not reported as success. These behaviors
+have synthetic DOM regressions; named-TV and disposable-server acceptance remain open.
+
 The focused [upstream-readiness backlog](samsung-upstream-readiness.md) separates remaining
 LG movie/show parity gates from the expanded official-client/service scope. No readiness
 announcement is authorized by source completeness or installation alone.
@@ -51,10 +72,20 @@ title obeys the same favourite-library filter as its shelves. The show primary a
 `includeOnDeck=1` and opens/resumes the server-selected episode, accepting either object or array
 `OnDeck.Metadata`; it never submits the show itself as a playable leaf. Without an on-deck episode,
 Seasons remains the navigation path.
-The playback overlay uses a compact transport row and progress bar. Chapters, tracks, quality,
-playback information, music-queue controls and Stop live under More rather than covering the
-video in two rows of always-visible buttons. It hides after five seconds of uninterrupted play,
-while subtitles remain independent and errors remain visible.
+The playback overlay uses a compact Pause / Play, Subtitles, Audio and More row and
+a focusable progress bar, without on-screen interval backward/forward buttons.
+Player Info and Chapters entries are removed, including their focus/Back paths;
+detail-page File information remains separate and unchanged. Quality, queue
+controls, Stop and the remaining playback options live under More. Left/Right traverses the visible
+transport row; Up reaches the scrub slider. Slider/hidden-HUD Left/Right and
+dedicated media Rewind/Fast Forward retain seeking; removing redundant buttons
+previews only a local target. Key-up or900ms idle commits one serialized native
+seek; further commits retain only the latest target until the callback.
+A slow scrub callback shows buffering without replacing playback with Retry.
+The overlay hides after five seconds of uninterrupted play,
+except while a skippable marker is active. Skip Intro/Credits remains visible for the segment,
+with focus on its action when it first appears; a held OK cannot issue repeated skips.
+Subtitles remain independent and errors remain visible.
 The owner's screen photos exposed excessive focus borders, crowded Settings, mixed episode
 artwork and technical playback copy. The host-only follow-up removes outer button/poster focus
 borders, limits detail synopses to two lines, puts Home/library/Search destinations together and
@@ -146,7 +177,7 @@ contract. This does not repair an incomplete or corrupt source file.
    alphabet rail, search across reachable servers, and open details for a film, show, season,
    episode, collection or person.
 3. **Watch:** start or resume playback, see the actual selected version/source, control transport,
-   seek and scrub, choose audio/subtitle tracks, use chapter and marker actions, and return to a
+   seek and scrub, choose audio/subtitle tracks, use marker actions, and return to a
    useful screen. PMS receives normal playback timeline/progress updates.
 4. **Continue later:** Home and library views reflect PMS watch state and continue-watching
    position. Progress is not synthesized locally as the source of truth.
@@ -163,6 +194,8 @@ contract. This does not repair an incomplete or corrupt source file.
   typing a Plex password into the TV app.
 - **AUTH-2:** Support Plex Home profile selection, sign-out, account/session expiry, and returning
   to sign-in with a clear explanation when reauthentication is needed.
+  A protected linked owner requires the same fresh PIN flow as the named profile;
+  profile-list failure/emptiness must not expose an owner-token shortcut.
 - **AUTH-3:** Discover the user's owned and shared servers, select among them, and handle servers
   that are unavailable, indirect/relayed, or require TLS according to tested Plex behavior.
 - **AUTH-4:** Keep the account token out of URLs where headers are supported, UI, logs, screenshots,
@@ -205,6 +238,9 @@ and redirect behavior still require named-device acceptance.
   alphabet/first-character navigation.
 - **BROWSE-3:** Search reachable servers and group results by supported media kind. Search state,
   query and focus must be controllable using the supported Samsung remote/input model.
+  Current release search is personal/shared-library-first, even with a linked account:
+  no automatic Discover/catalogue requests or Plex-distributed Movies & Shows promotion.
+  Optional public metadata lookup is deferred; legitimate account/server grants remain.
 - **BROWSE-4:** Item details show available metadata, artwork, synopsis and available actions.
   Support show/season/episode navigation, collections, related items, extras/trailers, cast/crew,
   person information and filmography when supplied by Plex endpoints.
@@ -351,9 +387,14 @@ An engine without streaming fetch therefore fails closed with "This TV runtime i
 yet" (`tests/tizen/response-limits.test.js`) instead of downgrading transport security.
 
 Music libraries now navigate artists/albums/tracks and use the universal music transcoder with
-an HTTP MP3 request. Album queues are local, capped at 200 tracks, with shuffle and repeat
-off/one/all; they are not PMS PlayQueues. Photo libraries open a page-local viewer/slideshow,
-fetch server-resized images, enforce the response ceiling and a 15-second decode deadline, and
+an HTTP MP3 request. Explicit track/album playback creates a PMS audio PlayQueue with string
+queue-entry IDs, revision-aware bounded paging beyond 200 tracks, server shuffle/unshuffle
+and client repeat off/one/all. Next-track metadata is fetched before stopping current audio;
+retry/cancel preserves queue selection and manual transitions preserve pause intent. Owned
+queues are cleared on stop/exit, with visible cleanup recovery. The
+[music protocol contract](pms-api.md#music-playqueues-source-backed-host-contract-2026-10-25)
+records the OpenAPI requests, bounds and host-only evidence. Photo libraries open a bounded, cross-page album/library viewer and slideshow,
+fetch server-resized images, validate encoded size and raster dimensions before decode, enforce a 15-second decode deadline, and
 release object URLs on replacement/back. Synthetic real-app journeys cover both features;
 MP3 delivery, photo formats and native output remain unobserved on Samsung hardware.
 Read requests owned by the current client can be cancelled on navigation; explicit mutations and
@@ -393,6 +434,16 @@ GUIDs are checked again in the response. It is not a title-only guess.
 Source: the pinned client's `searchDiscover`, `_toOnlineMetadata`, and
 [LibrarySection.getGuid](https://github.com/pushingkarmaorg/python-plexapi/blob/8a9ade7f364582cabb6d5bc200994fddb2113d48/plexapi/library.py).
 Catalogue search displays at most 30 returned results, local matching at most 200 cards.
+The owner subsequently deferred online catalogue search. Default Search now
+queries only personal/shared libraries with the full 200-result bound, including
+linked profiles; no Home/server-selection catalogue-search entry is exposed.
+Online search code and regression contracts are retained source-disabled without
+a production setting. They require agreeing online GUID/type/key and metadata
+detail GUID/type, exact per-server local association, cancellation, partial
+errors/Retry and identity-owned Back; absent PMS is an explicit empty availability
+state without a request/ineffective Retry. This deferred work is not current
+release acceptance, independently observed Plex Web cloud behavior or a licensed
+Plex streaming feature. Do not download/run Plex client distributions.
 Licensed/ad-supported playback remains disabled: personal-library decision schemas do not
 establish cloud streaming authorization, ad obligations or DRM. The absence of a DRM flag in
 that schema is not evidence that catalogue content is unprotected.
@@ -508,11 +559,11 @@ superseded assertions; current source takes precedence.
 
 | Feature | Actual LG source boundary | Samsung baseline and remaining work |
 |---|---|---|
-| Music and photos | `rust-modules/data/src/browse/mod.rs`, `SecKind::from_wire`, accepts only movie/show. Tests in `browse_fetch_state_tests.rs` explicitly reject artist/photo. Generic metadata/hub names are not playable screens. | Music queues/shuffle/repeat and photo slideshow exist on host. Server music PlayQueues, larger queues, native audio/image formats, interruption recovery and memory limits remain. These are new product features, not copied LG screens. |
-| Live TV/DVR | No `/livetv` or `/media/subscriptions` bindings found in Rust source; the LG parity audit excludes this domain. | Guide/grid and confirmed DVR operations exist on host. Tuner consumer allocation/keepalive/release, storage-location selection, conflict workflows and actual server/native acceptance remain. LG provides no tuner lifecycle to reuse. |
+| Music and photos | `rust-modules/data/src/browse/mod.rs`, `SecKind::from_wire`, accepts only movie/show. Tests in `browse_fetch_state_tests.rs` explicitly reject artist/photo. Generic metadata/hub names are not playable screens. | Server music PlayQueues, larger bounded queues, shuffle/repeat, interruption/retry and photo slideshow exist on host. Native audio/image formats, hardware interruption recovery and measured memory limits remain. These are new product features, not copied LG screens. |
+| Live TV/DVR | No `/livetv` or `/media/subscriptions` bindings found in Rust source; the LG parity audit excludes this domain. | Guide/grid, confirmed DVR operations, fresh destination-storage choices and manual priority/cancel management exist on host. Priority has complete bounded identity/order read-back, but does not prove a tuner conflict resolved. Consumer allocation/keepalive/release and comprehensive actual server/native acceptance remain. LG provides no tuner lifecycle to reuse. |
 | Watchlist | No Watchlist read/add/remove bindings found in Rust source. | Paged reads, confirmed mutations and exact-GUID local matches exist on host. Cloud/profile acceptance, packaged remote paging and recovery remain. |
 | Cloud catalogue | `rust-modules/plex/src/plex/discover.rs` implements person biographies and `CreditGroup` filmography, not general catalogue search or licensed playback. `rust-modules/data/src/person.rs` joins credits to local availability; unowned credits are not local playback targets. | Metadata search/details, local matching and 50-credit career pages exist on host. Licensed/ad-supported streaming is blocked on authorization, DRM and ad contracts. A Discover module name does not prove AVOD support. |
-| Server queues and Up Next | `rust-modules/plex/src/plex/timeline.rs`, `create_play_queue`, POSTs `/playQueues` with `type=video`, continuous episodes, queue/item IDs and server identity. `rust-modules/media/src/route/plan.rs` retains queue projections. | Local music queue is not equivalent to a server PlayQueue. Reuse the identity/projection rules, but establish music-specific creation, mutation, paging and cleanup contracts rather than copying the video-only call. |
+| Server queues and Up Next | `rust-modules/plex/src/plex/timeline.rs`, `create_play_queue`, POSTs `/playQueues` with `type=video`, continuous episodes, queue/item IDs and server identity. `rust-modules/media/src/route/plan.rs` retains queue projections. | Music now uses OpenAPI-backed `type=audio` creation, directional windows, shuffle/unshuffle, timeline correlation and owned clear-items cleanup, with revision/order and >200-track UI regressions. Live PMS and native audio acceptance remain separate from these synthetic contracts. |
 | Localization | LG has English/Spanish/Belarusian catalogs under `locales/`; translated movie/show surfaces do not supply translations for the new media/service domains. | Static/conditional copy and named placeholders covered on host. Dynamic errors/composite copy, old-engine formatting and actual display text fit remain. |
 | Playback and lifecycle | `rust-modules/media/src/player/CLAUDE.md` documents bundled FFmpeg demux, access-unit queues, Starfish feed and ACB hardware-plane binding. Those are LG-specific native interfaces. | AVPlay is a separate adapter. Hidden-state stop and foreground no-auto-play are host exercised; codecs, HDR/audio/subtitles, seeks, process kill, standby and The Frame Art Mode need Samsung acceptance. LG device results cannot certify these. |
 
@@ -535,10 +586,10 @@ Each row compares source behaviour; Samsung evidence is host-only.
 | Show hero uses the PMS-selected on-deck episode (`plex/library.rs::metadata`, `screens/detail/hero.rs`) | **Added:** `includeOnDeck=1`, object/array metadata handling and Play next episode/Resume/Restart actions tied to the episode's own ID. Regression exercises the episode lookup and 20000ms resume, not show playback. Season selection remains available; without an on-deck result, choose an episode from Seasons |
 | Item context menu on cards (`item_menu.rs`: go to item/show, mark watched, play, play from start, trailer, remove from deck) | Present in `js/item-menu.js`: holding OK (600 ms), Tools or Info opens it; Play/Resume is the first row rather than a watch-state mutation; Cancel restores the card. Show/season Play resolves a playable episode, and a trailer action requires a metadata-qualified safe trailer. A short OK opens the card on key-up. `lg-parity.test.js`, `lg-parity-ui.test.js`. Physical Enter key-up and native playback of these targets remain unverified |
 | Continue Watching OK = Play vs Open details preference | **Added:** `continueAction` preference, default Open details, as on LG |
-| Video server PlayQueue (`timeline.rs` `create_play_queue`) | **Added:** `createVideoPlayQueue` POSTs `/playQueues` (`type=video`, continuous for episodes); timelines carry `playQueueID`/`playQueueItemID`. A queue failure falls back to plain playback. Creating a queue is a server write: fakes only until an authorized test profile exists |
+| Video server PlayQueue (`timeline.rs` `create_play_queue`) | **Extended:** existing `createVideoPlayQueue` feeds one revision-aware server controller with bounded directional pages, previous/next, shuffle/unshuffle, repeat and exact string timeline identity. Video playlists have 50-entry pages, confirmed moves, exact-entry add/remove, empty/seeded creation and named rename/delete with bounded identity/result read-back. Smart video-playlist More offers server-advertised structured fields/operators, nested all/any groups, sort and limit; confirmed changes require unchanged content/title and equivalent-rule read-back. Unknown/provider-specific or over-limit rules are explicitly not edited, never silently dropped. Queue/metadata failures offer explicit retry/cancel; transitions do not create another queue or silently lose identity. Owned cleanup is retryable. Synthetic >200-entry remote journeys are not live PMS/native acceptance. |
 | Alternate sources across servers (`/library/all?guid=…`) | **Added:** "Other servers" on movie/show detail, which excludes the current server and labels each copy with server, library and resolution. OK opens that server's detail page; the playing copy is never swapped |
 | Favorite libraries onboarding (`screens/src/onboard.rs` first-run step, then Settings) | **Added:** `js/favorites.js`. First visit to each server offers the step; Skip writes nothing and at least one library stays selected; hidden libraries also drop their Home shelves. Sign-in is the existing plex.tv PIN link and profile picker |
-| Quality ladder and Force direct play (`screens/src/preferences.rs`, `media/src/route/plan.rs`) | Original and five fixed ceilings are present; **LG's adaptive quality Auto is missing**. Original marks the source version and distinguishes actual Direct Play/Direct Stream/Transcode. Its prediction respects Direct Play Off and the selected audio codec. Force asks for the original without transcode fallback and refuses subtitle-burning/multipart selections before playback requests. The capability table follows documented AVPlay constraints; predictions are not measurements. Frame-rate matching has no AVPlay API and stays a TV picture setting. Earlier direct-play observations are bound to older builds, not the current candidate |
+| Quality ladder and Force direct play (`screens/src/preferences.rs`, `media/src/route/plan.rs`) | Original and five fixed ceilings are present. Optional adaptive quality is default-off: known remote connections have a starting ceiling, and a bounded rebuffer controller only downgrades, with grace/cooldown and no automatic upshift. Conversion requests distinguish server ABR from the client restart policy; neither request flags nor host fixtures establish ongoing native adaptation. Original-file playback omits ABR and remains separate. Original marks the source version and distinguishes actual Direct Play/Direct Stream/Transcode. Its prediction respects Direct Play Off and the selected audio codec. Force disables adaptation, asks for the original without transcode fallback and refuses subtitle-burning/multipart selections before playback requests. The capability table follows documented AVPlay constraints; predictions are not measurements. Frame-rate matching has no AVPlay API and stays a TV picture setting. Earlier direct-play observations are bound to older builds, not the current candidate |
 | Account audio & subtitles (`plex/src/plex/account/preferences.rs`) | **Added:** `js/account-preferences.js` and Settings > Audio & subtitles read and write the profile's preferred audio language, subtitle mode, subtitle language and forced-subtitle policy on `clients.plex.tv/api/v2/user/profile`; only changed fields are sent, and picking an audio language enables automatic selection as on LG. `account-preferences.test.js`, `account-preferences-ui.test.js`. Not exercised against plex.tv from a television |
 
 The [source parity review](samsung-upstream-readiness.md#follow-up-feature-parity-review) tracks
@@ -625,7 +676,7 @@ after-fix acceptance remains separate from host checks and installation.
 - [ ] Verify audio track defaults, selection and failures on device, including model-specific DTS limitations.
 - [ ] Verify embedded/external SRT/WebVTT and server-rendered ASS/SSA/PGS/VobSub individually.
 - [ ] Test subtitle/audio/version changes while preparing, paused, seeking and completing on device. Host: a 12-journey generation matrix rejects superseded prepare/seek/listener callbacks; terminal events retire pending resumes, replacement preserves pause intent, and view-owned subtitle/seek results are guarded. Native AVPlay timing/output remains unobserved.
-- [ ] Verify held-key scrub/repeat on device. Host journeys prove accelerated Left/Right targets bounded to zero/duration, one seek on keyup or 300 ms idle, no double commit, and hidden-HUD reveal without activation. The player HUD hides after five seconds of
+- [ ] Verify held-key scrub/repeat on device. Host journeys prove accelerated Left/Right targets bounded to zero/duration, one seek on keyup or900ms idle, gaps over300ms without premature commit, latest-only serialized callbacks, recoverable slow-callback buffering, no double commit, and hidden-HUD reveal without activation. The player HUD hides after five seconds of
   uninterrupted playing; navigation/OK first reveals controls without activating them. Media
   keys still act while hidden. Pausing, buffering, errors and open menus retain visible controls;
   menu closure and resume restart the timer, and teardown cancels it. Synthetic host journeys
@@ -642,7 +693,7 @@ after-fix acceptance remains separate from host checks and installation.
 - [x] Join catalogue credits to this server's titles by GUID tail, as LG `person.rs` does; held credits open the local item. The compact index checks up to 10,000 titles, reports truncation and rejects incomplete/misaligned pages.
 - [x] Replace the 200-credit display cap with 50-credit Previous/Next pages; preserve the career page on return and exercise a 251-credit career. Remove the 500-title local-index cutoff; a 900-title synthetic index reaches its final title.
 - [x] Advance collection pages with explicit PMS offsets and retain the loader/remaining pages when returning from details; a 51-item collection regression exercises both behaviors.
-- [ ] Finish search type/group completeness and older PMS response-variant acceptance.
+- [ ] Finish search type/group completeness and older PMS response-variant acceptance. Host actual-UI regressions now include clip/video-playlist hubs, the playlist-specific detail endpoint, same-rating-key cross-server Back focus, query-edit cancellation and a 200-result/heading retention bound. This does not establish every older-PMS variant or native behavior.
 - [x] Add explicitly user-initiated watched/unwatched and remove-from-Continue-Watching actions with confirmation, duplicate-click prevention and synthetic writes only. Sources: `docs/pms-api.md` §timeline and `rust-modules/plex/src/plex/hubs.rs`.
 - [ ] Verify explicit watch actions against a named authorized test profile/item, including show/season leaf behavior and metadata refresh failures.
 - [x] Bound download-plus-decode concurrency to three; release Blob URLs after decode rather than evicting undecoded visible images at 60 URLs; cancel pending decodes on view exit. A 73-image synthetic regression exercises both lifetime and cancellation.
@@ -661,14 +712,15 @@ Each item starts with endpoint/schema/entitlement evidence and mock contracts, t
 runtime integration. A feature requiring an unavailable private service remains blocked with its
 evidence; it is not replaced by another media server.
 
-- [x] Music host baseline: artists/albums/tracks, metadata/artwork, bounded local album queue, shuffle/repeat and audio player; synthetic UI/session contracts exercised.
-- [ ] Music completion: server PlayQueues, larger album queues, native MP3/transcode verification and interruption recovery.
-- [x] Photos host baseline: album navigation, page-local viewer/slideshow, decode timeout and object-URL cleanup; synthetic UI/resource contracts exercised without progress writes.
+- [x] Music host baseline: artists/albums/tracks, metadata/artwork, bounded server audio PlayQueues beyond 200 tracks, shuffle/repeat, interruption/retry/cancel and audio player; synthetic UI/session contracts exercised.
+- [ ] Music completion: authorized live PMS queues, native MP3/transcode verification, named-TV interruption recovery and measured memory bounds.
+- [x] Photos host baseline: bounded cross-page album/library navigation and slideshow, rotation, predecode byte/dimension validation, decode timeout and single-object-URL cleanup; synthetic UI/resource contracts exercised without progress writes.
 - [ ] Photos completion: verify native supported formats, display/remote behavior and measured memory ceilings.
 - [x] Live TV host discovery: advertised EPG providers, guide shelves, date/channel grid and existing channel lineups; recording capability is checked before offering scheduling.
 - [ ] Live tuning: establish consumer allocation/keepalive/release and native codec/transcode behavior before allocating a real tuner.
 - [x] DVR host operations: template-driven scheduling, subscription cancellation/preferences and scheduled/conflict status display, with confirmation and synthetic-only writes.
-- [ ] DVR server acceptance, target storage/location selection and comprehensive conflict-management workflows.
+- [x] DVR host destination and manual priority workflows: fresh library storage IDs/paths, explicit Plex-default choice, named confirmations and complete bounded priority read-back; unchanged/denied/partial/stale results do not replay writes.
+- [ ] DVR server/native acceptance and comprehensive conflict behavior; changing priority is not proof that tuner conflicts are resolved.
 - [x] Watchlist host operations: account-backed paged reads, confirmed add/remove, and exact-GUID local availability across scoped server grants.
 - [ ] Watchlist cloud/profile acceptance and remote paging/recovery on the packaged app.
 - [x] Plex catalogue metadata search/details and local matching; source-backed and synthetic signed-account journey exercised.

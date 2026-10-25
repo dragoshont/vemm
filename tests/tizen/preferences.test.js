@@ -9,11 +9,11 @@ var storage = {
 };
 assert.deepStrictEqual(prefs.load(storage), { quality: "original", language: "en", nextEpisode: "countdown",
     continueAction: "details", skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low",
-    subtitleColor: "white", subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false });
+    subtitleColor: "white", subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false, adaptiveQuality: false, transcodeAudioVolume: 100, reducedMotion: false, interfaceTextSize: "standard" });
 value = JSON.stringify({ quality: "720", language: "en", autoNext: false });
 assert.deepStrictEqual(prefs.load(storage), { quality: "720", language: "en", nextEpisode: "off",
     continueAction: "details", skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low",
-    subtitleColor: "white", subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false }, "Preferences from earlier app versions receive safe defaults; auto-play off stays off");
+    subtitleColor: "white", subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false, adaptiveQuality: false, transcodeAudioVolume: 100, reducedMotion: false, interfaceTextSize: "standard" }, "Preferences from earlier app versions receive safe defaults; auto-play off stays off");
 value = JSON.stringify({ quality: "720", language: "en", autoNext: true });
 assert.strictEqual(prefs.load(storage).nextEpisode, "countdown", "Auto-play on becomes the LG credits countdown");
 assert.strictEqual("autoNext" in prefs.load(storage), false);
@@ -71,5 +71,22 @@ assert.strictEqual(prefs.load(storage).enhancedGraphics, false);
     }, /invalid/);
 });
 prefs.reset(storage);
+prefs.save(storage, { quality: "720", language: "en", adaptiveQuality: true });
+assert.strictEqual(prefs.load(storage).adaptiveQuality, true);
+assert.throws(function () {
+    prefs.save(storage, { quality: "720", language: "en", adaptiveQuality: "true" });
+}, /invalid/);
+prefs.reset(storage);
 assert.strictEqual(value, null);
+prefs.save(storage, { quality: "original", language: "en", transcodeAudioVolume: 150 });
+assert.strictEqual(prefs.load(storage).transcodeAudioVolume, 150);
+assert.throws(function () {
+    prefs.save(storage, { quality: "original", language: "en", transcodeAudioVolume: 700 });
+}, /invalid/);
+assert.throws(function () {
+    prefs.save(storage, { quality: "original", language: "en", reducedMotion: "false" });
+}, /invalid/);
+assert.throws(function () {
+    prefs.save(storage, { quality: "original", language: "en", interfaceTextSize: "unbounded" });
+}, /invalid/);
 console.log("Tizen preference persistence/allowlist/reset tests: passed");

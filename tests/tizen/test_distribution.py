@@ -31,6 +31,7 @@ class DistributionTests(unittest.TestCase):
             config = (app / "config.xml").read_text()
             self.assertIn('id="VemmTvApp0.Vemm" package="VemmTvApp0"', config)
             self.assertIn('version="0.2.7"', config)
+            self.assertIn('version: "0.2.7"', (app / "js/product.js").read_text())
             self.assertIn("<name>Vemm</name>", config)
             for name in ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md",
                          "licenses/PlxNative-historical-MIT.txt", "licenses/native-history-NOTICES.md"):
@@ -58,7 +59,7 @@ class DistributionTests(unittest.TestCase):
                 (product / name).write_bytes((ROOT / "samsung/Vemm" / name).read_bytes())
             for name in ("js", "css", "brand"):
                 (product / name).mkdir()
-            (product / "js/product.js").write_text('"use strict";')
+            (product / "js/product.js").write_text('var product = { version: "0.2.0" };')
             (product / "css/style.css").write_text("body {}")
             (product / "brand/vemm-mark.svg").write_text("<svg/>")
             for directory in ("js", "css", "brand"):
@@ -99,6 +100,109 @@ class DistributionTests(unittest.TestCase):
             with patch.object(build, "ROOT", root):
                 build.stage(Path(tmp) / "stage", "0.2.7")
             self.assertEqual({p.name for p in (Path(tmp) / "stage/licenses").iterdir()}, expected)
+
+    def test_package_preserves_exact_staged_payload_including_notices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = Path(tmp) / "app"
+            build.stage(app, "0.2.0")
+            expected = {p.relative_to(app).as_posix(): p.read_bytes()
+                        for p in app.rglob("*") if p.is_file()}
+            package = Path(tmp) / "synthetic.wgt"
+
+            def write(files):
+                with zipfile.ZipFile(package, "w") as archive:
+                    for name, data in files.items():
+                        archive.writestr(name, data)
+
+            write(expected)
+            build.verify_package(package, expected)
+            write(dict(expected, **{"author-signature.xml": b"synthetic author",
+                                     "signature1.xml": b"synthetic distributor"}))
+            build.verify_package(package, expected)
+            for missing in ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md",
+                            *("licenses/" + name for name in build.LICENSE_FILES)):
+                with self.subTest(missing=missing):
+                    write({name: data for name, data in expected.items() if name != missing})
+                    with self.assertRaisesRegex(ValueError, "inventory"):
+                        build.verify_package(package, expected)
+            for changed in ("main.js", "js/product.js", "config.xml", "LICENSE"):
+                with self.subTest(changed=changed):
+                    write(dict(expected, **{changed: b"synthetic modified payload"}))
+                    with self.assertRaisesRegex(ValueError, "content"):
+                        build.verify_package(package, expected)
+            write(dict(expected, **{"synthetic-private.p12": b"synthetic canary, never a certificate"}))
+            with self.assertRaisesRegex(ValueError, "inventory"):
+                build.verify_package(package, expected)
+            write(expected)
+            with zipfile.ZipFile(package, "a") as archive:
+                with self.assertWarns(UserWarning):
+                    archive.writestr("main.js", expected["main.js"])
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                build.verify_package(package, expected)
+            write(expected)
+            with zipfile.ZipFile(package, "a") as archive:
+                archive.writestr("../unexpected/", b"")
+            with self.assertRaisesRegex(ValueError, "inventory"):
+                build.verify_package(package, expected)
+            with zipfile.ZipFile(package, "w") as archive:
+                for name, data in expected.items():
+                    info = zipfile.ZipInfo(name)
+                    if name == "main.js":
+                        info.external_attr = 0o120777 << 16
+                    archive.writestr(info, data)
+            with self.assertRaisesRegex(ValueError, "symbolic link"):
+                build.verify_package(package, expected)
+
+    def test_builder_rejects_stripped_sdk_payload_before_distribution(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            studio = root / "sdk"
+            for relative in ("tools/ide/bin/tizen", "tools/ide/bin/tizen.bat",
+                             "tools/certificate-generator/certificates/distributor/tizen-distributor-signer.p12",
+                             "tools/certificate-generator/certificates/distributor/tizen-distributor-ca.cer"):
+                file = studio / relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b"synthetic SDK fixture, never a certificate")
+            data = root / "data"
+            profiles = data / "profile/profiles.xml"
+            profiles.parent.mkdir(parents=True)
+            original = b'<profiles active="synthetic" version="3.1"/>'
+            profiles.write_bytes(original)
+
+            for stripped in (True, False):
+                with self.subTest(stripped=stripped):
+                    def sdk(*args):
+                        if args[1] == "package":
+                            app = Path(args[-1])
+                            target = Path(args[args.index("-o") + 1]) / "synthetic.wgt"
+                            with zipfile.ZipFile(target, "w") as archive:
+                                for file in app.rglob("*"):
+                                    if not file.is_file():
+                                        continue
+                                    name = file.relative_to(app).as_posix()
+                                    if stripped and (name.startswith("licenses/") or name in
+                                                     ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md")):
+                                        continue
+                                    archive.write(file, name)
+                                archive.writestr("author-signature.xml", b"synthetic author")
+                                archive.writestr("signature1.xml", b"synthetic distributor")
+                        return ""
+
+                    output = root / ("stripped" if stripped else "complete")
+                    with patch.object(build, "studio_dir", return_value=studio), \
+                            patch.object(build, "data_dir", return_value=data), \
+                            patch.object(build, "author_cert", return_value=(root / "synthetic.p12", "synthetic")), \
+                            patch.object(build, "es5_check"), patch.object(build, "inline_passwords"), \
+                            patch.object(build, "run", side_effect=sdk):
+                        if stripped:
+                            with self.assertRaisesRegex(ValueError, "inventory"):
+                                build.build("0.2.0", output)
+                            self.assertFalse(output.exists())
+                        else:
+                            package = build.build("0.2.0", output)
+                            self.assertTrue(package.is_file())
+                            self.assertTrue(package.with_suffix(".wgt.sha256").is_file())
+                    self.assertEqual(profiles.read_bytes(), original)
 
     def test_exact_source_ignores_private_files_and_refuses_dirty_or_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,15 +1,18 @@
 (function (root, factory) {
     var product = typeof module === "object" && module.exports && typeof require === "function" ?
         require("./product") : root.VemmProduct;
-    var api = factory(product);
+    var smartPlaylists = typeof module === "object" && module.exports && typeof require === "function" ?
+        require("./smart-playlists") : root.VemmSmartPlaylists;
+    var api = factory(product, smartPlaylists);
     if (typeof module === "object" && module.exports) {
         module.exports = api;
     } else {
         root.PlexApi = api;
     }
-}(this, function (product) {
+}(this, function (product, smartPlaylists) {
     "use strict";
     var PRODUCT = product && product.name || "Vemm";
+    var VERSION = product && product.version || "unknown";
     var deviceIdentifier = "tizen-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
 
     function clientId() {
@@ -250,7 +253,8 @@
                         "Content-Type": "application/x-www-form-urlencoded",
                         "X-Plex-Token": token,
                         "X-Plex-Client-Identifier": identifier,
-                        "X-Plex-Product": PRODUCT
+                        "X-Plex-Product": PRODUCT,
+                        "X-Plex-Version": VERSION
                     },
                     body: body
                 }, method === "POST" ? null : scope);
@@ -296,7 +300,7 @@
             return timedFetch(fetchRequest, target, {
                 method: method || "GET", credentials: "omit", redirect: "error",
                 headers: { Accept: "application/json", "X-Plex-Token": token,
-                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT,
+                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT, "X-Plex-Version": VERSION,
                     "X-Plex-Language": options.language || "en" }
             }, method && method !== "GET" ? null : scope).then(function (response) {
                 if (!response.ok) {
@@ -322,7 +326,7 @@
             return timedFetch(fetchRequest, target, {
                 method: method, credentials: "omit", redirect: "error",
                 headers: { Accept: "application/json", "X-Plex-Token": token,
-                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT }
+                    "X-Plex-Client-Identifier": identifier, "X-Plex-Product": PRODUCT, "X-Plex-Version": VERSION }
             }, method === "GET" ? scope : null).then(function (response) {
                 if (!response.ok) {
                     var error = new Error(response.status === 401 || response.status === 403 ?
@@ -338,6 +342,50 @@
             var match = /^plex:\/\/(?:movie|show)\/([0-9a-f]{24})$/i.exec(String(guid || ""));
             if (!match) { throw new Error("This item has no valid Plex catalogue identifier."); }
             return match[1];
+        }
+        function watchlistPage(filter, start) {
+            return cloud("discover.provider.plex.tv", "/library/sections/watchlist/" + filter, "GET", {
+                "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
+            });
+        }
+        function confirmWatchlist(guid, add, revision) {
+            var start = 0;
+            function uncertain() {
+                return new Error("Plex did not confirm the Watchlist change. Reload your Watchlist before retrying.");
+            }
+            function read() {
+                if (scope.revision !== revision) { throw requestCancelled(); }
+                return watchlistPage("all", start).then(function (container) {
+                    if (scope.revision !== revision) { throw requestCancelled(); }
+                    var rows = container.Metadata;
+                    if (!Array.isArray(rows)) {
+                        if (container.size !== 0 && container.size !== "0") { throw uncertain(); }
+                        rows = [];
+                    }
+                    var total = container.totalSize === undefined ? null : Number(container.totalSize);
+                    if (rows.length > 50 || container.totalSize === null || container.totalSize === "" ||
+                            total !== null && (!isNonNegativeInteger(total) || total < start + rows.length) ||
+                            container.offset !== undefined && Number(container.offset) !== start ||
+                            rows.some(function (row) { return !row || typeof row.guid !== "string" ||
+                                !/^plex:\/\/(?:movie|show)\/[0-9a-f]{24}$/i.test(row.guid); })) {
+                        throw uncertain();
+                    }
+                    var found = rows.some(function (row) { return row.guid.toLowerCase() === guid.toLowerCase(); });
+                    if (found) {
+                        if (!add) { throw uncertain(); }
+                        return {};
+                    }
+                    var end = start + rows.length;
+                    if (total !== null ? end >= total : rows.length < 50) {
+                        if (add) { throw uncertain(); }
+                        return {};
+                    }
+                    if (!rows.length || end >= 200) { throw uncertain(); }
+                    start = end;
+                    return read();
+                });
+            }
+            return read();
         }
         return {
             cancelRequests: function () { scope.cancel(); },
@@ -367,14 +415,15 @@
                 if (["all", "available", "released"].indexOf(filter) === -1 || !isNonNegativeInteger(start || 0)) {
                     return Promise.reject(new Error("Invalid Watchlist filter or page."));
                 }
-                return cloud("discover.provider.plex.tv", "/library/sections/watchlist/" + filter, "GET", {
-                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
-                });
+                return watchlistPage(filter, start || 0);
             },
             setWatchlist: function (guid, add) {
                 if (typeof add !== "boolean") { return Promise.reject(new Error("Choose add or remove Watchlist.")); }
+                var revision = scope.revision;
                 return cloud("discover.provider.plex.tv", "/actions/" + (add ? "addToWatchlist" : "removeFromWatchlist"),
-                    "PUT", { ratingKey: catalogueId(guid) }, true);
+                    "PUT", { ratingKey: catalogueId(guid) }, true).then(function () {
+                        return confirmWatchlist(guid, add, revision);
+                    });
             },
             catalogueState: function (guid) {
                 return cloud("metadata.provider.plex.tv", "/library/metadata/" + catalogueId(guid) + "/userState");
@@ -389,16 +438,28 @@
                 }).then(function (container) {
                     if (!Array.isArray(container.SearchResults)) { throw new Error("Plex returned invalid catalogue search results."); }
                     var items = [];
-                    container.SearchResults.forEach(function (group) {
-                        if (group.id !== "external") { return; }
+                    container.SearchResults.some(function (group) {
+                        if (!group || typeof group !== "object") { throw new Error("Plex returned an invalid catalogue search group."); }
+                        if (group.id !== "external") { return false; }
                         if (!Array.isArray(group.SearchResult)) { throw new Error("Plex returned an invalid catalogue search group."); }
-                        group.SearchResult.forEach(function (result) {
-                            if (result.Metadata && ["movie", "show"].indexOf(result.Metadata.type) !== -1) {
-                                items.push(result.Metadata);
+                        group.SearchResult.some(function (result) {
+                            if (!result || typeof result !== "object") { throw new Error("Plex returned invalid catalogue search results."); }
+                            var item = result.Metadata;
+                            if (item && ["movie", "show"].indexOf(item.type) !== -1) {
+                                var identity = /^plex:\/\/(movie|show)\/([0-9a-f]{24})$/i.exec(String(item.guid || ""));
+                                if (!identity || identity[1].toLowerCase() !== item.type ||
+                                        item.key !== "/library/metadata/" + identity[2]) {
+                                    throw new Error("Plex returned invalid catalogue search results.");
+                                }
+                                if (!items.some(function (entry) { return entry.guid.toLowerCase() === item.guid.toLowerCase(); })) {
+                                    items.push(item);
+                                }
                             }
+                            return items.length >= 30;
                         });
+                        return items.length >= 30;
                     });
-                    return items.slice(0, 30);
+                    return items;
                 });
             },
             catalogueDetails: function (item) {
@@ -408,7 +469,8 @@
                 }
                 return cloud("metadata.provider.plex.tv", item.key, "GET", { includeUserState: 1 }).then(function (container) {
                     var items = listFrom(container, "Metadata");
-                    if (!items.length || items[0].guid && items[0].guid !== item.guid) {
+                    if (items.length !== 1 || typeof items[0].guid !== "string" ||
+                            items[0].guid.toLowerCase() !== item.guid.toLowerCase() || items[0].type !== item.type) {
                         throw new Error("Plex returned mismatched catalogue details.");
                     }
                     return items[0];
@@ -493,7 +555,9 @@
             var client;
             try {
                 if (!/^https:\/\//.test(connection.uri)) { return probe(); }
-                client = createClient({ baseUrl: connection.uri, token: server.token, fetch: options.fetch });
+                client = createClient({ baseUrl: connection.uri, token: server.token, fetch: options.fetch,
+                    location: connection.local === true ? "lan" :
+                        connection.local === false || connection.relay === true ? "wan" : "" });
             } catch (error) { return probe(); }
             if (options.onClient && options.onClient(client) === false) { return Promise.reject(requestCancelled()); }
             if (options.onAttempt) {
@@ -542,7 +606,7 @@
                         Accept: "application/json",
                         "X-Plex-Client-Identifier": clientIdentifier,
                         "X-Plex-Product": PRODUCT,
-                        "X-Plex-Version": "0.2.2",
+                        "X-Plex-Version": VERSION,
                         "X-Plex-Platform": "Tizen"
                     }
                 }, scope);
@@ -630,12 +694,15 @@
         var token = String(options.token || "");
         var fetchRequest = options.fetch || (typeof fetch === "function" ? fetch : null);
         var scope = requestScope();
+        var musicScopes = {};
+        var playlistEdits = {};
         if (!fetchRequest) {
             throw new Error("This runtime does not provide fetch.");
         }
 
-        function get(path, method, query, allowEmpty) {
-            var revision = scope.revision;
+        function get(path, method, query, allowEmpty, ownedScope) {
+            var activeScope = ownedScope || scope;
+            var revision = activeScope.revision;
             var headers = {
                 Accept: "application/json"
             };
@@ -644,7 +711,7 @@
             }
             headers["X-Plex-Client-Identifier"] = options.clientIdentifier || clientId();
             headers["X-Plex-Product"] = PRODUCT;
-            headers["X-Plex-Version"] = "0.2.2";
+            headers["X-Plex-Version"] = VERSION;
             headers["X-Plex-Platform"] = "Tizen";
             headers["X-Plex-Device"] = "TV";
             headers["X-Plex-Device-Name"] = "Samsung TV";
@@ -655,13 +722,14 @@
                 }).join("&");
             }
             return Promise.resolve().then(function () {
-                if (!allowEmpty && (!method || method === "GET") && revision !== scope.revision) { throw requestCancelled(); }
+                if ((ownedScope || !allowEmpty && (!method || method === "GET")) &&
+                        revision !== activeScope.revision) { throw requestCancelled(); }
                 return timedFetch(fetchRequest, target, {
                 method: method || "GET",
                 credentials: "omit",
                 redirect: "error",
                 headers: headers
-                }, allowEmpty || method && method !== "GET" ? null : scope);
+                }, allowEmpty || method && method !== "GET" ? null : activeScope);
             }).catch(function (error) {
                 if (error.code === "cancelled") { throw error; }
                 throw new Error("The server is unreachable. Check your network and retry.");
@@ -701,7 +769,196 @@
             return value;
         }
 
+        function queueId(value) {
+            if (typeof value === "number" && (!isNonNegativeInteger(value) || value > 9007199254740991) ||
+                    !/^[1-9][0-9]*$/.test(String(value))) {
+                throw new Error("Plex returned an invalid music queue identifier.");
+            }
+            return String(value);
+        }
+
+        function musicRequestScope(id) {
+            if (!musicScopes[id]) { musicScopes[id] = requestScope(); }
+            return musicScopes[id];
+        }
+
+        function musicProjection(container, video) {
+            var id = queueId(container.playQueueID);
+            var selected = queueId(container.playQueueSelectedItemID);
+            var total = container.playQueueTotalCount;
+            var version = container.playQueueVersion;
+            var offset = container.playQueueSelectedItemOffset;
+            if (!isNonNegativeInteger(total) || !total || total > 9007199254740991 ||
+                    !isNonNegativeInteger(version) || version > 9007199254740991 ||
+                    !isNonNegativeInteger(offset) || offset >= total ||
+                    typeof container.playQueueShuffled !== "boolean") {
+                throw new Error("Plex returned an invalid play queue revision or position.");
+            }
+            var rows = listFrom(container, "Metadata");
+            var selectedIndex = -1;
+            rows.some(function (row, index) {
+                if (row && String(row.playQueueItemID) === selected) { selectedIndex = index; return true; }
+                return false;
+            });
+            var start = Math.max(0, selectedIndex - 100);
+            var seen = {};
+            var items = rows.slice(start, start + 200).map(function (row) {
+                var itemId = queueId(row && row.playQueueItemID);
+                if (!row || (video === true ? ["movie", "episode", "clip"].indexOf(row.type) < 0 : row.type !== "track") ||
+                        !/^[0-9]+$/.test(String(row.ratingKey)) || seen[itemId]) {
+                    throw new Error("Plex returned invalid play queue entries.");
+                }
+                seen[itemId] = true;
+                var item = {};
+                Object.keys(row).forEach(function (name) { item[name] = row[name]; });
+                item.playQueueItemID = itemId;
+                item.ratingKey = String(row.ratingKey);
+                return item;
+            });
+            return { id: id, itemId: selected, version: version, total: total, offset: offset,
+                shuffled: container.playQueueShuffled, items: items };
+        }
+
+        function playlistChange(playlistId, action) {
+            if (playlistEdits[playlistId]) {
+                return Promise.reject(new Error("Wait for the previous playlist edit to finish."));
+            }
+            playlistEdits[playlistId] = true;
+            var revision = scope.revision;
+            var deadline = Date.now() + 60000;
+            function current() {
+                if (revision !== scope.revision) { throw requestCancelled(); }
+                if (Date.now() > deadline) {
+                    throw new Error("Playlist verification timed out. Reload before editing.");
+                }
+            }
+            return Promise.resolve().then(function () {
+                current();
+                return action(current);
+            }).then(function (result) {
+                current();
+                delete playlistEdits[playlistId];
+                return result;
+            }).catch(function (error) {
+                delete playlistEdits[playlistId];
+                throw error;
+            });
+        }
+
+        function playlistTitle(value) {
+            if (typeof value !== "string" || !value.trim() || value.trim().length > 128 || /[\x00-\x1f\x7f]/.test(value)) {
+                throw new Error("Enter a playlist name of 1 to 128 characters without control characters.");
+            }
+            return value.trim();
+        }
+
+        function videoPlaylistUri(self, mediaId, current) {
+            current();
+            return self.getMetadata(mediaId).then(function (item) {
+                current();
+                if (String(item.ratingKey) !== mediaId || ["movie", "episode", "clip"].indexOf(item.type) === -1) {
+                    throw new Error("Choose a playable video for this playlist.");
+                }
+                return self.identity();
+            }).then(function (identity) {
+                current();
+                if (typeof identity.machineIdentifier !== "string" ||
+                        !/^[0-9A-Za-z_-]{1,80}$/.test(identity.machineIdentifier)) {
+                    throw new Error("Plex returned an invalid server identity.");
+                }
+                return "server://" + identity.machineIdentifier + "/com.plexapp.plugins.library/library/metadata/" + mediaId;
+            });
+        }
+
+        function editPlaylistItem(self, playlistId, mediaId, removedId, expectedPage, current) {
+            mediaId = key(mediaId);
+            if (removedId !== null) { removedId = queueId(removedId); }
+            var before;
+            var uri;
+            function standard(playlist) {
+                current();
+                if (playlist.smart !== undefined && [false, 0, "0"].indexOf(playlist.smart) === -1) {
+                    throw new Error("Choose a standard video playlist. Smart playlists use rules.");
+                }
+            }
+            function snapshot() {
+                var entries = [];
+                var seen = {};
+                var total = null;
+                function page(start) {
+                    current();
+                    return self.getVideoPlaylistItems(playlistId, start).then(function (container) {
+                        current();
+                        if (container.totalSize > 1000) {
+                            throw new Error("Playlist edits can verify up to 1000 entries. Nothing was confirmed.");
+                        }
+                        if (total !== null && total !== container.totalSize ||
+                                start + container.Metadata.length > container.totalSize) {
+                            throw new Error("The playlist changed on Plex. Reload before editing.");
+                        }
+                        total = container.totalSize;
+                        container.Metadata.forEach(function (item) {
+                            var id = queueId(item.playlistItemID);
+                            if (seen[id]) { throw new Error("Plex returned an invalid video playlist page."); }
+                            seen[id] = true;
+                            entries.push(id + ":" + key(item.ratingKey));
+                        });
+                        return entries.length < total ? page(entries.length) : entries;
+                    });
+                }
+                return page(0);
+            }
+            var operation = Promise.resolve().then(function () {
+                current();
+                return self.getVideoPlaylist(playlistId);
+            }).then(function (playlist) {
+                standard(playlist);
+                if (removedId !== null) { return; }
+                return videoPlaylistUri(self, mediaId, current).then(function (value) { uri = value; });
+            }).then(snapshot).then(function (entries) {
+                current();
+                before = entries;
+                if (expectedPage && (!isNonNegativeInteger(expectedPage.offset) ||
+                        expectedPage.totalSize !== before.length || !Array.isArray(expectedPage.Metadata) ||
+                        expectedPage.Metadata.length > 50 ||
+                        expectedPage.Metadata.map(function (item) {
+                            return queueId(item.playlistItemID) + ":" + key(item.ratingKey);
+                        }).join(",") !== before.slice(expectedPage.offset,
+                            expectedPage.offset + expectedPage.Metadata.length).join(","))) {
+                    throw new Error("The playlist changed on Plex. Reload before editing.");
+                }
+                if (removedId !== null && before.indexOf(removedId + ":" + mediaId) === -1) {
+                    throw new Error("The playlist changed on Plex. Reload before editing.");
+                }
+                if (removedId === null && before.length >= 1000) {
+                    throw new Error("Playlist edits can verify up to 1000 entries. Nothing was confirmed.");
+                }
+                return self.getVideoPlaylist(playlistId);
+            }).then(function (playlist) {
+                standard(playlist);
+                return get("/playlists/" + playlistId + "/items" + (removedId === null ? "" : "/" + removedId),
+                    removedId === null ? "PUT" : "DELETE", removedId === null ? { uri: uri } : null, true, scope);
+            }).then(function () {
+                current();
+                return snapshot();
+            }).then(function (after) {
+                current();
+                var expected = removedId === null ? before : before.filter(function (entry) {
+                    return entry !== removedId + ":" + mediaId;
+                });
+                var confirmed = removedId === null ?
+                    after.length === before.length + 1 && after[after.length - 1].split(":")[1] === mediaId &&
+                        before.join(",") === after.slice(0, -1).join(",") :
+                    expected.join(",") === after.join(",");
+                if (!confirmed) {
+                    throw new Error("Plex did not confirm the playlist change. Reload before editing.");
+                }
+            });
+            return operation;
+        }
+
         return {
+            location: options.location === "lan" || options.location === "wan" ? options.location : "",
             cancelRequests: function () { scope.cancel(); },
             request: get,
             identity: function () { return get("/identity"); },
@@ -836,10 +1093,10 @@
             },
             getFilters: function (section) { return get("/library/sections/" + key(section) + "/filters"); },
             getSorts: function (section) { return get("/library/sections/" + key(section) + "/sorts"); },
-            getBrowseMenus: function (section, type) {
-                return get("/library/sections/" + key(section) + "/all", "GET", {
-                    includeMeta: 1, type: type || 1, "X-Plex-Container-Size": 0
-                });
+            getBrowseMenus: function (section, type, advanced) {
+                var query = { includeMeta: 1, type: type || 1, "X-Plex-Container-Size": 0 };
+                if (advanced === true) { query.includeAdvanced = 1; }
+                return get("/library/sections/" + key(section) + "/all", "GET", query);
             },
             getFilterValues: function (section, path) {
                 var prefix = "/library/sections/" + key(section) + "/";
@@ -872,12 +1129,20 @@
                 var path = part && part.key || item.thumb;
                 try { localPath(path); }
                 catch (error) { return Promise.reject(error); }
-                return timedFetch(fetchRequest, baseUrl + "/photo/:/transcode?width=1920&height=1080&minSize=0&upscale=0&url=" +
+                return timedFetch(fetchRequest, baseUrl + "/photo/:/transcode?width=1920&height=1080&minSize=0&upscale=0&format=jpg&rotate=1&url=" +
                     encodeURIComponent(path), {
                         credentials: "omit", redirect: "error", headers: { "X-Plex-Token": token }
                     }, scope).then(function (response) {
                     if (!response.ok) { throw new Error("Photo is unavailable (HTTP " + response.status + ")."); }
-                    return response.blob();
+                    return response.blob().then(function (blob) {
+                        if (!blob.size || blob.size > 4 * 1024 * 1024) {
+                            throw new Error("Photo exceeds the image memory limit or is empty.");
+                        }
+                        if (!/^image\/(?:jpeg|png)$/i.test(blob.type || "")) {
+                            throw new Error("Photo format is unavailable. The server must return JPEG or PNG.");
+                        }
+                        return blob;
+                    });
                 });
             },
             streamUrl: function (path, query) {
@@ -973,21 +1238,312 @@
             },
             // An ephemeral server-side queue (no watch-state change) so the server's dashboard
             // and Up Next agree with this client, as the LG client does for every video start.
-            createVideoPlayQueue: function (machineId, ratingKey) {
+            createVideoPlayQueue: function (machineId, ratingKey, playlist, shuffle) {
                 if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || ""))) {
                     return Promise.reject(new Error("The server identity is invalid."));
                 }
+                var query = { type: "video", continuous: playlist ? 0 : 1, shuffle: shuffle ? 1 : 0, repeat: 1 };
+                if (playlist) { query.playlistID = key(ratingKey); }
+                else {
+                    query.uri = "server://" + machineId + "/com.plexapp.plugins.library/library/metadata/" + key(ratingKey);
+                }
+                return get("/playQueues", "POST", query).then(function (container) {
+                    try {
+                        var projection = musicProjection(container, true);
+                        if (!projection.items.some(function (item) {
+                            return item.playQueueItemID === projection.itemId;
+                        })) { throw new Error("Plex did not return the selected video queue entry."); }
+                        return projection;
+                    } catch (error) {
+                        var id = queueId(container.playQueueID);
+                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                            throw error;
+                        }, function (cleanupError) {
+                            cleanupError.videoQueueCleanupId = id;
+                            throw cleanupError;
+                        });
+                    }
+                });
+            },
+            getVideoPlayQueue: function (id, center, direction) {
+                if (direction !== -1 && direction !== 1) { return Promise.reject(new Error("Choose previous or next video.")); }
+                id = queueId(id);
+                return get("/playQueues/" + id, "GET", {
+                    center: queueId(center), window: 50,
+                    includeBefore: direction < 0 ? 1 : 0, includeAfter: direction > 0 ? 1 : 0
+                }, false, musicRequestScope(id)).then(function (container) { return musicProjection(container, true); });
+            },
+            shuffleVideoPlayQueue: function (id, enabled) {
+                if (typeof enabled !== "boolean") { return Promise.reject(new Error("Choose shuffle on or off.")); }
+                return get("/playQueues/" + queueId(id) + (enabled ? "/shuffle" : "/unshuffle"), "PUT")
+                    .then(function (container) { return musicProjection(container, true); });
+            },
+            clearVideoPlayQueue: function (id) {
+                id = queueId(id);
+                return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () { delete musicScopes[id]; });
+            },
+            cancelVideoQueueRequests: function (id) {
+                id = queueId(id);
+                if (musicScopes[id]) { musicScopes[id].cancel(); }
+            },
+            getVideoPlaylists: function (start) {
+                return get("/playlists", "GET", { playlistType: "video",
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50 }).then(function (container) {
+                    container.Metadata = listFrom(container, "Metadata");
+                    if (container.size === 0 && container.totalSize === undefined) { container.totalSize = 0; }
+                    return container;
+                });
+            },
+            getVideoPlaylist: function (id) {
+                return get("/playlists/" + key(id)).then(function (container) {
+                    var item = listFrom(container, "Metadata")[0];
+                    if (!item || item.type !== "playlist" || item.playlistType !== "video" ||
+                            String(item.ratingKey) !== String(id)) { throw new Error("This video playlist is no longer available."); }
+                    return item;
+                });
+            },
+            getSmartVideoPlaylist: function (id) {
+                var self = this;
+                var playlist;
+                var rules;
+                var revision = scope.revision;
+                var deadline = Date.now() + 60000;
+                function current() {
+                    if (revision !== scope.revision) { throw requestCancelled(); }
+                    if (Date.now() > deadline) { throw new Error("Playlist verification timed out. Reload before editing."); }
+                }
+                return self.getVideoPlaylist(id).then(function (item) {
+                    current();
+                    if ([true, 1, "1"].indexOf(item.smart) < 0) {
+                        throw new Error("Choose a smart video playlist to edit its rules.");
+                    }
+                    playlist = item;
+                    return self.identity();
+                }).then(function (identity) {
+                    current();
+                    rules = smartPlaylists.parse(playlist.content, identity.machineIdentifier);
+                    return self.getBrowseMenus(rules.section, rules.type, true);
+                }).then(function (container) {
+                    current();
+                    var menu = smartPlaylists.schema(container, rules.type);
+                    return { playlist: playlist, rules: smartPlaylists.validate(rules, menu), schema: menu };
+                });
+            },
+            updateSmartVideoPlaylist: function (id, expected, draft) {
+                id = key(id);
+                var self = this;
+                var beforeTitle = expected && expected.title;
+                var beforeContent = expected && expected.content;
+                var copy;
+                try { copy = JSON.parse(JSON.stringify(draft)); }
+                catch (error) { return Promise.reject(new Error("These smart rules cannot be safely edited. Nothing was changed.")); }
+                if (!copy || typeof copy !== "object") {
+                    return Promise.reject(new Error("These smart rules cannot be safely edited. Nothing was changed."));
+                }
+                return playlistChange(id, function (current) {
+                    var state;
+                    var desired;
+                    return self.getSmartVideoPlaylist(id).then(function (loaded) {
+                        current();
+                        state = loaded;
+                        if (typeof beforeTitle !== "string" || loaded.playlist.title !== beforeTitle ||
+                                typeof beforeContent !== "string" || loaded.playlist.content !== beforeContent ||
+                                copy.section !== loaded.rules.section || copy.type !== loaded.rules.type) {
+                            throw new Error("The playlist changed on Plex. Reload before editing.");
+                        }
+                        desired = smartPlaylists.validate(copy, loaded.schema);
+                        if (JSON.stringify(desired) === JSON.stringify(loaded.rules)) {
+                            throw new Error("Choose different smart rules before confirming.");
+                        }
+                        return self.identity();
+                    }).then(function (identity) {
+                        current();
+                        smartPlaylists.parse(state.playlist.content, identity.machineIdentifier);
+                        var uri = smartPlaylists.uri(desired, state.schema, identity.machineIdentifier);
+                        return self.getVideoPlaylist(id).then(function (latest) {
+                            current();
+                            if ([true, 1, "1"].indexOf(latest.smart) < 0 ||
+                                    latest.title !== beforeTitle || latest.content !== beforeContent) {
+                                throw new Error("The playlist changed on Plex. Reload before editing.");
+                            }
+                            return get("/playlists/" + id + "/items", "PUT", { uri: uri }, true, scope);
+                        });
+                    }).then(function () {
+                        current();
+                        return self.getSmartVideoPlaylist(id);
+                    }).then(function (after) {
+                        current();
+                        if (after.playlist.title !== beforeTitle ||
+                                JSON.stringify(after.rules) !== JSON.stringify(desired)) {
+                            throw new Error("Plex did not confirm the smart rules. Reload before editing.");
+                        }
+                        return after.playlist;
+                    });
+                });
+            },
+            getVideoPlaylistItems: function (id, start) {
+                return get("/playlists/" + key(id) + "/items", "GET", {
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                }).then(function (container) {
+                    var rows = listFrom(container, "Metadata");
+                    if (container.size === 0 && container.totalSize === undefined) { container.totalSize = 0; }
+                    var seen = {};
+                    if (rows.length > 50 || !isNonNegativeInteger(container.totalSize) ||
+                            container.offset !== undefined && container.offset !== (start || 0) ||
+                            !rows.length && (start || 0) < container.totalSize ||
+                            rows.some(function (row) {
+                                var id = queueId(row.playlistItemID);
+                                var duplicate = seen[id];
+                                seen[id] = true;
+                                return duplicate || !/^[0-9]+$/.test(String(row.ratingKey)) ||
+                                    ["movie", "episode", "clip"].indexOf(row.type) < 0;
+                            })) { throw new Error("Plex returned an invalid video playlist page."); }
+                    container.Metadata = rows;
+                    return container;
+                });
+            },
+            moveVideoPlaylistItem: function (id, itemId) {
+                id = key(id);
+                itemId = queueId(itemId);
+                return playlistChange(id, function () {
+                    return get("/playlists/" + id + "/items/" + itemId + "/move", "PUT", null, true, scope);
+                });
+            },
+            addVideoPlaylistItem: function (id, mediaId) {
+                id = key(id);
+                var self = this;
+                return playlistChange(id, function (current) { return editPlaylistItem(self, id, mediaId, null, null, current); });
+            },
+            removeVideoPlaylistItem: function (id, itemId, mediaId, expectedPage) {
+                id = key(id);
+                var self = this;
+                return playlistChange(id, function (current) {
+                    return editPlaylistItem(self, id, mediaId, itemId, expectedPage, current);
+                });
+            },
+            createVideoPlaylist: function (title, mediaId) {
+                var self = this;
+                return playlistChange("create", function (current) {
+                    title = playlistTitle(title);
+                    mediaId = mediaId === undefined || mediaId === null ? null : key(mediaId);
+                    return (mediaId === null ? Promise.resolve(null) : videoPlaylistUri(self, mediaId, current)).then(function (uri) {
+                        current();
+                        var query = { type: "video", title: title, smart: 0 };
+                        if (uri !== null) { query.uri = uri; }
+                        return get("/playlists", "POST", query, false, scope);
+                    }).then(function (container) {
+                        current();
+                        var rows = listFrom(container, "Metadata");
+                        if (rows.length !== 1) { throw new Error("Plex did not confirm the new playlist. Check Plex before repeating it."); }
+                        return self.getVideoPlaylist(key(rows[0].ratingKey));
+                    }).then(function (playlist) {
+                        current();
+                        if (playlist.title !== title || playlist.smart !== undefined && [false, 0, "0"].indexOf(playlist.smart) < 0) {
+                            throw new Error("Plex did not confirm the new playlist. Check Plex before repeating it.");
+                        }
+                        return self.getVideoPlaylistItems(playlist.ratingKey, 0).then(function (container) {
+                            current();
+                            if (container.totalSize !== (mediaId === null ? 0 : 1) ||
+                                    container.Metadata.length !== container.totalSize ||
+                                    mediaId !== null && String(container.Metadata[0].ratingKey) !== mediaId) {
+                                throw new Error("Plex did not confirm the new playlist. Check Plex before repeating it.");
+                            }
+                            return playlist;
+                        });
+                    });
+                });
+            },
+            renameVideoPlaylist: function (id, title, expectedTitle) {
+                id = key(id);
+                var self = this;
+                return playlistChange(id, function (current) {
+                    title = playlistTitle(title);
+                    if (title === expectedTitle) { throw new Error("Choose a different playlist name."); }
+                    return self.getVideoPlaylist(id).then(function (playlist) {
+                        current();
+                        if (typeof expectedTitle !== "string" || playlist.title !== expectedTitle) {
+                            throw new Error("The playlist changed on Plex. Reload before editing.");
+                        }
+                        return get("/playlists/" + id, "PUT", { "title.value": title, "title.locked": 1 }, true, scope);
+                    }).then(function () {
+                        current();
+                        return self.getVideoPlaylist(id);
+                    }).then(function (playlist) {
+                        current();
+                        if (playlist.title !== title) { throw new Error("Plex did not confirm the playlist change. Reload before editing."); }
+                        return playlist;
+                    });
+                });
+            },
+            deleteVideoPlaylist: function (id, expectedTitle) {
+                id = key(id);
+                var self = this;
+                return playlistChange(id, function (current) {
+                    return self.getVideoPlaylist(id).then(function (playlist) {
+                        current();
+                        if (typeof expectedTitle !== "string" || playlist.title !== expectedTitle) {
+                            throw new Error("The playlist changed on Plex. Reload before editing.");
+                        }
+                        return get("/playlists/" + id, "DELETE", null, true, scope);
+                    }).then(function () {
+                        current();
+                        return self.getVideoPlaylist(id).then(function () {
+                            throw new Error("Plex did not confirm the playlist change. Reload before editing.");
+                        }, function (error) {
+                            current();
+                            if (error.status !== 404 || error.scope !== "server") { throw error; }
+                        });
+                    });
+                });
+            },
+            createMusicPlayQueue: function (machineId, ratingKey, shuffle) {
+                if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || "")) || typeof shuffle !== "boolean") {
+                    return Promise.reject(new Error("Choose a valid server and music shuffle mode."));
+                }
                 return get("/playQueues", "POST", {
-                    type: "video", continuous: 1, shuffle: 0, repeat: 0,
+                    type: "audio", continuous: 0, shuffle: shuffle ? 1 : 0, repeat: 1,
                     uri: "server://" + machineId + "/com.plexapp.plugins.library/library/metadata/" + key(ratingKey)
                 }).then(function (container) {
-                    var id = String(container.playQueueID || "");
-                    var selected = String(container.playQueueSelectedItemID || "");
-                    if (!/^[1-9][0-9]*$/.test(id) || !/^[1-9][0-9]*$/.test(selected)) {
-                        throw new Error("Plex returned an invalid play queue.");
+                    try {
+                        var projection = musicProjection(container);
+                        if (!projection.items.some(function (item) {
+                            return String(item.playQueueItemID) === projection.itemId;
+                        })) { throw new Error("Plex did not return the selected music queue entry."); }
+                        return projection;
                     }
-                    return { id: id, itemId: selected, items: listFrom(container, "Metadata") };
+                    catch (error) {
+                        var id = queueId(container.playQueueID);
+                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                            throw error;
+                        }, function (cleanupError) {
+                            cleanupError.musicQueueCleanupId = id;
+                            throw cleanupError;
+                        });
+                    }
                 });
+            },
+            getMusicPlayQueue: function (id, center, direction) {
+                if (direction !== -1 && direction !== 1) { return Promise.reject(new Error("Choose previous or next track.")); }
+                id = queueId(id);
+                return get("/playQueues/" + id, "GET", {
+                    center: queueId(center), window: 50,
+                    includeBefore: direction < 0 ? 1 : 0, includeAfter: direction > 0 ? 1 : 0
+                }, false, musicRequestScope(id)).then(musicProjection);
+            },
+            shuffleMusicPlayQueue: function (id, enabled) {
+                if (typeof enabled !== "boolean") { return Promise.reject(new Error("Choose shuffle on or off.")); }
+                return get("/playQueues/" + queueId(id) + (enabled ? "/shuffle" : "/unshuffle"), "PUT")
+                    .then(musicProjection);
+            },
+            clearMusicPlayQueue: function (id) {
+                id = queueId(id);
+                return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                    delete musicScopes[id];
+                });
+            },
+            cancelMusicQueueRequests: function (id) {
+                id = queueId(id);
+                if (musicScopes[id]) { musicScopes[id].cancel(); }
             },
             stopTranscode: function (session, kind) {
                 if (kind && ["video", "music"].indexOf(kind) === -1) { return Promise.reject(new Error("Invalid transcode kind.")); }
@@ -1018,6 +1574,24 @@
                     });
                     rest.splice(at === -1 ? 0 : at, 0, results[1][0]);
                     return rest.filter(Boolean);
+                });
+            },
+            getHubItems: function (identifier, start) {
+                if (typeof identifier !== "string" || !identifier.length || identifier.length > 256 ||
+                        /[\x00-\x1f\x7f]/.test(identifier) || !isNonNegativeInteger(start)) {
+                    return Promise.reject(new Error("The requested Home shelf is invalid."));
+                }
+                return get("/hubs/items", "GET", {
+                    identifier: identifier, count: 50,
+                    "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
+                }).then(function (container) {
+                    var hub = container.Hub ? listFrom(container, "Hub")[0] : container;
+                    if (!hub) { throw new Error("This Home shelf is no longer available."); }
+                    var items = listFrom(hub, "Metadata");
+                    var total = isNonNegativeInteger(hub.totalSize) ? hub.totalSize :
+                        isNonNegativeInteger(container.totalSize) ? container.totalSize :
+                            start + items.length + (hub.more && items.length ? 1 : 0);
+                    return { Metadata: items, totalSize: total, offset: start };
                 });
             },
             getSectionItems: function (sectionKey, start, size, filters) {

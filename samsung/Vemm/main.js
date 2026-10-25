@@ -9,6 +9,8 @@
     var holdTimer = null;
     var currentSection = null;
     var homeSections = [];
+    var homeCache = null;
+    var metadataRevision = 0;
     var currentItems = [];
     var currentOffset = 0;
     var viewGeneration = 0;
@@ -21,6 +23,8 @@
     var authGeneration = 0;
     var accountToken = "";
     var accountClient = null;
+    // Online catalogue search is deferred; no production setting enables it.
+    var catalogueSearchEnabled = false;
     var activeProfile = null;
     var linkedProfile = null;
     var servers = [];
@@ -49,7 +53,7 @@
     var scrubRepeats = 0;
     var scrubTimer = null;
     var scrubOwner = null;
-    var playerPanel = "";
+    var playerSeek = null;
     var playerPosition = 0;
     var playerDuration = 0;
     var playerStatsVisible = false;
@@ -60,7 +64,18 @@
     var upNextGeneration = 0;
     var externalCues = null;
     var musicQueue = null;
+    var videoQueue = null;
+    var videoLoading = false;
+    var videoGeneration = 0;
+    var videoShuffle = false;
+    var videoRepeat = "off";
+    var videoCreating = false;
+    var videoRetiring = null;
     var musicLoading = false;
+    var musicCreating = false;
+    var musicRetiring = null;
+    var musicRetirement = null;
+    var musicGeneration = 0;
     var queueShuffle = false;
     var queueRepeat = "off";
     var viewCleanup = null;
@@ -70,7 +85,8 @@
     var subtitleSearchGeneration = 0;
     var preferences = { quality: "original", nextEpisode: "countdown", language: "en", continueAction: "details",
         skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low", subtitleColor: "white",
-        subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false };
+        subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false,
+        adaptiveQuality: false, transcodeAudioVolume: 100, reducedMotion: false, interfaceTextSize: "standard" };
     var preferenceError = "";
     var graphics = null;
     var graphicsFailure = false;
@@ -142,6 +158,7 @@
             window.VemmI18n.setLanguage(preferences.language);
         } catch (error) { preferenceError = errorText(error); }
     }
+    applyInterfacePreferences();
     if (typeof window.Promise !== "function" || typeof window.fetch !== "function" ||
             typeof window.URL !== "function" || typeof window.Blob !== "function") {
         status.textContent = "This browser lacks required network or media APIs. Use a supported Samsung runtime.";
@@ -160,10 +177,18 @@
             translate(error && error.message || "Playback failed. Stop and retry.");
     }
 
+    function applyInterfacePreferences() {
+        if (!document.documentElement) { return; }
+        document.documentElement.setAttribute("lang", preferences.language);
+        document.documentElement.setAttribute("data-reduced-motion", String(preferences.reducedMotion === true));
+        document.documentElement.setAttribute("data-interface-text", preferences.interfaceTextSize || "standard");
+    }
+
     function savePreferences() {
         try {
             window.VemmPreferences.save(window.localStorage, preferences);
             window.VemmI18n.setLanguage(preferences.language);
+            applyInterfacePreferences();
             return true;
         } catch (error) {
             setStatus("Could not save preferences. Check app storage permissions.", true);
@@ -175,7 +200,14 @@
         pendingRestore = null;
         if (restoreView) {
             var controls = Array.prototype.slice.call(screen.querySelectorAll("button, input, select"));
-            navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop });
+            var focusedItem = document.activeElement && document.activeElement.vemmCard;
+            var detailMore = document.querySelector("#screen .detail-more");
+            navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
+                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className,
+                mediaServer: focusedItem && focusedItem.options.serverId || null,
+                catalogueGuid: document.activeElement && document.activeElement.getAttribute ?
+                    document.activeElement.getAttribute("data-catalogue-guid") : null,
+                detailMore: !!detailMore && !detailMore.hidden });
             if (navigation.length > 20) { navigation.shift(); }
         }
         action();
@@ -184,6 +216,7 @@
     function backView() {
         if (player) { stopPlayer(); return; }
         if (cancelServerConnection) { cancelServerConnection(); return; }
+        if (screen.className.indexOf("screen-profile-pin") !== -1) { openProfiles(); return; }
         var previous = navigation.pop();
         if (!previous) {
             if (currentClient && screen.className.indexOf("screen-home") === -1) { loadHome(false); return; }
@@ -267,13 +300,13 @@
             }
             visit(function () {
                 if (item.type === "photo") {
-                    var photos = (siblings || [item]).filter(function (entry) { return entry.type === "photo"; });
-                    openPhotos(photos, Math.max(0, photos.indexOf(item)), client);
+                    var photos = options.photoSource ? siblings : (siblings || [item]).filter(function (entry) { return entry.type === "photo"; });
+                    openPhotos(photos, Math.max(0, photos.indexOf(item)), client, options.photoSource);
                 } else if (item.type === "season") {
                     openListing(item.parentTitle || item.title, function (offset) {
                         return client.getChildren(item.ratingKey, offset);
                     }, client, 0, null, null, item.parentRatingKey ? { showRatingKey: item.parentRatingKey } : null);
-                } else { openDetail(item.ratingKey, client); }
+                } else { openDetail(item.ratingKey, client, item.type === "playlist" && item.playlistType === "video"); }
             });
         });
         node.className = "media-card";
@@ -344,6 +377,7 @@
         }
         if (error.scope === "server" && error.status === 401 && accountClient) {
             currentClient = null;
+            homeCache = null;
             openServers("This server's access grant expired. Select a server again; your Plex account is still linked.");
             return true;
         }
@@ -407,6 +441,9 @@
     function titleTile(parent, item, action, client, caption) {
         var node = button(parent, "", action);
         node.className = "title-tile";
+        if (/^plex:\/\/(?:movie|show)\/[0-9a-f]{24}$/i.test(String(item.guid || ""))) {
+            node.setAttribute("data-catalogue-guid", item.guid.toLowerCase());
+        }
         var art = element("img", "title-tile-art");
         art.alt = "";
         art.src = placeholderArt();
@@ -500,6 +537,28 @@
         if (pendingRestore) {
             var previous = pendingRestore;
             pendingRestore = null;
+            if (previous.catalogueGuid) {
+                var catalogueTile = Array.prototype.filter.call(controls, function (node) {
+                    return node.getAttribute && node.getAttribute("data-catalogue-guid") === previous.catalogueGuid;
+                })[0];
+                if (catalogueTile) {
+                    catalogueTile.focus();
+                    screen.scrollTop = previous.scroll || 0;
+                    return;
+                }
+            }
+            if (previous.mediaKey) {
+                var cards = Array.prototype.filter.call(controls, function (node) { return node.vemmCard; });
+                var retainedCard = cards.filter(function (node) {
+                    return String(node.vemmCard.item.ratingKey) === previous.mediaKey &&
+                        (!previous.mediaServer || node.vemmCard.options.serverId === previous.mediaServer);
+                })[0] || cards[0];
+                if (retainedCard) {
+                    retainedCard.focus();
+                    screen.scrollTop = previous.scroll || 0;
+                    return;
+                }
+            }
             if (controls[previous.focus] && !controls[previous.focus].disabled && !insideHidden(controls[previous.focus])) {
                 controls[previous.focus].focus();
                 screen.scrollTop = previous.scroll || 0;
@@ -599,75 +658,98 @@
         return node;
     }
 
+    function resetBrowsing(safeReturn) {
+        var returning = pendingRestore && pendingRestore.view === "screen screen-" + safeReturn ? pendingRestore : null;
+        homeCache = null;
+        currentClient = null;
+        currentServerId = "";
+        currentItems = [];
+        currentOffset = 0;
+        currentSection = null;
+        homeSections = [];
+        libraryFilters = {};
+        navigation = [];
+        pendingRestore = returning;
+        usingRelay = false;
+    }
+
     function openProfiles(warning) {
         restoreView = function () { openProfiles(); };
         retryView = restoreView;
         stopAuthorization();
         var generation = ++viewGeneration;
         clear(screen);
+        resetBrowsing("profiles");
+        activeProfile = null;
+        accountAudio = { client: null, state: "idle", value: null, error: null };
         page(translate("Who is watching?"), "profiles");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
         setStatus("Loading Plex Home profiles...");
         accountClient.getProfiles().then(function (profiles) {
             if (generation !== viewGeneration) { return; }
+            if (!profiles.length) { throw new Error("Plex returned an invalid profile list."); }
+            linkedProfile = null;
             var identities = group(screen, "", "identity-list");
+            function chooseProfile(profile) {
+                retryView = null;
+                var selection = ++viewGeneration;
+                clear(screen);
+                page(profile.title || "Profile", "profile-pin");
+                var pin = element("input", "remote-input");
+                pin.type = "password";
+                pin.maxLength = 4;
+                pin.setAttribute("inputmode", "numeric");
+                pin.setAttribute("aria-label", translate("Profile PIN"));
+                if (profile.protected) { screen.appendChild(pin); }
+                var retryProfile = null;
+                function selectProfile() {
+                    if (profile.protected && !/^[0-9]{4}$/.test(pin.value)) {
+                        setStatus("Enter the four-digit profile PIN.", true);
+                        return;
+                    }
+                    var request = ++selection;
+                    var generation = viewGeneration;
+                    setStatus("Switching profile...");
+                    if (retryProfile) { retryProfile.disabled = true; }
+                    accountClient.switchProfile(profile.uuid, profile.protected ? pin.value : "")
+                        .then(function (token) {
+                            pin.value = "";
+                            if (generation !== viewGeneration || request !== selection) { return; }
+                            activeProfile = profile;
+                            accountClient = window.PlexApi.createAccountClient({ token: token });
+                            openServers();
+                        }).catch(function (error) {
+                            pin.value = "";
+                            if (generation !== viewGeneration || request !== selection) { return; }
+                            if (error.status === 401 || error.status === 403) {
+                                accountClient.getProfiles().then(function () {
+                                    if (generation === viewGeneration) {
+                                        setStatus("Profile PIN refused. Check the PIN and retry.", true);
+                                    }
+                                }).catch(function (sessionError) {
+                                    if (generation === viewGeneration && !recoverSession(sessionError)) {
+                                        setStatus(errorText(sessionError), true);
+                                    }
+                                });
+                            } else {
+                                setStatus(errorText(error), true);
+                                if (!profile.protected) {
+                                    if (!retryProfile) { retryProfile = button(screen, "Retry", selectProfile); }
+                                    retryProfile.disabled = false;
+                                    retryProfile.focus();
+                                }
+                            }
+                        });
+                }
+                if (profile.protected) { button(screen, "Use this profile", selectProfile); }
+                button(screen, "Back to profiles", openProfiles);
+                focusFirst();
+                if (!profile.protected) { selectProfile(); }
+            }
             profiles.forEach(function (profile) {
                 if (profile.admin) { linkedProfile = profile; }
                 var identity = button(identities, profile.title || profile.username || "Profile", function () {
-                    retryView = null;
-                    var selection = ++viewGeneration;
-                    clear(screen);
-                    page(profile.title || "Profile", "profile-pin");
-                    var pin = element("input", "remote-input");
-                    pin.type = "password";
-                    pin.maxLength = 4;
-                    pin.setAttribute("inputmode", "numeric");
-                    pin.setAttribute("aria-label", translate("Profile PIN"));
-                    if (profile.protected) { screen.appendChild(pin); }
-                    var retryProfile = null;
-                    function selectProfile() {
-                        if (profile.protected && !/^[0-9]{4}$/.test(pin.value)) {
-                            setStatus("Enter the four-digit profile PIN.", true);
-                            return;
-                        }
-                        var request = ++selection;
-                        var generation = viewGeneration;
-                        setStatus("Switching profile...");
-                        if (retryProfile) { retryProfile.disabled = true; }
-                        accountClient.switchProfile(profile.uuid, profile.protected ? pin.value : "")
-                            .then(function (token) {
-                                pin.value = "";
-                                if (generation !== viewGeneration || request !== selection) { return; }
-                                activeProfile = profile;
-                                accountClient = window.PlexApi.createAccountClient({ token: token });
-                                openServers();
-                            }).catch(function (error) {
-                                pin.value = "";
-                                if (generation !== viewGeneration || request !== selection) { return; }
-                                if (error.status === 401 || error.status === 403) {
-                                    accountClient.getProfiles().then(function () {
-                                        if (generation === viewGeneration) {
-                                            setStatus("Profile PIN refused. Check the PIN and retry.", true);
-                                        }
-                                    }).catch(function (sessionError) {
-                                        if (generation === viewGeneration && !recoverSession(sessionError)) {
-                                            setStatus(errorText(sessionError), true);
-                                        }
-                                    });
-                                } else {
-                                    setStatus(errorText(error), true);
-                                    if (!profile.protected) {
-                                        if (!retryProfile) { retryProfile = button(screen, "Retry", selectProfile); }
-                                        retryProfile.disabled = false;
-                                        retryProfile.focus();
-                                    }
-                                }
-                            });
-                    }
-                    if (profile.protected) { button(screen, "Use this profile", selectProfile); }
-                    button(screen, "Back to profiles", openProfiles);
-                    focusFirst();
-                    if (!profile.protected) { selectProfile(); }
+                    chooseProfile(profile);
                 }, true);
                 identity.className = "identity-choice";
                 identity.setAttribute("data-initial", (profile.title || profile.username || "P").slice(0, 1).toUpperCase());
@@ -675,7 +757,12 @@
                 profileAvatar(identity, profile, accountClient);
             });
             var actions = group(screen, "", "page-actions");
-            button(actions, "Use linked account", function () { activeProfile = linkedProfile; openServers(); });
+            if (linkedProfile) {
+                button(actions, "Use linked account", function () {
+                    if (linkedProfile.protected) { chooseProfile(linkedProfile); }
+                    else { activeProfile = linkedProfile; openServers(); }
+                });
+            }
             button(actions, "Sign out", signOut);
             if (typeof warning === "string" && warning) { setStatus(warning, true); }
             else { setStatus("Select the Plex identity to use. Protected profiles require their PIN."); }
@@ -684,7 +771,6 @@
             if (generation !== viewGeneration) { return; }
             if (recoverSession(error)) { return; }
             button(screen, "Retry profiles", openProfiles);
-            button(screen, "Use linked account", openServers);
             button(screen, "Sign out", signOut);
             setStatus(errorText(error), true);
             focusFirst();
@@ -701,15 +787,10 @@
         stopAuthorization();
         accountToken = "";
         accountClient = null;
+        resetBrowsing();
         activeProfile = null;
         linkedProfile = null;
         servers = [];
-        currentClient = null;
-        currentServerId = "";
-        currentItems = [];
-        currentSection = null;
-        usingRelay = false;
-        navigation = [];
         restoreView = null;
         addConnectForm("");
         if (storageError) { setStatus("The saved session could not be deleted. Clear this app's data on the TV before leaving it unattended.", true); }
@@ -723,8 +804,13 @@
         cancelServerConnection = null;
         var generation = ++viewGeneration;
         clear(screen);
+        resetBrowsing("servers");
+        servers = [];
         page(translate("Choose a server"), "servers");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
+        if (catalogueSearchEnabled) {
+            button(screen, "Search Plex catalogue", function () { visit(function () { openSearch(""); }); });
+        }
         setStatus("Discovering your Plex Media Servers...");
         accountClient.getServers().then(function (result) {
             if (generation !== viewGeneration) { return; }
@@ -1098,6 +1184,145 @@
         });
     }
 
+    function homeProfileKey() {
+        var profile = activeProfile || linkedProfile;
+        return String(profile && (profile.uuid || profile.id) || "");
+    }
+
+    function openHomeLayout(sections, hubs) {
+        var api = window.VemmHomeLayout;
+        var client = currentClient;
+        var server = currentServerId;
+        var profile = homeProfileKey();
+        var layout;
+        function owned() {
+            return currentClient === client && currentServerId === server && homeProfileKey() === profile;
+        }
+        function draw(focusIndex) {
+            viewGeneration += 1;
+            clear(screen);
+            resetImages();
+            page(translate("Customize Home"), "personalization");
+            restoreView = function () { draw(focusIndex); };
+            retryView = restoreView;
+            screen.appendChild(element("p", "help-text",
+                translate("Optional, on this TV only, for this server and profile. Back discards unsaved changes. New shelves follow your saved order. Reset restores server defaults.")));
+            if (!owned() || !api.scoped(server, profile)) {
+                retryView = null;
+                setStatus("Home customization requires a verified server and profile.", true);
+                button(screen, "Back", backView);
+                focusFirst();
+                return;
+            }
+            if (!layout) {
+                try { layout = api.arrange(hubs, api.load(window.localStorage, server, profile)); }
+                catch (error) {
+                    setStatus("Home customization could not be loaded. Retry or reset all Home layouts.", true);
+                    button(screen, "Reset all Home layouts", function () {
+                        try { api.resetAll(window.localStorage); }
+                        catch (resetError) { setStatus("Could not reset Home layouts. Check app storage permissions.", true); return; }
+                        openHomeLayout(sections, hubs);
+                    });
+                    button(screen, "Back", backView);
+                    focusFirst();
+                    return;
+                }
+            }
+            function repaint() {
+                var controls = Array.prototype.slice.call(screen.querySelectorAll("button"));
+                draw(controls.indexOf(document.activeElement));
+            }
+            var hero = button(screen, translate("Featured title: {state}", { state: translate(layout.hero ? "On" : "Off") }), function () {
+                layout.hero = !layout.hero;
+                repaint();
+            });
+            hero.setAttribute("aria-pressed", String(layout.hero));
+            layout.entries.forEach(function (entry, index) {
+                var row = group(screen, entry.hub.title || translate("Plex shelf"));
+                if (!entry.id) {
+                    row.appendChild(element("p", "help-text", translate("This shelf has no unique stable identifier and stays visible.")));
+                    return;
+                }
+                var hidden = layout.hidden.indexOf(entry.id) !== -1;
+                var toggle = button(row, translate(hidden ? "Show {shelf}" : "Hide {shelf}",
+                    { shelf: entry.hub.title || translate("Plex shelf") }), function () {
+                    if (hidden) { layout.hidden.splice(layout.hidden.indexOf(entry.id), 1); }
+                    else { layout.hidden.push(entry.id); }
+                    repaint();
+                });
+                toggle.setAttribute("aria-pressed", String(!hidden));
+                function move(direction) {
+                    var target = index + direction;
+                    var other = layout.entries[target];
+                    layout.entries[target] = entry;
+                    layout.entries[index] = other;
+                    // Keep focus on the moved shelf's same action, not its former neighbour.
+                    draw();
+                    var rows = screen.querySelectorAll(".menu-group");
+                    var actions = rows[target].querySelectorAll("button");
+                    var action = actions[direction < 0 ? 1 : 2];
+                    (action.disabled ? actions[0] : action).focus();
+                }
+                button(row, translate("Move {shelf} up", { shelf: entry.hub.title || translate("Plex shelf") }),
+                    function () { move(-1); }).disabled = index === 0 || !layout.entries[index - 1].id;
+                button(row, translate("Move {shelf} down", { shelf: entry.hub.title || translate("Plex shelf") }),
+                    function () { move(1); }).disabled = index === layout.entries.length - 1 || !layout.entries[index + 1].id;
+            });
+            function saveHome() {
+                retryView = saveHome;
+                if (!owned()) { setStatus("Home customization requires a verified server and profile.", true); return; }
+                var order = layout.entries.filter(function (entry) { return entry.id; }).map(function (entry) { return entry.id; });
+                try {
+                    api.save(window.localStorage, server, profile, { hero: layout.hero, order: order,
+                        hidden: layout.hidden.filter(function (id) { return order.indexOf(id) !== -1; }) });
+                } catch (error) { setStatus("Could not save Home. Check app storage permissions and retry.", true); return; }
+                backView();
+            }
+            function resetHome() {
+                retryView = resetHome;
+                if (!owned()) { setStatus("Home customization requires a verified server and profile.", true); return; }
+                try { api.reset(window.localStorage, server, profile); }
+                catch (error) { setStatus("Could not reset Home layouts. Check app storage permissions.", true); return; }
+                backView();
+            }
+            button(screen, "Save Home", saveHome);
+            button(screen, "Reset this Home", resetHome);
+            button(screen, "Back", backView);
+            setStatus("");
+            focusFirst();
+            var controls = screen.querySelectorAll("button");
+            if (controls[focusIndex] && !controls[focusIndex].disabled) { controls[focusIndex].focus(); }
+        }
+        draw();
+    }
+
+    function rememberHome(sections, hubs) {
+        var fields = ["ratingKey", "type", "title", "summary", "thumb", "art", "grandparentTitle",
+            "grandparentThumb", "grandparentArt", "parentTitle", "parentIndex", "index", "year",
+            "contentRating", "duration", "viewOffset", "viewCount", "leafCount", "viewedLeafCount"];
+        var remaining = 200;
+        var snapshot = {
+            sections: sections.slice(0, 100).map(function (section) {
+                return { key: section.key, type: section.type, title: section.title };
+            }),
+            hubs: hubs.slice(0, 20).map(function (hub) {
+                var metadata = (Array.isArray(hub.Metadata) ? hub.Metadata : []).slice(0, Math.min(12, remaining));
+                remaining -= metadata.length;
+                return { title: hub.title, hubIdentifier: hub.hubIdentifier, librarySectionID: hub.librarySectionID,
+                    size: hub.size, more: hub.more, Metadata: metadata.map(function (item) {
+                        var cached = {};
+                        fields.forEach(function (field) {
+                            if (typeof item[field] === "string" || typeof item[field] === "number") { cached[field] = item[field]; }
+                        });
+                        return cached;
+                    }) };
+            })
+        };
+        homeCache = JSON.stringify(snapshot).length <= 256 * 1024 ? {
+            client: currentClient, profile: homeProfileKey(), expires: Date.now() + 300000, snapshot: snapshot
+        } : null;
+    }
+
     function loadHome(showConnectOnError) {
         restoreView = function () { loadHome(showConnectOnError); };
         retryView = restoreView;
@@ -1110,10 +1335,27 @@
             currentClient.getHomeHubs()
         ]).then(function (result) {
             if (generation !== viewGeneration) { return; }
+            rememberHome(result[0], result[1]);
             renderHome(result[0], result[1]);
         }).catch(function (error) {
             if (generation !== viewGeneration) { return; }
             if (accountClient && recoverSession(error)) { return; }
+            if (!showConnectOnError && error.code !== "cancelled" && (!error.status || error.status >= 500) &&
+                    homeCache && homeCache.client === currentClient && homeCache.profile === homeProfileKey() &&
+                    Date.now() < homeCache.expires) {
+                renderHome(homeCache.snapshot.sections, homeCache.snapshot.hubs);
+                button(screen, "Retry", function () { loadHome(false); }).id = "home-retry";
+                setStatus("Cached Home: limited recent metadata, up to five minutes old. Actions still require a reachable server. Select Retry to reconnect.");
+                return;
+            }
+            homeCache = null;
+            if (/screen-(home|detail|library|listing|search)/.test(screen.className)) {
+                clear(screen);
+                resetImages();
+                page("Home", "home");
+                if (accountClient) { button(screen, "Choose a server", openServers); }
+                button(screen, "Settings", function () { visit(openSettings); });
+            }
             if (showConnectOnError) {
                 currentClient = null;
                 addConnectForm(errorText(error));
@@ -1132,6 +1374,7 @@
         clear(screen);
         resetImages();
         restoreView = function () { loadHome(false); };
+        retryView = restoreView;
         currentSection = null;
         homeSections = sections;
         screen.className = "screen screen-home";
@@ -1149,7 +1392,25 @@
             return !favorites || hub.librarySectionID === undefined ||
                 favorites.indexOf(String(hub.librarySectionID)) !== -1;
         });
-        var features = window.VemmHomeHero.pick(visibleHubs, 8);
+        var homeLayout = null;
+        var layoutError = false;
+        if (window.VemmHomeLayout) {
+            try {
+                homeLayout = window.VemmHomeLayout.arrange(visibleHubs,
+                    window.VemmHomeLayout.load(window.localStorage, currentServerId, homeProfileKey()));
+            } catch (error) { layoutError = true; }
+            var customize = button(screen.querySelector(".home-utilities"), "Customize Home", function () {
+                restoreView = function () {
+                    renderHome(sections, hubs);
+                    screen.querySelector(".home-utilities").hidden = false;
+                    screen.querySelector("#customize-home").focus();
+                };
+                visit(function () { openHomeLayout(sections, hubs); });
+            });
+            customize.id = "customize-home";
+        }
+        if (homeLayout) { visibleHubs = homeLayout.hubs; }
+        var features = homeLayout && !homeLayout.hero ? [] : window.VemmHomeHero.pick(visibleHubs, 8);
         if (features.length) {
             var featuredIndex = 0;
             var featured = features[0];
@@ -1225,7 +1486,9 @@
         var hubPanel = element("section", "content-panel home-shelves");
         hubPanel.setAttribute("aria-label", translate("Plex shelves"));
         if (!visibleHubs.length) {
-            hubPanel.appendChild(element("p", "empty-state", translate("No Home shelves were returned.")));
+            hubPanel.appendChild(element("p", "empty-state", translate(hubs.length ?
+                "No visible Home shelves. Use Account, then Customize Home or Settings to restore shelves." :
+                "No Home shelves were returned.")));
         }
         visibleHubs.forEach(function (hub) {
             var deck = !!(window.VemmItemMenu && window.VemmItemMenu.isDeckHub(hub));
@@ -1237,10 +1500,24 @@
             metadata.slice(0, 12).forEach(function (item) {
                 if (item.ratingKey) { card(row, item, currentClient, null, { deck: deck, shelf: true }); }
             });
+            if (metadata.length > 12 || hub.hubIdentifier &&
+                    (metadata.length >= 12 || hub.more || Number(hub.size) > metadata.length)) {
+                button(row, "See all", function () {
+                    var client = currentClient;
+                    restoreView = function () { renderHome(sections, hubs); };
+                    visit(function () {
+                        openListing(hub.title || "Plex shelf", function (offset) {
+                            if (hub.hubIdentifier) { return client.getHubItems(hub.hubIdentifier, offset); }
+                            return Promise.resolve({ Metadata: metadata, totalSize: metadata.length });
+                        }, client);
+                    });
+                });
+            }
             hubPanel.appendChild(hubSection);
         });
         track.appendChild(hubPanel);
-        setStatus(usingRelay ? "Connected through Plex relay (bandwidth limited)." : "");
+        if (layoutError) { setStatus("Home customization could not be loaded. Retry or reset all Home layouts.", true); }
+        else { setStatus(usingRelay ? "Connected through Plex relay (bandwidth limited)." : ""); }
         var restoringFocus = !!pendingRestore;
         focusFirst();
         if (!restoringFocus && document.activeElement === screen.querySelector(".account-control")) {
@@ -1275,6 +1552,13 @@
             if (selected && String(selected.key) === String(section.key)) { choice.setAttribute("aria-current", "page"); }
         });
         button(nav, "Search", function () { visit(openSearch); });
+        if (currentClient.getVideoPlaylists) {
+            button(nav, "Video playlists", function () {
+                visit(function () {
+                    openSavedPlaylists(currentClient);
+                });
+            });
+        }
         header.appendChild(nav);
         screen.appendChild(header);
         var utilities = element("div", "home-utilities");
@@ -1284,7 +1568,9 @@
         }, false, "refresh");
         button(utilities, "Live TV and DVR", function () { visit(openTelevision); }, false, "television");
         if (accountClient) { button(utilities, "Watchlist", function () { visit(function () { catalogueUi().watchlist(); }); }); }
-        if (accountClient) { button(utilities, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); }); }
+        if (catalogueSearchEnabled && accountClient) {
+            button(utilities, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); });
+        }
         button(utilities, "Change server", function () {
             currentClient = null;
             currentServerId = "";
@@ -1304,6 +1590,41 @@
         });
     }
 
+    var photoLibraryTotal = 0;
+    function photoLibrarySource() {
+        if (!currentSection || currentSection.type !== "photo" || !photoLibraryTotal) { return null; }
+        var section = currentSection.key;
+        var client = currentClient;
+        var filters = JSON.parse(JSON.stringify(libraryFilters));
+        return { start: currentOffset - currentItems.length, total: photoLibraryTotal, load: function (start) {
+            return client.getSectionItems(section, start, 50, filters).then(function (page) {
+                return { Metadata: page.items, offset: page.offset, totalSize: page.totalSize };
+            });
+        } };
+    }
+
+    function sectionRestorer(section) {
+        var items = currentItems.slice();
+        var offset = currentOffset;
+        var filters = JSON.parse(JSON.stringify(libraryFilters));
+        var photoTotal = photoLibraryTotal;
+        var retainedRevision = metadataRevision;
+        return function () {
+            var refresh = retainedRevision !== metadataRevision;
+            var start = offset - items.length;
+            if (refresh && pendingRestore && pendingRestore.mediaKey) {
+                items.some(function (item, index) {
+                    if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
+                    start += Math.floor(index / 50) * 50;
+                    return true;
+                });
+            }
+            openSection(section, { items: refresh ? [] : items.slice(), offset: refresh ? start : offset,
+                filters: JSON.parse(JSON.stringify(filters)), photoTotal: photoTotal, refresh: refresh });
+            if (refresh) { loadNextPage(); }
+        };
+    }
+
     function openSection(section, saved) {
         viewGeneration += 1;
         itemsLoading = false;
@@ -1311,12 +1632,10 @@
         currentItems = saved ? saved.items : [];
         currentOffset = saved ? saved.offset : 0;
         libraryFilters = saved ? saved.filters : {};
+        photoLibraryTotal = saved && saved.photoTotal || 0;
         clear(screen);
         resetImages();
-        restoreView = function () {
-            openSection(section, { items: currentItems.slice(), offset: currentOffset,
-                filters: JSON.parse(JSON.stringify(libraryFilters)) });
-        };
+        restoreView = sectionRestorer(section);
         retryView = function () { loadNextPage(); };
         page(section.title || "Library", "library");
         browseHeader(section);
@@ -1331,7 +1650,10 @@
         var list = element("div", "item-list");
         list.id = "item-list";
         screen.appendChild(list);
-        currentItems.forEach(function (item) { card(list, item, currentClient, currentItems); });
+        var photoSource = photoLibrarySource();
+        currentItems.forEach(function (item) {
+            card(list, item, currentClient, currentItems, { photoSource: photoSource });
+        });
         var previousPage = button(screen, "Previous page", function () {
             var start = Math.max(0, currentOffset - currentItems.length - 50);
             openSection(section, { items: [], offset: start, filters: libraryFilters });
@@ -1344,7 +1666,8 @@
         var back = button(screen, "Back to Home", backView);
         back.id = "home-back";
         var restoringFocus = !!pendingRestore;
-        focusFirst();
+        if (saved && saved.refresh && pendingRestore) { focusLoading(); }
+        else { focusFirst(); }
         sectionLandingFocus = null;
         if (!restoringFocus && document.activeElement === screen.querySelector(".account-control")) {
             // Hold focus on this library's tab while titles load, then hand it to the first title.
@@ -1371,6 +1694,7 @@
             currentItems = currentItems.concat(page.items);
             if (currentItems.length > 200) { currentItems = currentItems.slice(-200); }
             currentOffset = page.offset + page.items.length;
+            if (section.type === "photo") { photoLibraryTotal = page.totalSize; }
             document.getElementById("previous-page").disabled = currentOffset <= currentItems.length;
             var list = document.getElementById("item-list");
             var focused = document.activeElement;
@@ -1378,8 +1702,9 @@
             clear(list);
             resetImages();
             var restored = null;
+            var photoSource = photoLibrarySource();
             currentItems.forEach(function (item) {
-                var control = card(list, item, currentClient, currentItems);
+                var control = card(list, item, currentClient, currentItems, { photoSource: photoSource });
                 if (focusedKey === String(item.ratingKey)) { restored = control; }
             });
             if (focusedKey) {
@@ -1395,6 +1720,8 @@
                 document.getElementById("home-back").focus();
             }
             setStatus(translate("{loaded} of {total} items loaded. Showing the latest {shown}.", { loaded: currentOffset, total: page.totalSize, shown: currentItems.length }));
+            restoreView = sectionRestorer(section);
+            if (pendingRestore) { focusFirst(); }
         }).catch(function (error) {
             if (generation !== viewGeneration) {
                 return;
@@ -1407,12 +1734,17 @@
 
     function openListing(title, loader, client, offset, retained, cached, navigation) {
         var generation = ++viewGeneration;
+        var retainedRevision = metadataRevision;
         clear(screen);
         viewClients.push(client);
         resetImages();
         retryView = function () { openListing(title, loader, client, offset, retained, null, navigation); };
         function addShowAction() {
-            if (!navigation || !navigation.showRatingKey) { return; }
+            if (!navigation) { return; }
+            if (navigation.playlists) {
+                button(screen, "Create playlist", function () { visit(function () { openPlaylistName(null, client, null); }); });
+            }
+            if (!navigation.showRatingKey) { return; }
             button(screen, "Go to show", function () {
                 visit(function () { openDetail(navigation.showRatingKey, client); });
             });
@@ -1426,13 +1758,30 @@
             if (generation !== viewGeneration) { return; }
             var items = retained.concat(container.Metadata || []).slice(-200);
             restoreView = function () {
-                openListing(title, loader, client, offset, retained, container, navigation);
+                if (retainedRevision === metadataRevision) {
+                    openListing(title, loader, client, offset, retained, container, navigation);
+                    return;
+                }
+                var start = offset;
+                if (pendingRestore && pendingRestore.mediaKey) {
+                    items.some(function (item, index) {
+                        if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
+                        start = next - items.length + Math.floor(index / 50) * 50;
+                        return true;
+                    });
+                }
+                openListing(title, loader, client, start, [], null, navigation);
             };
             var list = element("div", "item-list");
             screen.appendChild(list);
             if (!items.length) { list.appendChild(element("p", "empty-state", translate("No available items in this view."))); }
-            items.forEach(function (item) { if (item.ratingKey) { card(list, item, client, items); } });
             var next = offset + (container.Metadata || []).length;
+            var photoSource = items.length && items.every(function (item) {
+                return item.type === "photo" || item.type === "photoalbum";
+            }) ? { start: next - items.length, total: container.totalSize === undefined ? next : container.totalSize, load: loader } : null;
+            items.forEach(function (item) {
+                if (item.ratingKey) { card(list, item, client, items, { photoSource: photoSource }); }
+            });
             if (container.totalSize > next && next > offset) {
                 button(screen, "Load more", function () {
                     openListing(title, loader, client, next, items, null, navigation);
@@ -1481,15 +1830,17 @@
             var types = container.Meta && container.Meta.Type || [];
             var type = types.filter(function (entry) { return entry.active; })[0] || types[0] || {};
             var sorting = group(screen, translate("Sort"), "selection-list");
-            (type.Sort || []).forEach(function (sort) {
+            (type.Sort || []).forEach(function (entry) {
+                var sort = window.VemmSmartPlaylists.sortChoice(entry);
                 ["asc", "desc"].forEach(function (direction) {
+                    var sortKey = direction === "desc" ? sort.descending : sort.ascending;
+                    if (sortKey === null) { return; }
                     var choice = button(sorting, translate(sort.title || sort.key) + " / " +
                         translate(direction === "asc" ? "Ascending" : "Descending"), function () {
-                        selected.sort = direction === "desc" && sort.descKey ? sort.descKey : sort.key + ":" + direction;
+                        selected.sort = sortKey;
                         openSection(section, { items: [], offset: 0, filters: selected });
                         loadNextPage();
                     }, true, "sort-" + direction);
-                    var sortKey = direction === "desc" && sort.descKey ? sort.descKey : sort.key + ":" + direction;
                     choice.setAttribute("aria-pressed", selected.sort === sortKey ? "true" : "false");
                 });
             });
@@ -1556,18 +1907,28 @@
         });
     }
 
+    function retireSearch(restore) {
+        viewGeneration += 1;
+        pendingRestore = null;
+        cancelViewRequests();
+        resetImages();
+        restoreView = restore;
+        retryView = restore;
+    }
+
     function openSearch(savedQuery) {
         var generation = ++viewGeneration;
         retryView = null;
         clear(screen);
         resetImages();
-        page(translate("Search your servers"), "search");
+        var searchTitle = catalogueSearchEnabled && accountClient ? "Search Plex and your servers" : "Search your servers";
+        page(translate(searchTitle), "search");
         var input = element("input", "remote-input");
         input.type = "search";
         input.maxLength = 200;
         input.value = typeof savedQuery === "string" ? savedQuery : "";
         retryView = function () { openSearch(input.value); };
-        input.setAttribute("aria-label", "Search movies and television");
+        input.setAttribute("aria-label", translate(searchTitle));
         screen.appendChild(input);
         var recents = element("section", "search-recents");
         var results = element("div", "search-results");
@@ -1602,13 +1963,54 @@
             resetImages();
             restoreView = function () { openSearch(query); };
             retryView = restoreView;
-            setStatus("Searching reachable Plex servers...");
-            var targets = servers.length ? servers.slice() : [null];
+            var searchAccount = catalogueSearchEnabled ? accountClient : null;
+            setStatus(searchAccount ? "Searching Plex catalogue and reachable servers..." : "Searching reachable Plex servers...");
+            var targets = servers.length ? servers.slice() : currentClient ? [null] : [];
             var index = 0;
             var active = 0;
             var finished = 0;
             var failures = 0;
             var shown = 0;
+            var localShown = 0;
+            var libraryLimit = searchAccount ? 170 : 200;
+            var catalogueDone = !searchAccount;
+            function finish() {
+                if (searchGeneration !== viewGeneration || finished !== targets.length || !catalogueDone) { return; }
+                if (!shown && !failures && !results.querySelector(".empty-state")) {
+                    results.appendChild(element("p", "empty-state", translate("No matching media found.")));
+                }
+                if (failures) { button(results, "Retry", search); }
+                setStatus(failures ? "Some search sources could not be reached. Retry your search." :
+                    localShown >= libraryLimit || shown >= 200 ? "Result limit reached. Refine your search for more." :
+                        shown ? "Search complete." : "No matching media found.", failures > 0);
+                if (pendingRestore) { focusFirst(); }
+            }
+            if (searchAccount) {
+                var catalogueResults = group(results, translate("Plex catalogue"), "online-search-results");
+                var catalogueRow = group(catalogueResults, "", "catalogue-grid");
+                Promise.resolve().then(function () {
+                    if (searchGeneration !== viewGeneration) { return; }
+                    return searchAccount.searchCatalogue(query).then(function (items) {
+                        if (searchGeneration !== viewGeneration) { return; }
+                        items.slice(0, 30).forEach(function (item) {
+                            titleTile(catalogueRow, item, function () {
+                                visit(function () { catalogueUi().item(item); });
+                            }, null, item.year ? String(item.year) : "");
+                            shown += 1;
+                        });
+                        if (!items.length) {
+                            catalogueRow.appendChild(element("p", "empty-state", translate("No matching media found.")));
+                        }
+                    });
+                }).catch(function (error) {
+                    if (searchGeneration !== viewGeneration) { return; }
+                    failures += 1;
+                    catalogueRow.appendChild(element("p", "inline-error", errorText(error)));
+                }).then(function () {
+                    catalogueDone = true;
+                    finish();
+                });
+            }
             function pump() {
                 while (active < 2 && index < targets.length) {
                     (function (server) {
@@ -1623,28 +2025,34 @@
                             return client.search(query).then(function (container) {
                                 if (searchGeneration !== viewGeneration) { return; }
                                 (container.Hub || []).forEach(function (hub) {
+                                    if (localShown >= libraryLimit) { return; }
                                     if (hub.type === "actor" || hub.type === "director") {
+                                        var matches = (hub.Directory || []).slice(0, Math.max(0, Math.min(50, libraryLimit - localShown)));
+                                        if (!matches.length) { return; }
                                         var people = element("section", "people-results");
                                         people.appendChild(element("h3", "", hub.title || "Cast and crew"));
-                                        (hub.Directory || []).slice(0, Math.max(0, Math.min(50, 200 - shown))).forEach(function (person) {
+                                        matches.forEach(function (person) {
                                             button(people, person.tag || "Person", function () {
                                                 visit(function () { openPerson(person, client); });
                                             }, true);
                                             shown += 1;
+                                            localShown += 1;
                                         });
                                         results.appendChild(people);
                                         return;
                                     }
                                     var items = (hub.Metadata || []).filter(function (item) {
-                                        return ["movie", "show", "season", "episode", "collection", "artist", "album", "track", "photo", "photoalbum"].indexOf(item.type) !== -1;
+                                       return ["movie", "show", "season", "episode", "clip", "collection", "artist", "album", "track", "photo", "photoalbum"].indexOf(item.type) !== -1 ||
+                                           item.type === "playlist" && item.playlistType === "video";
                                     });
                                     if (!items.length) { return; }
                                     var shelf = element("section", "shelf");
                                     shelf.appendChild(element("h3", "", (server ? server.name + " / " : "") + hub.title));
                                     var row = element("div", "shelf-row");
                                     shelf.appendChild(row);
-                                    items.slice(0, Math.max(0, Math.min(50, 200 - shown))).forEach(function (item) {
-                                        card(row, item, client); shown += 1;
+                                    items.slice(0, Math.max(0, Math.min(50, libraryLimit - localShown))).forEach(function (item) {
+                                        card(row, item, client, null, { serverId: server ? server.id : currentServerId });
+                                        shown += 1; localShown += 1;
                                     });
                                     results.appendChild(shelf);
                                 });
@@ -1658,17 +2066,14 @@
                             active -= 1;
                             finished += 1;
                             if (searchGeneration !== viewGeneration) { return; }
-                            if (finished === targets.length) {
-                                if (!shown && !failures) { results.appendChild(element("p", "empty-state", translate("No matching media found."))); }
-                                setStatus(failures ? "Some servers could not be searched. Retry or change server." :
-                                    shown >= 200 ? "Showing 200 results. Refine your search for more." :
-                                        results.firstChild ? "Search complete." : "No matching media found.", failures > 0);
-                            } else { pump(); }
+                            if (finished === targets.length) { finish(); }
+                            else { pump(); }
                         });
                     }(targets[index++]));
                 }
             }
             pump();
+            if (!targets.length && !searchAccount) { setStatus("Choose a server or link a Plex account to search.", true); }
         }
         button(screen, "Search", search);
         button(screen, "Back", backView);
@@ -1677,16 +2082,21 @@
         input.addEventListener("keydown", function (event) {
             if (event.keyCode === 13) { event.preventDefault(); search(); }
         });
-        input.addEventListener("input", function () { if (!input.value.trim()) { clear(results); } renderRecents(); });
+        input.addEventListener("input", function () {
+            retireSearch(function () { openSearch(input.value); });
+            clear(results);
+            renderRecents();
+            setStatus("");
+        });
         restoreView = function () { openSearch(input.value); };
         renderRecents();
         setStatus("");
-        focusFirst();
-        if (typeof savedQuery === "string" && savedQuery) { search(); }
+        if (typeof savedQuery === "string" && savedQuery) { focusLoading(); search(); }
+        else { focusFirst(); }
     }
 
-    function openDetail(id, client) {
-        retryView = function () { openDetail(id, client); };
+    function openDetail(id, client, videoPlaylist) {
+        retryView = function () { openDetail(id, client, videoPlaylist); };
         restoreView = retryView;
         var generation = ++viewGeneration;
         clear(screen);
@@ -1695,13 +2105,13 @@
         button(screen, "Back", backView);
         setStatus("Loading details...");
         focusLoading();
-        client.getMetadata(id).then(function (item) {
+        (videoPlaylist ? client.getVideoPlaylist(id) : client.getMetadata(id)).then(function (item) {
             if (generation !== viewGeneration) { return; }
             if (!item) { throw new Error("This item is no longer on the server."); }
             renderDetail(item, client);
         }).catch(function (error) {
             if (generation !== viewGeneration) { return; }
-            button(screen, "Retry details", function () { openDetail(id, client); });
+            button(screen, "Retry details", function () { openDetail(id, client, videoPlaylist); });
             setStatus(errorText(error), true);
             focusFirst();
         });
@@ -1741,7 +2151,7 @@
         clear(screen);
         viewClients.push(client);
         resetImages();
-        restoreView = function () { openDetail(item.ratingKey, client); };
+        restoreView = function () { openDetail(item.ratingKey, client, item.type === "playlist" && item.playlistType === "video"); };
         setDetailMode(true);
         screen.className = "screen screen-detail";
         var playable = ["movie", "episode", "clip", "track"].indexOf(item.type) !== -1;
@@ -1878,6 +2288,32 @@
                 "detail-pill detail-primary detail-pill-play";
             detailAction(actions, "Shuffle album", "shuffle", function () { startAlbum(item, client, true); });
         }
+        if (item.type === "playlist" && item.playlistType === "video") {
+            detailAction(actions, "Play playlist", "play", function () { startVideo(item, client, true, false); });
+            detailAction(actions, "Shuffle playlist", "shuffle", function () { startVideo(item, client, true, true); });
+            detailAction(actions, "Playlist items", "list", function () {
+                visit(function () { openVideoPlaylist(item, client, 0); });
+            });
+            if ([true, 1, "1"].indexOf(item.smart) >= 0) {
+                detailAction(more, "Edit smart rules", "edit", function () {
+                    visit(function () { openSmartPlaylist(item, client); });
+                });
+            }
+            detailAction(more, "Rename playlist", "edit", function () {
+                visit(function () { openPlaylistName(null, client, item); });
+            });
+            detailAction(more, "Delete playlist", "delete", function () {
+                confirmPlaylistWrite(translate("Delete playlist {title}?", { title: item.title }), client,
+                    function () { return client.deleteVideoPlaylist(item.ratingKey, item.title); },
+                    function () { openSavedPlaylists(client); },
+                    "This deletes the playlist, not the media. This cannot be undone.");
+            });
+        }
+        if (["movie", "episode", "clip"].indexOf(item.type) !== -1) {
+            detailAction(more, "Add to playlist", "add", function () {
+                visit(function () { openPlaylistPicker(item, client, 0); });
+            });
+        }
         if (item.type === "photo") {
             detailAction(actions, "View photo", "play", function () { visit(function () { openPhotos([item], 0, client); }); }).className =
                 "detail-pill detail-primary detail-pill-play";
@@ -2003,6 +2439,10 @@
         }
         setStatus("Choose Play or Resume to start playback. Browsing does not update watch history.");
         var restoringFocus = !!pendingRestore;
+        if (pendingRestore && pendingRestore.detailMore) {
+            more.hidden = false;
+            moreButton.setAttribute("aria-expanded", "true");
+        }
         focusFirst();
         if (playable && !restoringFocus) { primary.focus(); }
     }
@@ -2034,12 +2474,25 @@
                     return action === "remove" ? client.removeContinueWatching(item.ratingKey) :
                         client.setWatched(item.ratingKey, action === "watched");
                 }).then(function () {
+                    metadataRevision += 1;
+                    homeCache = null;
                     if (generation !== viewGeneration) { return; }
                     setStatus("Plex accepted the change. Refreshing details...");
                     return client.getMetadata(item.ratingKey).then(function (updated) {
                         if (generation !== viewGeneration) { return; }
                         navigation.pop();
                         renderDetail(updated, client);
+                        if (action !== "remove") {
+                            var aggregate = item.type === "show" || item.type === "season";
+                            var count = Number(aggregate ? updated.viewedLeafCount : updated.viewCount) || 0;
+                            var matches = action === "watched" ?
+                                aggregate ? Number(updated.leafCount) > 0 && count >= Number(updated.leafCount) : count > 0 :
+                                count === 0 && (aggregate || !Number(updated.viewOffset));
+                            if (String(updated.ratingKey) !== String(item.ratingKey) || updated.type !== item.type || !matches) {
+                                setStatus("The requested watched state is not yet confirmed by Plex. Refresh details before retrying.", true);
+                                return;
+                            }
+                        }
                         setStatus("Plex accepted the change; details were refreshed.");
                     }).catch(function () {
                         if (generation === viewGeneration) {
@@ -2081,12 +2534,6 @@
         return snapshot.position || playerPosition || 0;
     }
 
-    function closePlayerPanel() {
-        var panel = document.getElementById("player-info") || document.getElementById("chapter-strip");
-        if (panel && panel.parentNode) { panel.parentNode.removeChild(panel); }
-        playerPanel = "";
-    }
-
     function closeUpNext() {
         upNextGeneration += 1;
         var panel = document.getElementById("up-next-panel");
@@ -2101,129 +2548,33 @@
         var progress = document.querySelector && document.querySelector(".playback-progress");
         if (elapsed) { elapsed.textContent = timeLabel(playerPosition); }
         if (remaining) { remaining.textContent = playerRemaining(playerPosition, playerDuration); }
-        var panelPosition = document.querySelector && document.querySelector(".player-info-position");
-        if (panelPosition) {
-            panelPosition.textContent = translate("Playing") + ": " + timeLabel(playerPosition) +
-                " / " + timeLabel(playerDuration);
-        }
         var statsPosition = document.querySelector && document.querySelector(".playback-stats-position");
         if (statsPosition) {
             statsPosition.textContent = translate("Position") + ": " + timeLabel(playerPosition) +
                 " / " + timeLabel(playerDuration);
         }
+        var preview = scrubTarget !== null ? scrubTarget :
+            playerSeek ? (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : playerPosition;
         if (progress && playerDuration > 0) {
-            progress.setAttribute("aria-valuenow", String(Math.round(playerPosition)));
-            progress.setAttribute("aria-valuetext", timeLabel(playerPosition) + " / " + timeLabel(playerDuration));
+            progress.setAttribute("aria-valuenow", String(Math.round(preview)));
+            progress.setAttribute("aria-valuetext", timeLabel(preview) + " / " + timeLabel(playerDuration));
             var fill = progress.querySelector(".playback-progress-fill");
-            if (fill && fill.style) { fill.style.width = Math.min(100, Math.max(0, playerPosition * 100 / playerDuration)) + "%"; }
+            if (fill && fill.style) { fill.style.width = Math.min(100, Math.max(0, preview * 100 / playerDuration)) + "%"; }
         }
     }
+
+    function streamFlag(value) { return value === true || value === 1 || value === "1"; }
 
     function trackBadge(stream) {
         if (!stream) { return ""; }
         var labels = [];
-        if (stream.streamType === 3 && (stream.hearingImpaired || stream.key === "sdh")) { labels.push("SDH"); }
-        else if (stream.streamType === 3 && (stream.key === "cc" || stream.closedCaptions)) { labels.push("CC"); }
-        if (stream.streamType === 2 && (stream.audioDescription === true ||
-                stream.audioDescription === 1 || stream.audioDescription === "1" ||
+        if (Number(stream.streamType) === 3 && (streamFlag(stream.hearingImpaired) || stream.key === "sdh")) { labels.push("SDH"); }
+        else if (Number(stream.streamType) === 3 && (stream.key === "cc" || streamFlag(stream.closedCaptions))) { labels.push("CC"); }
+        if (Number(stream.streamType) === 2 && (streamFlag(stream.audioDescription) ||
                 /audio description/i.test(stream.displayTitle || ""))) { labels.push("AD"); }
-        if (stream.forced === true || stream.forced === 1 || stream.forced === "1") { labels.push(translate("Forced")); }
+        if (streamFlag(stream.forced)) { labels.push(translate("Forced")); }
+        if (streamFlag(stream.default)) { labels.push(translate("Default")); }
         return labels.join(" / ");
-    }
-
-    function openPlayerPanel(name) {
-        if (!player) { return; }
-        cancelHudTimer();
-        var menu = document.getElementById("player-menu");
-        if (menu && menu.parentNode) { menu.parentNode.removeChild(menu); }
-        closePlayerPanel();
-        playerPanel = name;
-        var panel = element("section", "player-overlay-panel " + (name === "chapters" ? "chapter-strip" : "player-info"));
-        panel.id = name === "chapters" ? "chapter-strip" : "player-info";
-        panel.setAttribute("aria-label", translate(name === "chapters" ? "Chapters" : "Info"));
-        if (name === "chapters") {
-            var chapters = playerItem.Chapter || [];
-            var position = currentPlayerPosition();
-            var selected = -1;
-            var focusCard = null;
-            chapters.forEach(function (chapter, index) {
-                var start = Number(chapter.startTimeOffset) || 0;
-                var next = chapters[index + 1];
-                if (position >= start && (!next || position < (Number(next.startTimeOffset) || 0))) { selected = index; }
-            });
-            chapters.forEach(function (chapter, index) {
-                var card = button(panel, "", function () {
-                    player.seek(Number(chapter.startTimeOffset) || 0).then(function () {
-                        closePlayerPanel();
-                        showHud();
-                    }).catch(showPlayerError);
-                }, false, "none");
-                card.className += " chapter-card" + (index === selected ? " chapter-card-current" : "");
-                if (index === selected) { focusCard = card; }
-                card.setAttribute("aria-label", (chapter.tag || translate("Chapter {number}", { number: index + 1 })) +
-                    ", " + chapterTimeLabel(Number(chapter.startTimeOffset) || 0));
-                if (chapter.thumb) {
-                    var image = element("img", "chapter-card-art");
-                    image.alt = "";
-                    image.src = placeholderArt();
-                    image.setAttribute("data-artwork-source", chapter.thumb);
-                    card.appendChild(image);
-                    queueImage(image, playerClient, chapter.thumb, { width: 480, height: 270 });
-                }
-                card.appendChild(element("span", "chapter-card-title",
-                    chapter.tag || translate("Chapter {number}", { number: index + 1 })));
-                card.appendChild(element("span", "chapter-card-time", chapterTimeLabel(Number(chapter.startTimeOffset) || 0)));
-            });
-            if (!focusCard && panel.querySelector("button")) { focusCard = panel.querySelector("button"); }
-            if (!chapters.length) { panel.appendChild(element("p", "", translate("No chapters available."))); }
-        } else {
-            var artwork = element("img", "info-artwork");
-            artwork.alt = "";
-            artwork.src = placeholderArt();
-            panel.appendChild(artwork);
-            if (playerItem.thumb || playerItem.grandparentThumb || playerItem.art) {
-                queueImage(artwork, playerClient, playerItem.thumb || playerItem.grandparentThumb || playerItem.art,
-                    { width: 480, height: 270 });
-            }
-            var details = element("div", "player-info-details");
-            details.appendChild(element("h2", "", playerItem.title || "Untitled"));
-            var context = playerItem.grandparentTitle ?
-                playerItem.grandparentTitle + (playerItem.parentTitle ? " / " + playerItem.parentTitle : "") +
-                    (playerItem.index ? " / " + translate("Episode {number}", { number: playerItem.index }) : "") : "";
-            if (context) { details.appendChild(element("p", "player-info-context", context)); }
-            if (playerItem.summary) { details.appendChild(element("p", "player-info-summary", playerItem.summary)); }
-            var facts = element("div", "player-info-facts");
-            facts.appendChild(element("span", "player-info-position", translate("Playing") + ": " +
-                timeLabel(currentPlayerPosition()) + " / " + timeLabel(Number(playerItem.duration) || playerDuration)));
-            if (playerItem.year) { facts.appendChild(element("span", "", String(playerItem.year))); }
-            if (playerItem.contentRating) { facts.appendChild(element("span", "", playerItem.contentRating)); }
-            if (playerItem.rating) { facts.appendChild(element("span", "", translate("Rating") + ": " + playerItem.rating)); }
-            var current = player.snapshot();
-            var media = (playerItem.Media || [])[playerSettings.mediaIndex] || (playerItem.Media || [])[0] || {};
-            var streams = media.Part && media.Part[0] && media.Part[0].Stream || [];
-            var selection = player.selection();
-            var selectedAudio = streams.filter(function (stream) {
-                return stream.streamType === 2 && String(stream.id) === String(selection.audioId);
-            })[0];
-            facts.appendChild(element("span", "", translate("Video") + ": " +
-                (current.videoCodec || media.videoCodec || translate("Unknown"))));
-            facts.appendChild(element("span", "", translate("Audio") + ": " +
-                (current.audioCodec || selectedAudio && selectedAudio.codec || media.audioCodec || translate("Unknown"))));
-            facts.appendChild(element("span", "", translate("Playback") + ": " + modeName(player.quality().mode)));
-            streams.forEach(function (stream) {
-                var badge = trackBadge(stream);
-                if (badge) { facts.appendChild(element("span", "player-info-badge", badge)); }
-            });
-            details.appendChild(facts);
-            var actions = element("div", "player-info-actions");
-            button(actions, "Close", closePlayerPanel);
-            panel.appendChild(details);
-            panel.appendChild(actions);
-            focusCard = panel.querySelector("button");
-        }
-        screen.appendChild(panel);
-        if (focusCard) { focusCard.focus(); }
-        showHud();
     }
 
     function updateSubtitleTimingLabel() {
@@ -2339,14 +2690,18 @@
         var snapshot = player.snapshot();
         var quality = player.quality();
         var decision = quality.explanation || {};
+        var record = window.VemmFileInfo.supportRecord(quality);
         [
             translate("Playback") + ": " + modeName(quality.mode),
-            translate("Reason") + ": " + reasonName(decision.reason),
-            translate("Fallback") + ": " + fallbackName(decision.fallback),
+            translate("Reason") + ": " + (record.reason ? reasonName(record.reason) : translate("Not reported by server")),
+            translate("Fallback") + ": " + fallbackName(record.fallback),
             translate("Capability evidence") + ": " + capabilityName(decision.capability),
             translate("Position") + ": " + timeLabel(snapshot.position) + " / " + timeLabel(snapshot.duration),
-            translate("Video") + ": " + qualityLabel(quality.mode === "direct" ? quality.source : quality.stream),
-            translate("Quality") + ": " + qualityName(quality.limit),
+            translate("Server-reported output") + ": " + supportOutputLabel(record.serverReportedOutput),
+            translate("Requested ceiling") + ": " + (record.requestedCeiling ?
+                qualityName(record.requestedCeiling) : translate("Not reported by server")),
+            translate("Native output") + ": " + translate("Not measured: decoded video, panel HDR and physical audio output."),
+            translate("Next action") + ": " + supportNextAction(record.nextAction),
             translate("State") + ": " + translate(snapshot.state)
         ].forEach(function (line, index) {
             stats.appendChild(element("p", index === 4 ? "playback-stats-position" : "", line));
@@ -2361,8 +2716,97 @@
         showHud();
     }
 
+    function supportNextAction(action) {
+        return translate({
+            "quality-settings": "To change the requested ceiling, use More > Quality and version. Inspecting this record changes nothing.",
+            "direct-play-settings": "To change Direct Play, stop playback and use Settings. Inspecting this record changes nothing.",
+            "track-settings": "To reduce conversion, review More > Audio and subtitles. Inspecting this record changes nothing.",
+            "server-conversion": "If playback fails, allow server conversion in Settings instead of Force Direct Play, then explicitly retry.",
+            "start-playback": "No active playback. Start a video or song, then use More > Support record for server-reported output.",
+            "verify-output": "No change is needed if playback works. Verify HDR and audio on the TV or receiver; this record does not measure them."
+        }[action]);
+    }
+
+    function supportOutputLabel(media) {
+        return qualityLabel(media && { height: media.height, videoCodec: media.videoCodec,
+            audioCodec: media.audioCodec, bitrate: media.bitrateKbps });
+    }
+
+    function openSupportRecord(event) {
+        var returnFocus = event && event.currentTarget || document.activeElement;
+        var previous = document.getElementById("player-menu");
+        if (previous) { previous.parentNode.removeChild(previous); }
+        cancelHudTimer();
+        var menu = element("section", "player-menu support-record-menu");
+        menu.id = "player-menu";
+        menu.setAttribute("role", "dialog");
+        menu.setAttribute("aria-modal", "true");
+        menu.setAttribute("aria-label", translate("Support record"));
+        var preview = element("div", "");
+        preview.id = "support-record";
+        menu.appendChild(preview);
+        preview.appendChild(element("h2", "", translate("Support record")));
+        preview.appendChild(element("p", "help-text", translate(
+            "Preview only. No uploads. Only allowlisted playback facts are included; no account, server, device or media identity.")));
+        var record = window.VemmFileInfo.supportRecord(player ? player.quality() : null, preferences.quality);
+        preview.appendChild(element("p", "help-text", translate("Requested ceiling") + ": " +
+            (record.requestedCeiling ? qualityName(record.requestedCeiling) : translate("Not reported by server"))));
+        preview.appendChild(element("p", "help-text", translate("Original source") + ": " + supportOutputLabel(record.source)));
+        preview.appendChild(element("p", "help-text", translate("Server-reported output") + ": " +
+            (record.mode ? modeName(record.mode) + " / " : "") + supportOutputLabel(record.serverReportedOutput)));
+        preview.appendChild(element("p", "help-text", translate("Reason") + ": " +
+            (record.reason ? reasonName(record.reason) : translate("Not reported by server"))));
+        preview.appendChild(element("p", "help-text", translate("Next action") + ": " + supportNextAction(record.nextAction)));
+        preview.appendChild(element("p", "help-text", translate("Native output") + ": " +
+            translate("Not measured: decoded video, panel HDR and physical audio output.")));
+        var text = JSON.stringify(record, null, 2);
+        var feedback = element("p", "help-text");
+        feedback.setAttribute("role", "status");
+        var output = element("pre", "support-record-text", text);
+        function dismiss() {
+            if (!screen.contains(menu)) { return; }
+            menu.parentNode.removeChild(menu);
+            if (previous) { screen.appendChild(previous); }
+            if (returnFocus && screen.contains(returnFocus)) { returnFocus.focus(); }
+            else { focusFirst(); }
+            if (player) { showHud(); }
+        }
+        menu.plexDismiss = dismiss;
+        var copy = button(preview, "Copy support record", function () {
+            if (typeof document.execCommand !== "function" || typeof document.createRange !== "function" ||
+                    typeof window.getSelection !== "function") {
+                feedback.textContent = translate("Copy is unavailable on this TV. Read the preview; nothing was exported.");
+                return;
+            }
+            var selection;
+            try {
+                selection = window.getSelection();
+                var range = document.createRange();
+                range.selectNodeContents(output);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                if (document.execCommand("copy") !== true) { throw new Error("copy-denied"); }
+                feedback.textContent = translate("Support record copied.");
+            } catch (error) {
+                feedback.textContent = translate("Copy failed or was denied. Nothing was exported; read the preview instead.");
+            } finally {
+                if (selection) { selection.removeAllRanges(); }
+                copy.focus();
+            }
+        });
+        preview.insertBefore(copy, preview.children[1]);
+        preview.insertBefore(feedback, copy.nextSibling);
+        button(preview, "Scroll record up", function () { output.scrollTop = Math.max(0, output.scrollTop - 160); });
+        preview.appendChild(output);
+        button(preview, "Scroll record down", function () { output.scrollTop += 160; });
+        button(preview, "Close", dismiss);
+        screen.appendChild(menu);
+        copy.focus();
+        if (player) { showHud(); }
+    }
+
     function showUpNext(watchCredits) {
-        if (!player || playerItem.type !== "episode" || !playerClient.nextEpisode) { return null; }
+        if (!player || playerItem.type !== "episode" || !videoQueue && !playerClient.nextEpisode) { return null; }
         closeUpNext();
         var generation = upNextGeneration;
         var panel = element("section", "up-next-card");
@@ -2378,7 +2822,9 @@
         var card = element("div", "up-next-pending", translate("Loading next episode..."));
         panel.appendChild(card);
         screen.appendChild(panel);
-        playerClient.nextEpisode(playerItem).then(function (next) {
+        (videoQueue ? videoQueue.peek(1, true).then(function (candidate) {
+            return candidate && candidate.item;
+        }) : playerClient.nextEpisode(playerItem)).then(function (next) {
             if (generation !== upNextGeneration || !panel.parentNode || !next) { return; }
             clear(card);
             card.className = "up-next-pending";
@@ -2509,8 +2955,10 @@
         var tracks = {
             audioId: settings.audioId,
             subtitleId: settings.subtitleId,
-            paused: snapshot.state === "paused",
-            subtitleSidecar: settings.subtitleSidecar
+            paused: settings.paused,
+            subtitleSidecar: settings.subtitleSidecar,
+            adaptivePolicy: settings.adaptivePolicy,
+            adaptiveDisabled: settings.adaptiveDisabled
         };
         if (settings.overlaySubtitle && externalCues) { tracks.cues = externalCues; }
         stopPlayer(function () { startPlayer(item, client, position, settings.mediaIndex, tracks); });
@@ -2521,7 +2969,6 @@
         setStatus(message, true);
         if (!player) { return; }
         cancelHudTimer();
-        closePlayerPanel();
         var old = document.getElementById("playback-error");
         if (old && old.parentNode) { old.parentNode.removeChild(old); }
         var panel = element("section", "playback-error");
@@ -2574,6 +3021,7 @@
             account: function () { return accountClient; }, screen: screen, view: serviceView,
             generation: function () { return viewGeneration; }, element: element, button: button,
             translate: translate, visit: visit, status: setStatus, focus: focusFirst, confirm: confirmServiceWrite,
+            retire: retireSearch,
             find: findCatalogueItem, group: group, tile: titleTile,
             artwork: function () { return currentClient; }
         });
@@ -2586,8 +3034,16 @@
     function findCatalogueItem(item, options) {
         options = options || {};
         var generation = serviceView(options.title || "Find in my libraries", function () { findCatalogueItem(item, options); });
-        var targets = servers.length ? servers.filter(function (server) { return server.id !== options.exclude; }) : [null];
-        if (!targets.length) { setStatus("No other servers are available to this profile."); return; }
+        var targets = servers.length ? servers.filter(function (server) { return server.id !== options.exclude; }) :
+            currentClient ? [null] : [];
+        if (!targets.length) {
+            var empty = options.exclude ? "No other servers are available to this profile." :
+                "No Plex servers are available to check this title.";
+            screen.appendChild(element("p", "empty-state", translate(empty)));
+            setStatus(empty);
+            focusFirst();
+            return;
+        }
         var index = 0, active = 0, finished = 0, shown = 0, failed = 0;
         function pump() {
             while (active < 2 && index < targets.length) {
@@ -2608,13 +3064,14 @@
                                         return client.findGuid(section.key, item.guid).then(function (items) {
                                             if (generation !== viewGeneration) { return; }
                                             items.slice(0, 200 - shown).forEach(function (match) {
-                                                if (options.labelled) {
+                                                if (options.labelled || server) {
                                                     var media = (match.Media || [])[0] || {};
                                                     screen.appendChild(element("p", "card-meta", [server ? server.name : "",
                                                         section.title, media.videoResolution ? media.videoResolution + (/^[0-9]+$/.test(media.videoResolution) ? "p" : "") : ""]
                                                         .filter(Boolean).join(" / ")));
                                                 }
-                                                card(screen, match, client); shown += 1;
+                                                card(screen, match, client, null, { serverId: server ? server.id : currentServerId });
+                                                shown += 1;
                                             });
                                         });
                                     });
@@ -2642,22 +3099,34 @@
         pump();
     }
 
-    function confirmServiceWrite(title, write, refresh) {
+    function confirmServiceWrite(title, write, refresh, client, description) {
         visit(function () {
             var generation = serviceView(title, refresh, "confirmation");
+            if (client) { viewClients.push(client); }
+            if (description) { screen.appendChild(element("p", "help-text", translate(description))); }
             screen.appendChild(element("p", "help-text", translate("This changes your Plex account or server. Nothing changes until you confirm.")));
+            screen.appendChild(element("p", "help-text",
+                translate("A request already sent to Plex may finish after you leave. Check Plex before repeating it.")));
             var pending = false;
+            function refreshView() {
+                if (generation !== viewGeneration) { return; }
+                navigation.pop();
+                refresh();
+            }
             var confirm = button(screen, "Confirm", function () {
                 if (pending || generation !== viewGeneration) { return; }
                 pending = true; confirm.disabled = true;
                 setStatus("Saving...");
-                Promise.resolve().then(write).then(function () {
+                Promise.resolve().then(function () {
+                    if (generation === viewGeneration) { return write(); }
+                }).then(function () {
                     if (generation !== viewGeneration) { return; }
                     setStatus("Plex accepted the change.");
-                    button(screen, "Refresh", refresh);
+                    button(screen, "Refresh", refreshView);
                 }).catch(function (error) {
                     if (generation !== viewGeneration) { return; }
                     setStatus(translate("The change was not confirmed. Check Plex before retrying.") + " " + errorText(error), true);
+                    button(screen, "Refresh", refreshView);
                 });
             });
             button(screen, "Cancel", backView);
@@ -2666,63 +3135,775 @@
         });
     }
 
-    function openPhotos(items, index, client) {
+    function openPhotos(items, index, client, source) {
         viewGeneration += 1;
         clear(screen);
         viewClients.push(client);
         resetImages();
         screen.className = "screen screen-photos";
-        restoreView = function () { openPhotos(items, index, client); };
+        restoreView = function () { openPhotos(items, index, client, source); };
         try {
             if (!window.URL || !window.URL.createObjectURL) { throw new Error("Photo display is unavailable in this runtime."); }
             var viewer = window.VemmPhotos.create({
-                items: items, index: index, client: client, parent: screen, element: element,
-                button: button, status: setStatus, translate: translate, urls: window.URL, back: backView
+                items: items, index: index, source: source, client: client, parent: screen, element: element,
+                button: button, status: setStatus, translate: translate, urls: window.URL, back: backView,
+                changed: function (pageItems, selected, start, total) {
+                    items = pageItems; index = selected;
+                    if (source) { source = { start: start, total: total, load: source.load }; }
+                }
             });
             viewCleanup = viewer.close;
         } catch (error) { setStatus(errorText(error), true); button(screen, "Back", backView); }
         focusFirst();
     }
 
-    function startAlbum(item, client, shuffle) {
-        if (musicLoading || player || playerClosing) { return; }
+    function validateMusicItem(item, expected, mediaIndex) {
+        if (!item || String(item.ratingKey) !== String(expected) || item.type !== "track") {
+            throw new Error("Plex returned metadata for a different queue item. Reload before playing.");
+        }
+        window.VemmPlayback.plan(item, { mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            profile: directPlayProfile(), directPlay: preferences.directPlay });
+    }
+
+    function startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions) {
+        if (musicLoading || player || playerClosing || document.hidden) { return; }
+        if (musicRetiring) {
+            musicQueuePanel(new Error("The previous music queue still needs cleanup. Retry cleanup before playing again."),
+                function () { releaseMusicQueue(musicRetiring); });
+            return;
+        }
+        if (musicCreating) { setStatus("Wait for the cancelled music queue request to finish.", true); return; }
         musicLoading = true;
+        musicCreating = true;
+        var request = ++musicGeneration;
         var generation = viewGeneration;
+        var cancelled = false;
+        var owned = null;
+        var cleanup = function () {
+            cancelled = true;
+            if (request === musicGeneration) { musicGeneration += 1; musicLoading = false; }
+            if (owned) { releaseMusicQueue(owned); owned = null; }
+        };
+        viewCleanup = cleanup;
+        musicQueuePanel(null, null, cleanup);
         setStatus(translate("Loading music queue..."));
-        client.getTracks(item.ratingKey).then(function (tracks) {
-            if (generation !== viewGeneration || player) { return; }
-            musicQueue = window.VemmQueue.create(tracks);
-            queueShuffle = shuffle;
-            queueRepeat = "off";
-            musicQueue.shuffle(shuffle);
-            return client.getMetadata(musicQueue.current().ratingKey).then(function (track) {
-                if (generation === viewGeneration && !player) { startPlayer(track, client, 0); }
+        client.createMusicPlayQueue(currentServerId, item.ratingKey, shuffle).then(function (projection) {
+            owned = window.VemmQueue.createServer(client, projection);
+            if (cancelled || generation !== viewGeneration || player || document.hidden) { cleanup(); return; }
+            return client.getMetadata(owned.current().ratingKey).then(function (track) {
+                if (cancelled || generation !== viewGeneration || player || document.hidden) {
+                    cleanup(); return;
+                }
+                validateMusicItem(track, owned.current().ratingKey, mediaIndex);
+                musicQueue = owned;
+                owned = null;
+                viewCleanup = null;
+                queueShuffle = shuffle;
+                queueRepeat = "off";
+                startPlayer(track, client, offset || 0, mediaIndex, trackOptions);
             });
         }).catch(function (error) {
-            if (generation === viewGeneration) { musicQueue = null; showPlayerError(error); }
-        }).then(function () { musicLoading = false; });
+            if (error.musicQueueCleanupId) {
+                var id = error.musicQueueCleanupId;
+                musicRetiring = { close: function () { return client.clearMusicPlayQueue(id); } };
+                var retiring = musicRetiring;
+                musicQueuePanel(error, function () { releaseMusicQueue(retiring); });
+                return;
+            }
+            var retirement = owned ? releaseMusicQueue(owned) : Promise.resolve(true);
+            owned = null;
+            return retirement.then(function (released) {
+                if (released && !cancelled && generation === viewGeneration) {
+                    if (viewCleanup === cleanup) { viewCleanup = null; }
+                    musicQueuePanel(error, function () { startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions); });
+                }
+            });
+        }).then(function () {
+            musicCreating = false;
+            if (viewCleanup === cleanup) { viewCleanup = null; }
+            if (request === musicGeneration) { musicLoading = false; }
+        });
+    }
+
+    function standardPlaylist(playlist) {
+        return playlist.smart === undefined || [false, 0, "0"].indexOf(playlist.smart) !== -1;
+    }
+
+    function smartRuleLabel(rule, schema) {
+        if (rule.rules) {
+            return translate(rule.match === "and" ? "Match all conditions" : "Match any condition") +
+                " (" + rule.rules.map(function (child) { return smartRuleLabel(child, schema); }).join("; ") + ")";
+        }
+        var field = schema.fields.filter(function (entry) { return entry.key === rule.field; })[0];
+        var operator = field.operators.filter(function (entry) { return entry.key === rule.operator; })[0];
+        return translate(field.title) + " " + translate(operator.title) + " " + rule.value;
+    }
+
+    function openSmartPlaylist(playlist, client) {
+        var restore = function () { openSmartPlaylist(playlist, client); };
+        var generation = serviceView("Edit smart rules", restore, "smart-playlist");
+        viewClients.push(client);
+        setStatus("Loading this server's smart rules...");
+        client.getSmartVideoPlaylist(playlist.ratingKey).then(function (state) {
+            if (generation !== viewGeneration) { return; }
+            state.client = client;
+            openSmartGroup(state, state.rules.root, null, 0);
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", restore);
+            focusFirst();
+        });
+    }
+
+    function openSmartGroup(state, node, parent, depth) {
+        var restore = function () { openSmartGroup(state, node, parent, depth); };
+        var generation = serviceView("Edit smart rules", restore, "smart-playlist");
+        viewClients.push(state.client);
+        node.rules = node.rules.filter(function (rule) { return !rule.rules || rule.rules.length; });
+        screen.appendChild(element("p", "help-text", state.playlist.title));
+        screen.appendChild(element("p", "help-text", translate("Draft only. Review and confirm to replace the saved rules.")));
+        var match = button(screen, node.match === "and" ? "Match all conditions" : "Match any condition", function () {
+            node.match = node.match === "and" ? "or" : "and";
+            match.textContent = translate(node.match === "and" ? "Match all conditions" : "Match any condition");
+        });
+        var list = group(screen, translate("Conditions"), "selection-list");
+        node.rules.forEach(function (rule, index) {
+            button(list, rule.rules ? translate("Edit group {number}", { number: index + 1 }) :
+                smartRuleLabel(rule, state.schema), function () {
+                visit(function () {
+                    if (rule.rules) { openSmartGroup(state, rule, node, depth + 1); }
+                    else { openSmartCondition(state, node, index); }
+                });
+            }, true);
+        });
+        button(screen, "Add condition", function () {
+            visit(function () { openSmartCondition(state, node, -1); });
+        });
+        if (depth < 4) {
+            button(screen, "Add condition group", function () {
+                var nested = { match: "and", rules: [] };
+                node.rules.push(nested);
+                visit(function () { openSmartGroup(state, nested, node, depth + 1); });
+            });
+        }
+        if (parent) {
+            button(screen, "Remove group", function () {
+                parent.rules.splice(parent.rules.indexOf(node), 1);
+                backView();
+            });
+        } else {
+            button(screen, "Sort", function () { visit(function () { openSmartSort(state); }); });
+            screen.appendChild(element("p", "help-text", state.rules.sort.length ? state.rules.sort.join(", ") : translate("Plex default order")));
+            button(screen, "Result limit", function () { visit(function () { openSmartLimit(state); }); });
+            screen.appendChild(element("p", "help-text", state.rules.limit || translate("No result limit")));
+            button(screen, "Review rule changes", function () {
+                if (generation !== viewGeneration) { return; }
+                try { window.VemmSmartPlaylists.validate(state.rules, state.schema); }
+                catch (error) { setStatus(errorText(error), true); return; }
+                var summary = smartRuleLabel(state.rules.root, state.schema) + "; " +
+                    translate("Sort") + ": " + (state.rules.sort.join(", ") || translate("Plex default order")) + "; " +
+                    translate("Result limit") + ": " + (state.rules.limit || translate("No result limit"));
+                confirmPlaylistWrite(translate("Replace smart rules in {playlist}?", { playlist: state.playlist.title }), state.client,
+                    function () { return state.client.updateSmartVideoPlaylist(state.playlist.ratingKey, state.playlist, state.rules); },
+                    function () { openDetail(state.playlist.ratingKey, state.client, true); }, summary);
+            });
+        }
+        setStatus("Up to 32 conditions, four nested groups deep and five sort fields. Unknown rules are never discarded.");
+        focusFirst();
+    }
+
+    function openSmartCondition(state, node, index, field, operator, draft) {
+        var input;
+        var restore = function () {
+            openSmartCondition(state, node, index, field, operator, input ? input.value : draft);
+        };
+        serviceView("Condition", restore, "smart-condition");
+        viewClients.push(state.client);
+        var existing = index >= 0 ? node.rules[index] : null;
+        if (!field) {
+            state.schema.fields.forEach(function (choice) {
+                button(screen, choice.title, function () { openSmartCondition(state, node, index, choice); }, true);
+            });
+        } else if (!operator) {
+            screen.appendChild(element("p", "help-text", field.title));
+            field.operators.forEach(function (choice) {
+                button(screen, choice.title, function () { openSmartCondition(state, node, index, field, choice); }, true);
+            });
+            button(screen, "Choose another field", function () { openSmartCondition(state, node, index); });
+        } else {
+            screen.appendChild(element("p", "help-text", translate(field.title) + " " + translate(operator.title)));
+            var label = element("label", "setting-row", translate("Condition value"));
+            input = element("input", "remote-input");
+            input.type = "text"; input.maxLength = 512;
+            input.value = draft === undefined ? existing && existing.field === field.key ? existing.value : "" : draft;
+            label.appendChild(input); screen.appendChild(label);
+            screen.appendChild(element("p", "help-text", translate(field.type === "boolean" ? "Use 1 for yes or 0 for no." :
+                field.type === "integer" ? "Enter a number. Commas match multiple values." :
+                field.type === "date" ? "Use Unix seconds or a relative date such as -30d." :
+                    "Enter exact text or a server value. Commas match multiple values.")));
+            button(screen, "Use condition", function () {
+                var rule = { field: field.key, operator: operator.key, value: input.value };
+                var check = JSON.parse(JSON.stringify(state.rules));
+                check.root = { match: "and", rules: [rule] };
+                try {
+                    window.VemmSmartPlaylists.validate(check, state.schema);
+                    var count = 0;
+                    function countRules(group) {
+                        group.rules.forEach(function (entry) { if (entry.rules) { countRules(entry); } else { count += 1; } });
+                    }
+                    countRules(state.rules.root);
+                    if (index < 0 && count >= 32) { throw new Error("Smart playlists support up to 32 editable conditions."); }
+                } catch (error) { setStatus(errorText(error), true); input.focus(); return; }
+                if (index < 0) { node.rules.push(rule); } else { node.rules[index] = rule; }
+                backView();
+            });
+            if (existing) {
+                button(screen, "Remove condition", function () { node.rules.splice(index, 1); backView(); });
+            }
+            button(screen, "Choose another field", function () { openSmartCondition(state, node, index); });
+        }
+        button(screen, "Cancel", backView);
+        setStatus("Nothing changes on Plex while you edit this draft.");
+        if (input && !pendingRestore) { input.focus(); } else { focusFirst(); }
+    }
+
+    function openSmartSort(state) {
+        var restore = function () { openSmartSort(state); };
+        serviceView("Sort", restore, "smart-sort");
+        viewClients.push(state.client);
+        state.rules.sort.forEach(function (sort, index) {
+            button(screen, translate("Remove sort {sort}", { sort: sort }), function () {
+                state.rules.sort.splice(index, 1); openSmartSort(state);
+            });
+        });
+        state.schema.sorts.forEach(function (sort) {
+            ["asc", "desc"].forEach(function (direction) {
+                var expression = direction === "asc" ? sort.ascending : sort.descending;
+                if (expression === null) { return; }
+                button(screen, translate(sort.title) + " / " + translate(direction === "asc" ? "Ascending" : "Descending"), function () {
+                    var names = expression.split(",").map(function (part) { return part.split(":")[0]; });
+                    var proposed = state.rules.sort.filter(function (value) {
+                        return !value.split(",").some(function (part) { return names.indexOf(part.split(":")[0]) !== -1; });
+                    }).concat([expression]);
+                    if (proposed.join(",").split(",").length > 5) {
+                        setStatus("Remove a sort field before adding another.", true); return;
+                    }
+                    state.rules.sort = proposed;
+                    openSmartSort(state);
+                }, true);
+            });
+        });
+        setStatus("Sort fields apply in the order shown. Remove all to use Plex default order.");
+        focusFirst();
+    }
+
+    function openSmartLimit(state, draft) {
+        var input;
+        var restore = function () { openSmartLimit(state, input.value); };
+        serviceView("Result limit", restore, "smart-limit");
+        viewClients.push(state.client);
+        var label = element("label", "setting-row", translate("Result limit"));
+        input = element("input", "remote-input");
+        input.type = "text"; input.maxLength = 6;
+        input.value = draft === undefined ? state.rules.limit || "" : draft;
+        label.appendChild(input); screen.appendChild(label);
+        screen.appendChild(element("p", "help-text", translate("Enter 1 to 100000, or leave empty for no limit.")));
+        button(screen, "Use limit", function () {
+            var value = input.value.trim();
+            if (value && (!/^[1-9][0-9]{0,5}$/.test(value) || Number(value) > 100000)) {
+                setStatus("Enter 1 to 100000, or leave empty for no limit.", true); input.focus(); return;
+            }
+            state.rules.limit = value || null;
+            backView();
+        });
+        button(screen, "Cancel", backView);
+        if (pendingRestore) { focusFirst(); } else { input.focus(); }
+    }
+
+    function confirmPlaylistWrite(title, client, write, refresh, description) {
+        confirmServiceWrite(title, function () {
+            metadataRevision += 1;
+            homeCache = null;
+            return write();
+        }, refresh, client, description);
+    }
+
+    function openSavedPlaylists(client) {
+        openListing(translate("Video playlists"), function (start) { return client.getVideoPlaylists(start); },
+            client, 0, null, null, { playlists: true });
+    }
+
+    function openPlaylistName(item, client, playlist, draft) {
+        var input;
+        var restore = function () { openPlaylistName(item, client, playlist, input.value); };
+        var generation = serviceView(playlist ? "Rename playlist" : "Create playlist", restore, "playlist-name");
+        viewClients.push(client);
+        screen.appendChild(element("p", "help-text", playlist || item ? (playlist || item).title :
+            translate("The playlist starts empty. Add videos from their details.")));
+        var label = element("label", "setting-row", translate("Playlist name"));
+        input = element("input", "remote-input");
+        input.type = "text"; input.maxLength = 128;
+        input.value = draft === undefined ? playlist ? playlist.title : "" : draft;
+        label.appendChild(input); screen.appendChild(label);
+        button(screen, "Continue", function () {
+            if (generation !== viewGeneration) { return; }
+            var title = input.value.trim();
+            if (!title || title.length > 128 || /[\x00-\x1f\x7f]/.test(input.value)) {
+                setStatus("Enter a playlist name of 1 to 128 characters without control characters.", true);
+                input.focus(); return;
+            }
+            if (playlist && title === playlist.title) { setStatus("Choose a different playlist name.", true); return; }
+            var created = null;
+            confirmPlaylistWrite(playlist ?
+                translate("Rename {title} to {playlist}?", { title: playlist.title, playlist: title }) :
+                item ? translate("Create {playlist} with {title}?", { playlist: title, title: item.title }) :
+                    translate("Create empty playlist {playlist}?", { playlist: title }), client,
+            function () {
+                return (playlist ? client.renameVideoPlaylist(playlist.ratingKey, title, playlist.title) :
+                    client.createVideoPlaylist(title, item && item.ratingKey)).then(function (result) { created = result; });
+            }, function () {
+                if (playlist || created) { openDetail((playlist || created).ratingKey, client, true); }
+                else if (item) { openPlaylistPicker(item, client, 0); }
+                else { openSavedPlaylists(client); }
+            });
+        });
+        setStatus("Enter a name, then review the change. Nothing changes until you confirm.");
+        if (pendingRestore) { focusFirst(); } else { input.focus(); }
+    }
+
+    function openPlaylistPicker(item, client, offset) {
+        var restore = function () { openPlaylistPicker(item, client, offset); };
+        var generation = serviceView("Add to playlist", restore, "playlist-picker");
+        viewClients.push(client);
+        screen.appendChild(element("p", "help-text", item.title));
+        button(screen, "Create playlist", function () { visit(function () { openPlaylistName(item, client, null); }); });
+        client.getVideoPlaylists(offset).then(function (container) {
+            if (generation !== viewGeneration) { return; }
+            var rows = container.Metadata;
+            if (!Array.isArray(rows) || rows.length > 50 ||
+                    typeof container.totalSize !== "number" || container.totalSize < offset + rows.length ||
+                    Math.floor(container.totalSize) !== container.totalSize ||
+                    container.offset !== undefined && container.offset !== offset ||
+                    !rows.length && offset < container.totalSize || rows.some(function (playlist) {
+                        return playlist.type !== "playlist" || playlist.playlistType !== "video" ||
+                            !/^[0-9]+$/.test(String(playlist.ratingKey));
+                    })) { throw new Error("Plex returned an invalid video playlist page."); }
+            var choices = group(screen, "", "selection-list");
+            rows.filter(standardPlaylist).forEach(function (playlist) {
+                button(choices, playlist.title || "Playlist", function () {
+                    confirmPlaylistWrite(translate("Add {title} to {playlist}?", { title: item.title, playlist: playlist.title }), client,
+                        function () { return client.addVideoPlaylistItem(playlist.ratingKey, item.ratingKey); },
+                        function () { openVideoPlaylist(playlist, client, 0); });
+                }, true);
+            });
+            if (offset > 0) { button(screen, "Previous page", function () { openPlaylistPicker(item, client, Math.max(0, offset - 50)); }); }
+            if (offset + rows.length < container.totalSize) {
+                button(screen, "Next page", function () { openPlaylistPicker(item, client, offset + rows.length); });
+            }
+            setStatus(choices.children.length ? "Choose a standard video playlist. Nothing changes until you confirm." :
+                "No editable video playlists on this page. Smart playlists use rules.");
+            focusFirst();
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", restore);
+            focusFirst();
+        });
+    }
+
+    function openVideoPlaylist(playlist, client, offset, confirmed) {
+        var generation = ++viewGeneration;
+        clear(screen);
+        viewClients.push(client);
+        resetImages();
+        restoreView = function () { openVideoPlaylist(playlist, client, offset); };
+        page(playlist.title, "listing");
+        setStatus("Loading...");
+        client.getVideoPlaylistItems(playlist.ratingKey, offset).then(function (container) {
+            if (generation !== viewGeneration) { return; }
+            var items = container.Metadata || [];
+            items.forEach(function (item, index) {
+                var row = element("section", "playlist-entry");
+                row.appendChild(element("p", "", String(offset + index + 1) + " · " + item.title));
+                button(row, "Details", function () { visit(function () { openDetail(item.ratingKey, client); }); });
+                if (standardPlaylist(playlist)) {
+                    button(row, "Remove from playlist", function () {
+                        confirmPlaylistWrite(translate("Remove {title} from {playlist}?", { title: item.title, playlist: playlist.title }), client,
+                            function () {
+                                return client.removeVideoPlaylistItem(playlist.ratingKey, item.playlistItemID, item.ratingKey,
+                                    { offset: offset, totalSize: container.totalSize, Metadata: items });
+                            }, function () {
+                                openVideoPlaylist(playlist, client, offset > 0 && items.length === 1 ? Math.max(0, offset - 50) : offset);
+                            });
+                    });
+                }
+                if (standardPlaylist(playlist) && offset + index > 0) {
+                    var moveControl = button(row, "Move to beginning", function () {
+                        var dialog = element("section", "playback-error");
+                        dialog.setAttribute("role", "alertdialog");
+                        dialog.appendChild(element("p", "", translate("Move this playlist entry to the beginning?")));
+                        button(dialog, "Confirm", function () {
+                            clear(dialog);
+                            dialog.appendChild(element("p", "", translate("Confirming playlist order...")));
+                            var expected = items.map(function (entry) { return String(entry.playlistItemID); }).join(",");
+                            client.getVideoPlaylistItems(playlist.ratingKey, offset).then(function (before) {
+                                if (generation !== viewGeneration) { throw new Error("The playlist edit was cancelled."); }
+                                if (before.totalSize !== container.totalSize || (before.Metadata || []).map(function (entry) {
+                                    return String(entry.playlistItemID);
+                                }).join(",") !== expected) { throw new Error("The playlist changed on Plex. Reload before editing."); }
+                                return client.moveVideoPlaylistItem(playlist.ratingKey, item.playlistItemID);
+                            }).then(function () {
+                                return client.getVideoPlaylistItems(playlist.ratingKey, 0);
+                            }).then(function (after) {
+                                if (generation !== viewGeneration) { return; }
+                                if (after.totalSize !== container.totalSize || !after.Metadata.length ||
+                                        String(after.Metadata[0].playlistItemID) !== String(item.playlistItemID)) {
+                                    throw new Error("Plex did not confirm the playlist order. Reload before editing.");
+                                }
+                                openVideoPlaylist(playlist, client, 0, true);
+                            }).catch(function (error) {
+                                if (generation !== viewGeneration) { return; }
+                                clear(dialog);
+                                dialog.appendChild(element("p", "", errorText(error)));
+                                button(dialog, "Reload playlist", function () { openVideoPlaylist(playlist, client, offset); });
+                                setStatus(errorText(error), true);
+                                dialog.querySelector("button").focus();
+                            });
+                        });
+                        var cancel = button(dialog, "Cancel", function () {
+                            dialog.parentNode.removeChild(dialog);
+                            moveControl.focus();
+                        });
+                        dialog.addEventListener("keydown", function (event) {
+                            if ([10009, 27, 8].indexOf(event.keyCode) >= 0) {
+                                event.preventDefault(); event.stopPropagation();
+                                if (cancel.parentNode === dialog) { cancel.click(); }
+                            }
+                        });
+                        screen.appendChild(dialog);
+                        cancel.focus();
+                    });
+                }
+                screen.appendChild(row);
+            });
+            if (offset > 0) { button(screen, "Previous page", function () { openVideoPlaylist(playlist, client, Math.max(0, offset - 50)); }); }
+            if (offset + items.length < container.totalSize && items.length) {
+                button(screen, "Next page", function () { openVideoPlaylist(playlist, client, offset + items.length); });
+            }
+            button(screen, "Back", backView);
+            setStatus(confirmed ? "Playlist order confirmed." : translate("{count} items shown.", { count: items.length }));
+            focusFirst();
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", function () { openVideoPlaylist(playlist, client, offset); });
+            button(screen, "Back", backView); focusFirst();
+        });
+    }
+
+    function videoQueuePanel(error, retry, cancel) {
+        var old = document.getElementById("video-queue-panel");
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        var panel = element("section", "playback-error");
+        panel.id = "video-queue-panel";
+        panel.setAttribute("role", error ? "alertdialog" : "dialog");
+        panel.appendChild(element("p", "help-text", error ? errorText(error) : translate("Loading video queue...")));
+        if (retry) {
+            button(panel, "Retry", function () { panel.parentNode.removeChild(panel); retry(); });
+        }
+        var control = button(panel, "Cancel", function () {
+            if (cancel) { cancel(); }
+            if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            if (player) { showHud(); }
+            focusFirst();
+        });
+        panel.addEventListener("keydown", function (event) {
+            if ([10009, 27, 8].indexOf(event.keyCode) >= 0) {
+                event.preventDefault(); event.stopPropagation(); control.click();
+            }
+        });
+        screen.appendChild(panel);
+        panel.querySelector("button").focus();
+        if (error) { setStatus(errorText(error), true); }
+    }
+
+    function releaseVideoQueue(queue) {
+        if (!queue) { return; }
+        if (videoQueue === queue) { videoQueue = null; videoLoading = false; videoGeneration += 1; }
+        videoRetiring = queue;
+        queue.close().then(function () {
+            if (videoRetiring === queue) { videoRetiring = null; }
+        }).catch(function (error) { videoQueuePanel(error, function () { releaseVideoQueue(queue); }); });
+    }
+
+    function validateVideoItem(item, expected, mediaIndex) {
+        if (!item || String(item.ratingKey) !== String(expected) || ["movie", "episode", "clip"].indexOf(item.type) < 0) {
+            throw new Error("Plex returned metadata for a different queue item. Reload before playing.");
+        }
+        window.VemmPlayback.plan(item, { mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            profile: directPlayProfile(), directPlay: preferences.directPlay });
+    }
+
+    function startVideo(item, client, playlist, shuffle, offset, mediaIndex, options) {
+        if (videoLoading || player || playerClosing || document.hidden) { return; }
+        if (videoRetiring) {
+            videoQueuePanel(new Error("The previous video queue still needs cleanup. Retry cleanup before playing again."),
+                function () { releaseVideoQueue(videoRetiring); });
+            return;
+        }
+        if (videoCreating) { setStatus("Wait for the cancelled video queue request to finish.", true); return; }
+        if (!playlist) {
+            try { validateVideoItem(item, item.ratingKey, mediaIndex); }
+            catch (error) { setStatus(errorText(error), true); return; }
+        }
+        videoLoading = true;
+        videoCreating = true;
+        var generation = viewGeneration;
+        var request = ++videoGeneration;
+        var owned = null;
+        var cancelled = false;
+        var cleanup = function () {
+            cancelled = true;
+            if (request === videoGeneration) { videoGeneration += 1; videoLoading = false; }
+            if (owned) { releaseVideoQueue(owned); owned = null; }
+        };
+        viewCleanup = cleanup;
+        videoQueuePanel(null, null, cleanup);
+        client.createVideoPlayQueue(currentServerId, item.ratingKey, playlist, shuffle).then(function (projection) {
+            owned = window.VemmQueue.createServer(client, projection, "video");
+            if (cancelled || generation !== viewGeneration || document.hidden) { cleanup(); return; }
+            return (playlist ? client.getMetadata(owned.current().ratingKey) : Promise.resolve(item)).then(function (metadata) {
+                if (cancelled || generation !== viewGeneration || document.hidden) { cleanup(); return; }
+                validateVideoItem(metadata, owned.current().ratingKey, mediaIndex);
+                videoQueue = owned; owned = null;
+                videoShuffle = !!shuffle; videoRepeat = "off";
+                viewCleanup = null; videoLoading = false;
+                startPlayer(metadata, client, offset, mediaIndex, options);
+            });
+        }).catch(function (error) {
+            if (owned) { releaseVideoQueue(owned); owned = null; }
+            if (error.videoQueueCleanupId) {
+                var id = error.videoQueueCleanupId;
+                releaseVideoQueue({ close: function () { return client.clearVideoPlayQueue(id); } });
+            }
+            if (!cancelled && generation === viewGeneration) {
+                viewCleanup = null;
+                videoQueuePanel(error, function () { startVideo(item, client, playlist, shuffle, offset, mediaIndex, options); });
+            }
+        }).then(function () {
+            videoCreating = false;
+            if (request === videoGeneration) { videoLoading = false; }
+            if (viewCleanup === cleanup) { viewCleanup = null; }
+        });
+    }
+
+    function skipVideo(direction, automatic, startNow) {
+        if (!player || !videoQueue || videoLoading || playerClosing || document.hidden) { return; }
+        videoLoading = true;
+        var request = ++videoGeneration;
+        var queue = videoQueue;
+        var owner = player;
+        var client = playerClient;
+        function current() { return request === videoGeneration && videoQueue === queue && player === owner && !document.hidden; }
+        videoQueuePanel(null, null, function () {
+            if (playerClosing) { return; }
+            videoGeneration += 1; videoLoading = false; queue.cancel();
+        });
+        // Completion and manual navigation supersede an unfinished credits preview.
+        Promise.resolve(queue.cancel()).then(function () {
+            if (current()) { return queue.peek(direction, automatic); }
+        }).then(function (candidate) {
+            if (!current()) { return; }
+            if (!candidate) {
+                var previous = playerItem;
+                return stopPlayer(function () { releaseVideoQueue(queue); renderDetail(previous, client); });
+            }
+            return client.getMetadata(candidate.item.ratingKey).then(function (metadata) {
+                if (!current()) { return; }
+                validateVideoItem(metadata, candidate.item.ratingKey, 0);
+                var paused = owner.snapshot().state === "paused";
+                return stopPlayer(function () {
+                    if (request !== videoGeneration || document.hidden) { releaseVideoQueue(queue); return; }
+                    videoLoading = false;
+                    function play() {
+                        if (request !== videoGeneration || document.hidden || player) { return; }
+                        viewCleanup = null;
+                        if (nextTimer !== null) { clearTimeout(nextTimer); nextTimer = null; }
+                        queue.select(candidate);
+                        startPlayer(metadata, client, 0, 0, { paused: paused });
+                    }
+                    if (!automatic || startNow === true || videoRepeat === "one") { play(); return; }
+                    renderDetail(playerItem, client);
+                    viewCleanup = function () {
+                        if (nextTimer !== null) { clearTimeout(nextTimer); nextTimer = null; }
+                        releaseVideoQueue(queue);
+                    };
+                    button(screen, translate("Up Next: {title}", { title: metadata.title }), play);
+                    if (preferences.nextEpisode !== "off") {
+                        setStatus("Next episode starts in 10 seconds. Back cancels.");
+                        nextTimer = setTimeout(play, 10000);
+                    }
+                });
+            });
+        }).catch(function (error) {
+            if (current()) { videoQueuePanel(error, function () { skipVideo(direction, automatic, startNow); }); }
+        }).then(function () {
+            if (request !== videoGeneration) { return; }
+            videoLoading = false;
+            var panel = document.getElementById("video-queue-panel");
+            if (panel && panel.getAttribute("role") === "dialog" && panel.parentNode) { panel.parentNode.removeChild(panel); }
+        });
+    }
+
+    function shuffleVideo() {
+        if (!videoQueue || !player || videoLoading || playerClosing) { return; }
+        var queue = videoQueue;
+        var owner = player;
+        videoLoading = true;
+        var request = ++videoGeneration;
+        Promise.resolve(queue.cancel()).then(function () {
+            if (request === videoGeneration && videoQueue === queue && player === owner && !document.hidden) {
+                return queue.shuffle(!videoShuffle);
+            }
+        }).then(function (enabled) {
+            if (request !== videoGeneration || videoQueue !== queue || player !== owner || document.hidden) { return; }
+            videoShuffle = enabled;
+            playerSettings.playQueue = queue.snapshot();
+            setStatus(translate(enabled ? "Shuffle on." : "Shuffle off."));
+            if (owner.snapshot().state === "ended") {
+                videoLoading = false;
+                skipVideo(1, true);
+            }
+        }).catch(function (error) {
+            if (request === videoGeneration && videoQueue === queue && player === owner) { videoQueuePanel(error, shuffleVideo); }
+        }).then(function () { if (request === videoGeneration) { videoLoading = false; } });
+    }
+
+    function releaseMusicQueue(queue) {
+        if (!queue || !queue.close) { return Promise.resolve(true); }
+        if (musicRetiring === queue && musicRetirement) { return musicRetirement; }
+        if (musicQueue === queue) {
+            musicQueue = null;
+            musicGeneration += 1;
+            musicLoading = false;
+        }
+        musicRetiring = queue;
+        musicRetirement = queue.close().then(function () {
+            if (musicRetiring === queue) { musicRetiring = null; musicRetirement = null; }
+            return true;
+        }).catch(function (error) {
+            musicRetirement = null;
+            musicQueuePanel(error, function () { releaseMusicQueue(queue); });
+            return false;
+        });
+        return musicRetirement;
+    }
+
+    function musicQueuePanel(error, retry, cancel) {
+        var old = document.getElementById("music-queue-panel");
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        var panel = element("section", "playback-error");
+        panel.id = "music-queue-panel";
+        panel.setAttribute("role", error ? "alertdialog" : "dialog");
+        panel.appendChild(element("p", "help-text", error ? errorText(error) : translate("Loading music queue...")));
+        if (retry) {
+            button(panel, "Retry playback", function () {
+                if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+                retry();
+            });
+        }
+        var cancelControl = button(panel, "Cancel", function () {
+            if (cancel) { cancel(); }
+            if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            if (player) {
+                showHud();
+                var more = screen.querySelector(".playback-controls .menu-icon-more");
+                if (more) { more.focus(); }
+            }
+            else { focusFirst(); }
+        });
+        panel.addEventListener("keydown", function (event) {
+            if ([10009, 27, 8].indexOf(event.keyCode) === -1) { return; }
+            event.preventDefault();
+            event.stopPropagation();
+            cancelControl.click();
+        });
+        screen.appendChild(panel);
+        panel.querySelector("button").focus();
+        if (error) { setStatus(errorText(error), true); }
+    }
+
+    function shuffleMusic() {
+        if (!musicQueue || musicLoading || playerClosing) { return; }
+        var queue = musicQueue;
+        var owner = player;
+        musicLoading = true;
+        var request = ++musicGeneration;
+        Promise.resolve().then(function () { return queue.shuffle(!queueShuffle); }).then(function (enabled) {
+            if (musicQueue !== queue || player !== owner || playerClosing) { return; }
+            queueShuffle = enabled;
+            playerSettings.playQueue = queue.snapshot();
+            setStatus(translate(queueShuffle ? "Shuffle on." : "Shuffle off."));
+            if (owner.snapshot().state === "ended") {
+                musicLoading = false;
+                skipMusic(1, true);
+            }
+        }).catch(function (error) {
+            if (musicQueue === queue && player === owner && !playerClosing) {
+                musicQueuePanel(error, shuffleMusic);
+            }
+        }).then(function () { if (request === musicGeneration) { musicLoading = false; } });
     }
 
     function skipMusic(delta, automatic) {
         if (!player || !musicQueue || playerClosing || musicLoading) { return; }
         musicLoading = true;
+        var request = ++musicGeneration;
         var client = playerClient;
         var previous = playerItem;
-        stopPlayer(function () {
-            var next = delta < 0 ? musicQueue.previous() : musicQueue.next(automatic);
-            if (!next) {
-                musicQueue = null; musicLoading = false;
-                renderDetail(previous, client);
-                return;
+        var queue = musicQueue;
+        var owner = player;
+        var cancelled = false;
+        function current() {
+            return !cancelled && request === musicGeneration && player === owner && musicQueue === queue && !playerClosing;
+        }
+        musicQueuePanel(null, null, function () {
+            if (playerClosing) { return; }
+            cancelled = true;
+            queue.cancel();
+            musicGeneration += 1;
+            musicLoading = false;
+        });
+        Promise.resolve().then(function () { return queue.peek(delta, automatic); }).then(function (candidate) {
+            if (!current()) { return; }
+            if (!candidate) {
+                return stopPlayer(function () {
+                    releaseMusicQueue(queue);
+                    musicLoading = false;
+                    renderDetail(previous, client);
+                });
             }
-            renderDetail(next, client);
-            var generation = viewGeneration;
-            client.getMetadata(next.ratingKey).then(function (track) {
-                if (generation === viewGeneration && !player) { startPlayer(track, client, 0); }
-            }).catch(function (error) {
-                if (generation === viewGeneration) { musicQueue = null; showPlayerError(error); }
-            }).then(function () { musicLoading = false; });
-        }).then(function () { if (player) { musicLoading = false; } });
+            return client.getMetadata(candidate.item.ratingKey).then(function (track) {
+                if (!current()) { return; }
+                validateMusicItem(track, candidate.item.ratingKey, 0);
+                var paused = owner.snapshot().state === "paused";
+                return stopPlayer(function () {
+                    if (request !== musicGeneration) { releaseMusicQueue(queue); return; }
+                    queue.select(candidate);
+                    renderDetail(track, client);
+                    startPlayer(track, client, 0, 0, { paused: paused });
+                });
+            });
+        }).catch(function (error) {
+            if (current()) { musicQueuePanel(error, function () { skipMusic(delta, automatic); }); }
+        }).then(function () {
+            if (request === musicGeneration) { musicLoading = false; }
+            var panel = document.getElementById("music-queue-panel");
+            if (request === musicGeneration && panel && panel.getAttribute("role") === "dialog") {
+                if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            }
+        });
     }
 
     function cancelHudTimer() {
@@ -2737,8 +3918,8 @@
         if (shell) { shell.classList.remove("hud-hidden"); }
         if (!player || playerClosing || hudBuffering ||
                 player.snapshot().state !== "playing" ||
-                document.getElementById("player-menu") || document.getElementById("player-info") ||
-                document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
+                screen.querySelector(".skip-marker") ||
+                document.getElementById("player-menu") || document.getElementById("playback-stats") ||
                 document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
                 document.getElementById("playback-error") || status.className.indexOf("status-error") !== -1) { return; }
         var owner = player;
@@ -2746,8 +3927,8 @@
             hudTimer = null;
             if (player !== owner || playerClosing || hudBuffering ||
                     owner.snapshot().state !== "playing" ||
-                    document.getElementById("player-menu") || document.getElementById("player-info") ||
-                    document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
+                    screen.querySelector(".skip-marker") ||
+                    document.getElementById("player-menu") || document.getElementById("playback-stats") ||
                     document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
                     document.getElementById("playback-error")) { return; }
             if (hud) {
@@ -2821,7 +4002,8 @@
             supported: "media matches this TV capability profile",
             profile: "this TV's formats are not known", "video-codec": "video format not supported by this TV",
             container: "file type not supported for this format", "audio-codec": "audio format not supported by this TV",
-            "audio-container": "audio format not supported in this file type", resolution: "resolution too high for this TV",
+            "audio-container": "audio format not supported in this file type",
+            "audio-track": "the server selects the requested audio track", resolution: "resolution too high for this TV",
             quality: "quality limit chosen", bitrate: "bitrate too high for this TV", "bit-depth": "colour depth not supported",
             "frame-rate": "frame rate above 60 fps", level: "H.264 level too high for this TV",
             hdr: "HDR not supported by this panel", "dolby-vision": "Dolby Vision not supported",
@@ -2880,8 +4062,10 @@
             settingsChoices(title, options.map(function (option) {
                 return { value: option.value, label: translate(option.label) };
             }), preferences[preferenceKey], function (value) {
+                var previous = preferences[preferenceKey];
                 preferences[preferenceKey] = value;
                 if (savePreferences()) { backView(); }
+                else { preferences[preferenceKey] = previous; }
             });
         }, false, "settings");
     }
@@ -2903,18 +4087,27 @@
             togglePlayerStats();
         });
         button(menu, "Quality and version", openQuality);
-        button(menu, "Info", function () { closePlayerMenu(); openPlayerPanel("info"); });
+        button(menu, "Support record", openSupportRecord);
         if (playerItem.type === "track") {
             button(menu, "Previous track", function () { skipMusic(-1, false); });
             button(menu, "Next track", function () { skipMusic(1, false); });
             button(menu, "Shuffle / On or off", function () {
-                queueShuffle = musicQueue.shuffle(!queueShuffle);
-                setStatus(translate(queueShuffle ? "Shuffle on." : "Shuffle off."));
+                shuffleMusic();
             });
             button(menu, "Repeat / Off, one, all", function () {
                 queueRepeat = queueRepeat === "off" ? "one" : queueRepeat === "one" ? "all" : "off";
                 musicQueue.repeat(queueRepeat);
                 setStatus(translate("Repeat") + ": " + translate(queueRepeat));
+            });
+        }
+        if (videoQueue) {
+            button(menu, "Previous video", function () { skipVideo(-1, false); });
+            button(menu, "Next video", function () { skipVideo(1, false); });
+            button(menu, "Shuffle / On or off", shuffleVideo);
+            button(menu, "Repeat / Off, one, all", function () {
+                videoRepeat = videoRepeat === "off" ? "one" : videoRepeat === "one" ? "all" : "off";
+                videoQueue.repeat(videoRepeat);
+                setStatus(translate("Repeat") + ": " + translate(videoRepeat));
             });
         }
         button(menu, "Stop and return to details", stopPlayer);
@@ -2925,9 +4118,14 @@
 
     function startPlayer(item, client, offset, mediaIndex, trackOptions) {
         if (player || playerClosing) { return; }
-        if (item.type === "track" && (!musicQueue || musicQueue.current().ratingKey !== item.ratingKey)) {
-            musicQueue = window.VemmQueue.create([item]);
-            queueShuffle = false; queueRepeat = "off";
+        if ((item.type === "movie" || item.type === "episode") && currentServerId &&
+                client === currentClient && client.createVideoPlayQueue && !videoQueue) {
+            startVideo(item, client, false, false, offset, mediaIndex, trackOptions);
+            return;
+        }
+        if (item.type === "track" && (!musicQueue || String(musicQueue.current().ratingKey) !== String(item.ratingKey))) {
+            startAlbum(item, client, false, offset, mediaIndex, trackOptions);
+            return;
         } else if (item.type !== "track") { musicQueue = null; }
         viewGeneration += 1;
         resetImages();
@@ -2935,15 +4133,27 @@
         hudBuffering = false;
         hudFocus = null;
         scrubReturnFocus = null;
-        playerPanel = "";
+        playerSeek = null;
         playerStatsVisible = false;
         subtitleTiming = false;
         playerItem = item;
         playerClient = client;
         playerPosition = offset || 0;
         playerDuration = item.duration || 0;
+        var adaptive = trackOptions && trackOptions.adaptivePolicy;
+        if (!adaptive && preferences.adaptiveQuality && item.type !== "track" &&
+                !(trackOptions && trackOptions.adaptiveDisabled)) {
+            adaptive = window.VemmPlayback.adaptivePolicy({ enabled: true, quality: preferences.quality,
+                directPlay: preferences.directPlay, location: client.location });
+        }
         playerSettings = {
-            offset: offset || 0, mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            offset: offset || 0, mediaIndex: mediaIndex || 0,
+            quality: adaptive ? adaptive.quality() : preferences.quality,
+            adaptiveQuality: !!(adaptive && adaptive.enabled),
+            adaptivePolicy: adaptive,
+            adaptiveDisabled: !!(trackOptions && trackOptions.adaptiveDisabled),
+            location: client.location,
+            audioBoost: preferences.transcodeAudioVolume,
             audioId: trackOptions ? trackOptions.audioId : undefined,
             subtitleId: trackOptions ? trackOptions.subtitleId : undefined,
             overlaySubtitle: !!(trackOptions && trackOptions.cues),
@@ -2951,6 +4161,8 @@
             paused: !!(trackOptions && trackOptions.paused),
             profile: directPlayProfile(), directPlay: preferences.directPlay
         };
+        if (item.type === "track" && musicQueue) { playerSettings.playQueue = musicQueue.snapshot(); }
+        if (videoQueue && item.type !== "track") { playerSettings.playQueue = videoQueue.snapshot(); }
         externalCues = trackOptions && trackOptions.cues || null;
         document.body.className = "playing";
         var hud = element("section", "player-hud");
@@ -2976,25 +4188,13 @@
         var progressFill = element("div", "playback-progress-fill");
         progress.appendChild(progressFill);
         hud.appendChild(progress);
-        var tabs = element("div", "player-tabs");
-        button(tabs, "Info", function () { openPlayerPanel("info"); }, false, "none");
-        if (item.Chapter && item.Chapter.length) {
-            button(tabs, "Chapters", function () { openPlayerPanel("chapters"); }, false, "none");
-        }
-        hud.appendChild(tabs);
         var subtitle = element("p", "subtitle-text");
         subtitle.id = "subtitle-text";
         applySubtitleAppearance(subtitle);
         screen.appendChild(subtitle);
         var controls = element("div", "playback-controls");
-        var rewind = button(controls, translate("Back {seconds} seconds", { seconds: preferences.skipInterval }),
-            function () { seekPlayer(-preferences.skipInterval * 1000); }, false, "rewind");
-        rewind.setAttribute("data-seconds", String(preferences.skipInterval));
         var pauseControl = button(controls, "Pause / Play", togglePlayer, false, "pause");
         pauseControl.setAttribute("aria-label", translate("Pause / Play"));
-        var forward = button(controls, translate("Forward {seconds} seconds", { seconds: preferences.skipInterval }),
-            function () { seekPlayer(preferences.skipInterval * 1000); }, false, "forward");
-        forward.setAttribute("data-seconds", String(preferences.skipInterval));
         button(controls, "Subtitles", function () { openTracks("subtitle"); }, false, "subtitles");
         button(controls, "Audio", function () { openTracks("audio"); }, false, "audio");
         var moreControl = button(controls, "More", openPlaybackOptions, false, "more");
@@ -3014,6 +4214,7 @@
             skip.key = nextKey;
             if (!next) {
                 if (hadFocus) { pauseControl.focus(); }
+                showHud();
                 return;
             }
             // Raised once as the segment starts, with focus on the button, so one OK skips.
@@ -3051,6 +4252,7 @@
                     if (!player || player !== ownPlayer || playerClosing || skip.control !== control) {
                         clearInterval(tick); return;
                     }
+                    if (document.hidden || hudBuffering || player.snapshot().state !== "playing") { return; }
                     remaining -= 1;
                     if (remaining > 0) { label(); return; }
                     clearInterval(tick);
@@ -3073,13 +4275,8 @@
                     if (!player || player !== ownPlayer || playerClosing) { return; }
                     if (event.type === "time") {
                         updatePlayerClocks(event.position, event.duration || item.duration);
-                        var percent = Math.min(100, Math.max(0, event.position * 100 / (event.duration || item.duration || 1)));
                         progress.setAttribute("aria-valuemax", String(event.duration || item.duration || 1));
-                        progress.setAttribute("aria-valuenow", String(Math.round(event.position)));
-                        progress.setAttribute("aria-valuetext", timeLabel(event.position) + " / " +
-                            timeLabel(event.duration || item.duration || 0));
-                        if (progressFill.style) { progressFill.style.width = percent + "%"; }
-                        updateSkip(event.position);
+                        if (scrubTarget === null && (!playerSeek || playerSeek.target === null)) { updateSkip(event.position); }
                         if (externalCues) {
                             var externalSubtitle = document.getElementById("subtitle-text");
                             if (externalSubtitle) {
@@ -3099,7 +4296,15 @@
                         hudBuffering = !!event.detail;
                         setStatus(event.detail ? "Buffering..." : "");
                         showHud();
+                        if (adaptive && adaptive.buffer(!!event.detail, Date.now(),
+                                player.snapshot().state === "playing" && !document.hidden &&
+                                !document.getElementById("player-menu") && !playerSeek && !subtitleTiming)) {
+                            recoverPlayer(false);
+                        }
                     } else if (event.type === "state") {
+                        if (event.state === "paused" || event.state === "playing") {
+                            playerSettings.paused = event.state === "paused";
+                        }
                         pauseControl.className = pauseControl.className.replace(/menu-icon-(pause|play)/,
                             event.state === "paused" ? "menu-icon-play" : "menu-icon-pause");
                         showHud();
@@ -3124,17 +4329,11 @@
                     }
                 }
             });
-            if ((item.type === "movie" || item.type === "episode") && currentServerId &&
-                    client === currentClient && client.createVideoPlayQueue) {
-                var queueSettings = playerSettings;
-                client.createVideoPlayQueue(currentServerId, item.ratingKey).then(function (queue) {
-                    if (playerSettings === queueSettings) { queueSettings.playQueue = queue; }
-                }).catch(function () { /* the queue is optional; playback and progress continue without it */ });
-            }
             player = ownPlayer;
             setStatus("Asking Plex for a compatible stream...");
             player.start().then(function () {
                 if (player === ownPlayer) {
+                    if (adaptive) { adaptive.ready(Date.now()); }
                     setStatus("");
                     showHud();
                 }
@@ -3144,12 +4343,14 @@
         } catch (error) {
             document.body.className = "";
             player = null;
+            if (item.type === "track" && musicQueue) { releaseMusicQueue(musicQueue); }
+            if (videoQueue) { releaseVideoQueue(videoQueue); }
             showHud();
             externalCues = null;
             renderDetail(item, client);
             showPlayerError(error);
         }
-        rewind.focus();
+        pauseControl.focus();
     }
 
     function togglePlayer() {
@@ -3162,18 +4363,38 @@
 
     function seekPlayer(delta) {
         if (!player) { return; }
-        seekToPlayer(player.snapshot().position + delta);
+        var base = scrubTarget !== null ? scrubTarget : playerSeek ?
+            (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : player.snapshot().position;
+        seekToPlayer(base + delta);
     }
 
     function seekToPlayer(target) {
         if (!player || playerClosing) { return; }
         var selectedPlayer = player;
+        target = Math.max(0, Math.min(player.snapshot().duration || target, target));
+        if (playerSeek && playerSeek.owner === player) { playerSeek.target = target; return; }
+        var request = { owner: player, requested: target, target: null };
+        playerSeek = request;
+        function completed() {
+            if (playerSeek !== request) { return; }
+            playerSeek = null;
+            if (player !== selectedPlayer || playerClosing) { return; }
+            if (request.target !== null) { seekToPlayer(request.target); }
+            else { updatePlayerClocks(selectedPlayer.snapshot().position, selectedPlayer.snapshot().duration); }
+        }
         player.seek(target).then(function (position) {
             if (player !== selectedPlayer || playerClosing) { return; }
-            setStatus(translate("Seek landed at {time}.", { time: timeLabel(position) }));
+            if (request.target === null && scrubTarget === null) {
+                setStatus(translate("Seek landed at {time}.", { time: timeLabel(position) }));
+            }
+            completed();
             showHud();
         }).catch(function (error) {
-            if (player === selectedPlayer && !playerClosing) { showPlayerError(error); }
+            if (player === selectedPlayer && !playerClosing) {
+                if (error && error.code === "avplay-seek") { setStatus(errorText(error), true); }
+                else { showPlayerError(error); request.target = null; }
+                completed();
+            }
         });
     }
 
@@ -3193,7 +4414,8 @@
         var snapshot = player.snapshot();
         if (["playing", "paused"].indexOf(snapshot.state) === -1 || playerClosing) { return; }
         if (scrubOwner !== player || scrubTarget === null) {
-            cancelScrub(); scrubOwner = player; scrubTarget = snapshot.position;
+            cancelScrub(); scrubOwner = player;
+            scrubTarget = playerSeek ? (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : snapshot.position;
         }
         scrubRepeats += 1;
         var step = preferences.skipInterval * 1000 * Math.min(4, 1 + Math.floor((scrubRepeats - 1) / 3));
@@ -3209,16 +4431,16 @@
         }
         setStatus(translate("Seek to {time}", { time: timeLabel(scrubTarget) }));
         if (scrubTimer !== null) { clearTimeout(scrubTimer); }
-        scrubTimer = setTimeout(commitScrub, 300);
+        scrubTimer = setTimeout(commitScrub, 900);
     }
 
     function stopPlayer(after) {
         if (!player || playerClosing) { return Promise.resolve(); }
         playerClosing = true;
+        playerSeek = null;
         cancelScrub();
         subtitleSearchGeneration += 1;
         cancelHudTimer();
-        closePlayerPanel();
         closeUpNext();
         var stats = document.getElementById("playback-stats");
         if (stats && stats.parentNode) { stats.parentNode.removeChild(stats); }
@@ -3243,6 +4465,10 @@
             showHud();
             playerClosing = false;
             document.body.className = "";
+            if (videoQueue && typeof after !== "function") { releaseVideoQueue(videoQueue); }
+            if (item.type === "track" && typeof after !== "function") {
+                releaseMusicQueue(musicQueue);
+            }
             if (typeof after === "function") { after(); }
             else { renderDetail(item, client); }
             if (typeof after !== "function") { musicQueue = null; }
@@ -3260,15 +4486,34 @@
         (playerItem.Marker || []).forEach(function (marker) {
             if (marker.type === "intro" || marker.type === "credits") {
                 button(menu, marker.type === "intro" ? "Skip Intro" : "Skip Credits", function () {
-                    player.seek(marker.endTimeOffset).catch(showPlayerError);
+                    seekToPlayer(marker.endTimeOffset);
                 });
             }
         });
-        if (!menu.querySelector("button")) { menu.appendChild(element("p", "", translate("No markers available."))); }
+        if (!menu.querySelector("button")) {
+            menu.appendChild(element("p", "", translate("No markers available.")));
+            menu.appendChild(element("p", "help-text", translate(
+                "Plex did not return intro or credits markers. Check server analysis, media availability and Plex Pass requirements. Vemm cannot create missing markers.")));
+        }
         button(menu, "Close menu", closePlayerMenu);
         screen.appendChild(menu);
         var control = menu.querySelectorAll("button")[0];
         if (control) { control.focus(); }
+    }
+
+    function replacementPlan(version, quality, options) {
+        var settings = {};
+        Object.keys(playerSettings).forEach(function (key) { settings[key] = playerSettings[key]; });
+        settings.mediaIndex = version;
+        settings.quality = quality;
+        settings.audioId = options.audioId;
+        settings.subtitleId = options.subtitleId;
+        settings.overlaySubtitle = !!options.cues;
+        var plan = window.VemmPlayback.plan(playerItem, settings);
+        if (plan.force && !plan.direct) {
+            throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change audio or subtitle settings or turn off Force.");
+        }
+        return plan;
     }
 
     // Restart playback at the current position with an explicit track choice. `cues` keeps an
@@ -3280,10 +4525,13 @@
         var client = playerClient;
         var position = player.snapshot().position;
         var version = playerSettings.mediaIndex;
-        var options = { audioId: audioId, subtitleId: subtitleId, paused: player.snapshot().state === "paused",
+        var options = { audioId: audioId, subtitleId: subtitleId, paused: playerSettings.paused,
+            adaptivePolicy: playerSettings.adaptivePolicy, adaptiveDisabled: playerSettings.adaptiveDisabled,
             subtitleSidecar: cues ? (subtitleSidecar === undefined ?
                 playerSettings.subtitleSidecar : !!subtitleSidecar) : false };
         if (cues) { options.cues = cues; }
+        try { replacementPlan(version, playerSettings.quality, options); }
+        catch (error) { showPlayerError(error); return; }
         stopPlayer(function () { startPlayer(item, client, position, version, options); });
     }
 
@@ -3407,7 +4655,7 @@
         var current = player.selection();
         var reload = reloadTracks;
         var streams = (player.part().Stream || []).filter(function (stream) {
-            return stream.streamType === (type === "audio" ? 2 : 3);
+            return Number(stream.streamType) === (type === "audio" ? 2 : 3);
         });
         var languageNames = [];
         streams.forEach(function (stream) {
@@ -3419,7 +4667,8 @@
                 return (entry.language || entry.languageTag || entry.languageCode) === name;
             })[0];
             var code = stream && (stream.languageCode || stream.languageTag || "");
-            return code.toLowerCase().slice(0, 2) === preferences.language.slice(0, 2);
+            return window.VemmSubtitleSearch.twoLetter(code) ===
+                window.VemmSubtitleSearch.twoLetter(preferences.language);
         })[0];
         if (language === "__other_languages") {
             var otherOptions = languageNames.filter(function (name) { return name !== preferred; });
@@ -3437,9 +4686,24 @@
         } else {
             var matching = streams.filter(function (stream) {
                 return (stream.language || stream.languageTag || stream.languageCode || translate("Other languages")) === language;
+            }).map(function (stream, index) {
+                var selected = type === "audio" ? current.audioId : current.subtitleId;
+                if (type === "subtitle" && externalCues) { selected = null; }
+                return { stream: stream, index: index, rank: String(stream.id) === String(selected) ? 0 :
+                    streamFlag(stream.default) ? 1 : 2 };
+            }).sort(function (a, b) {
+                return a.rank - b.rank || a.index - b.index;
+            }).map(function (entry) { return entry.stream; });
+            var labels = matching.map(function (stream) {
+                var title = stream.displayTitle || stream.language || stream.codec || String(stream.id);
+                var badges = trackBadge(stream);
+                return title + (badges ? " / " + badges : "");
             });
-            matching.forEach(function (stream) {
-                var label = stream.displayTitle || stream.language || stream.codec || String(stream.id);
+            matching.forEach(function (stream, index) {
+                var label = labels[index];
+                if (labels.indexOf(label) !== labels.lastIndexOf(label)) {
+                    label = translate("{track} / Track {number}", { track: label, number: index + 1 });
+                }
                 var choice = button(menu, label, function () {
                     if (type === "audio") { reload(stream.id, current.subtitleId, externalCues); }
                     else { reload(current.audioId, stream.id); }
@@ -3527,12 +4791,59 @@
         menu.id = "player-menu";
         menu.appendChild(element("h2", "", translate("Quality and media version")));
         menu.appendChild(element("p", "help-text", translate("Original source") + ": " + qualityLabel(player.quality().source)));
+        if ((playerItem.Media || []).length > 1) {
+            menu.appendChild(element("p", "help-text", translate("Another version uses matching language tracks or its own defaults. External subtitle timing is not reused.")));
+        }
+        function versionTrack(previous, destination, id, type) {
+            if (!id && type === 3) { return 0; }
+            var source = (previous.Stream || []).filter(function (stream) {
+                return Number(stream.streamType) === type && String(stream.id) === String(id);
+            })[0];
+            var available = (destination.Stream || []).filter(function (stream) {
+                return Number(stream.streamType) === type && /^[1-9][0-9]*$/.test(String(stream.id));
+            });
+            function sameLanguage(stream) {
+                var before = window.VemmSubtitleSearch.twoLetter(source.languageCode || source.languageTag);
+                var after = window.VemmSubtitleSearch.twoLetter(stream.languageCode || stream.languageTag);
+                if (before && after) { return before === after; }
+                return !!source.language && !!stream.language &&
+                    String(source.language).toLowerCase() === String(stream.language).toLowerCase();
+            }
+            var matching = source ? available.filter(function (stream) {
+                return sameLanguage(stream) &&
+                    streamFlag(stream.forced) === streamFlag(source.forced) &&
+                    streamFlag(stream.hearingImpaired) === streamFlag(source.hearingImpaired) &&
+                    streamFlag(stream.audioDescription) === streamFlag(source.audioDescription);
+            }) : [];
+            var exact = source && (source.displayTitle || source.title) ? matching.filter(function (stream) {
+                return (stream.displayTitle || stream.title) === (source.displayTitle || source.title) &&
+                    stream.codec === source.codec && stream.channels === source.channels;
+            }) : [];
+            var selected = exact.length === 1 ? exact[0] : matching.length === 1 ? matching[0] :
+                available.filter(function (stream) { return streamFlag(stream.selected); })[0] ||
+                available.filter(function (stream) { return streamFlag(stream.default); })[0] || available[0];
+            return selected ? Number(selected.id) : 0;
+        }
         function change(quality, version) {
             var item = playerItem;
             var client = playerClient;
             var position = player.snapshot().position;
-            var tracks = { audioId: playerSettings.audioId, subtitleId: playerSettings.subtitleId, cues: externalCues,
-                paused: player.snapshot().state === "paused" };
+            var currentTracks = player.selection();
+            var tracks = { audioId: currentTracks.audioId, subtitleId: currentTracks.subtitleId,
+                paused: playerSettings.paused, cues: externalCues, subtitleSidecar: playerSettings.subtitleSidecar,
+                adaptiveDisabled: true };
+            try {
+                if (version !== playerSettings.mediaIndex) {
+                    var destination = item.Media[version] && item.Media[version].Part && item.Media[version].Part[0];
+                    if (!destination) { throw new Error("This item has no playable media version."); }
+                    var previous = player.part();
+                    tracks.audioId = versionTrack(previous, destination, currentTracks.audioId, 2);
+                    tracks.subtitleId = versionTrack(previous, destination, currentTracks.subtitleId, 3);
+                    delete tracks.cues;
+                    tracks.subtitleSidecar = false;
+                }
+                replacementPlan(version, quality, tracks);
+            } catch (error) { showPlayerError(error); return; }
             preferences.quality = quality;
             stopPlayer(function () { startPlayer(item, client, position, version, tracks); });
         }
@@ -3572,9 +4883,11 @@
 
     function finishEpisode(startNow, suppliedSuccessor) {
         if (playerItem.type === "track" && musicQueue) { skipMusic(1, true); return; }
+        if (videoQueue) { skipVideo(1, true, startNow); return; }
         var item = playerItem;
         var client = playerClient;
         var queue = playerSettings && playerSettings.playQueue;
+        var paused = player && player.snapshot().state === "paused";
         stopPlayer(function () {
             renderDetail(item, client);
             var generation = viewGeneration;
@@ -3587,14 +4900,14 @@
                 });
                 if (startNow === true && !document.hidden) {
                     client.getMetadata(next.ratingKey).then(function (metadata) {
-                        if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0); }
+                        if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0, 0, { paused: paused }); }
                     }).catch(showPlayerError);
                 } else if (preferences.nextEpisode !== "off" && !document.hidden) {
                     setStatus("Next episode starts in 10 seconds. Back cancels.");
                     nextTimer = setTimeout(function () {
                         nextTimer = null;
                         client.getMetadata(next.ratingKey).then(function (metadata) {
-                            if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0); }
+                            if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0, 0, { paused: paused }); }
                         }).catch(showPlayerError);
                     }, 10000);
                 }
@@ -3752,6 +5065,9 @@
         mark.alt = "";
         identity.appendChild(mark);
         identity.appendChild(element("h2", "", product.name));
+        identity.appendChild(element("p", "help-text", translate("Version {version}", {
+            version: product.version || "unknown"
+        })));
         identity.appendChild(element("p", "about-pronunciation",
             translate("Pronounced {pronunciation}, one syllable.", { pronunciation: product.pronunciation })));
         identity.appendChild(element("p", "about-tagline", translate(product.tagline)));
@@ -3796,6 +5112,14 @@
             });
         preferenceChoice(playbackSettings, "Direct play", "directPlay", ["auto", "force", "off"],
             function (value) { return { auto: "Auto", force: "Force", off: "Off" }[value]; });
+        preferenceChoice(playbackSettings, "Adaptive quality", "adaptiveQuality", [false, true],
+            function (value) { return value ? "On" : "Off"; });
+        playbackSettings.appendChild(element("p", "help-text", translate(
+            "Opt-in adaptation stays below your quality ceiling. Remote playback starts at up to 8 Mbps. Repeated buffering can lower quality; Force and manual playback quality choices stay fixed.")));
+        preferenceChoice(playbackSettings, "Converted audio volume", "transcodeAudioVolume", [50, 100, 150, 200],
+            function (value) { return value + "%"; });
+        playbackSettings.appendChild(element("p", "help-text", translate(
+            "Server-converted audio only; 100% keeps original loudness. This is not dialog isolation or loudness normalization and does not change Direct Play audio. Higher values may distort.")));
         button(playbackSettings, translate("Continue Watching: {state}", {
             state: translate(preferences.continueAction === "play" ? "Play" : "Open details")
         }), function () {
@@ -3814,6 +5138,13 @@
             var librarySettings = group(menu, translate("Libraries"), "settings-group");
             button(librarySettings, "Favorite libraries", function () { visit(function () { openFavorites(false); }); });
         }
+        var accessibility = group(menu, translate("Accessibility"), "settings-group");
+        preferenceChoice(accessibility, "Reduced motion", "reducedMotion", [false, true],
+            function (value) { return value ? "On" : "Off"; });
+        preferenceChoice(accessibility, "Interface text", "interfaceTextSize", ["standard", "large"],
+            function (value) { return value === "large" ? "Larger" : "Standard"; });
+        accessibility.appendChild(element("p", "help-text", translate(
+            "These TV-local controls reduce interface animations and enlarge labels and help text. Subtitle appearance is configured separately. They do not enable Samsung Voice Guide or certify screen-reader support.")));
         var languages = group(menu, translate("Language"), "settings-group");
         var names = { en: "English", es: "Español", be: "Беларуская" };
         button(languages, translate("Language") + ": " + names[preferences.language], function () {
@@ -3826,7 +5157,7 @@
         }, false, "language");
         if (accountToken || currentClient) {
             var graphicsSettings = group(menu, translate("Graphics"), "settings-group");
-            var graphicsToggle = button(graphicsSettings, translate("New graphics enhancements: {state}", {
+            var graphicsToggle = button(graphicsSettings, translate("Experimental artwork: {state}", {
                 state: translate(preferences.enhancedGraphics ? "On" : "Off")
             }), function () {
                 var previous = preferences.enhancedGraphics;
@@ -3838,7 +5169,7 @@
             }, false, "settings");
             graphicsToggle.setAttribute("aria-pressed", String(preferences.enhancedGraphics));
             graphicsSettings.appendChild(element("p", "help-text", translate(
-                "Optional WebGL artwork rendering. Off by default. Existing Home acceleration and AVPlay stay enabled. Unsupported features automatically use the existing renderer.")));
+                "Experimental WebGL artwork, with no demonstrated performance benefit. Off by default. Existing Home acceleration and AVPlay remain enabled.")));
             graphicsSettings.appendChild(element("p", "help-text", translate(graphicsFailure ?
                 "New graphics enhancements are unavailable here. Existing graphics remain active." :
                 preferences.enhancedGraphics ?
@@ -3881,10 +5212,12 @@
                 window.VemmPreferences.reset(window.localStorage);
                 if (window.VemmFavorites) { window.VemmFavorites.reset(window.localStorage); }
                 if (window.VemmRecents) { window.VemmRecents.reset(window.localStorage); }
+                if (window.VemmHomeLayout) { window.VemmHomeLayout.resetAll(window.localStorage); }
                 preferences = window.VemmPreferences.load(window.localStorage);
                 graphicsFailure = false;
                 if (graphics) { graphics.setEnabled(false); }
                 window.VemmI18n.setLanguage(preferences.language);
+                applyInterfacePreferences();
                 openSettings();
             } catch (error) { setStatus("Could not reset preferences. Check app storage permissions.", true); }
         });
@@ -3897,6 +5230,7 @@
                 screen.appendChild(element("p", "help-text",
                     translate("AVPlay: {state}. {profile}. Model support is not certified. Account tokens, server origins, titles and queries are not logged or uploaded.", {
                         state: translate(window.webapis && window.webapis.avplay ? "available" : "unavailable"), profile: directPlaySummary() })));
+                button(screen, "Support record", openSupportRecord);
                 button(screen, "Back", backView);
                 focusFirst();
             });
@@ -3922,7 +5256,7 @@
         var controls = screen.querySelectorAll(".playback-controls button");
         var target = scrubReturnFocus;
         if (!target || !target.parentNode || target.disabled || insideHidden(target)) {
-            target = controls.length > 1 ? controls[1] : controls[0];
+            target = controls[0];
         }
         if (target) { target.focus(); }
     }
@@ -3942,29 +5276,7 @@
             return;
         }
         if (playerControls && !hud.hidden && key === 40 && playerControls.contains(active)) {
-            var tab = screen.querySelector(".player-tabs button");
-            if (tab) { tab.focus(); }
             return;
-        }
-        if (player && active && active.parentNode && /player-tabs/.test(active.parentNode.className || "")) {
-            if (key === 38) {
-                var row = screen.querySelector(".playback-controls");
-                var rowButtons = row && row.querySelectorAll("button");
-                if (rowButtons && rowButtons.length) { rowButtons[rowButtons.length - 1].focus(); }
-                return;
-            }
-            if (key === 40) {
-                var panel = document.getElementById(playerPanel === "chapters" ? "chapter-strip" : "player-info");
-                var panelButton = panel && panel.querySelector("button");
-                if (panelButton) { panelButton.focus(); }
-                return;
-            }
-        }
-        if (player && active && active.parentNode && /chapter-strip/.test(active.parentNode.className || "") && key === 38) {
-            var chaptersTab = Array.prototype.filter.call(screen.querySelectorAll(".player-tabs button"), function (node) {
-                return node.textContent === translate("Chapters");
-            })[0];
-            if (chaptersTab) { chaptersTab.focus(); return; }
         }
         var localRow = active && active.parentNode;
         if (key === 39 && active && /(?:^| )account-control(?: |$)/.test(active.className || "")) {
@@ -3973,7 +5285,7 @@
             return;
         }
         if ((key === 37 || key === 39) && localRow &&
-                /(?:home-navigation|home-feature-actions|playback-controls|player-tabs|chapter-strip|detail-actions)/.test(localRow.className || "")) {
+                /(?:home-navigation|home-feature-actions|playback-controls|detail-actions)/.test(localRow.className || "")) {
             var rowControls = Array.prototype.slice.call(localRow.querySelectorAll("button"));
             var rowIndex = rowControls.indexOf(active);
             var adjacent = rowControls[rowIndex + direction];
@@ -4014,6 +5326,13 @@
                 if (featureAbove) {
                     screen.className = "screen screen-home";
                     featureAbove.focus();
+                    return;
+                }
+                var navigationAbove = screen.querySelector(".home-navigation button");
+                if (navigationAbove) {
+                    screen.className = "screen screen-home";
+                    moveHome(0);
+                    navigationAbove.focus();
                     return;
                 }
             }
@@ -4121,24 +5440,14 @@
         if (key === 10009 || key === 27 || key === 8) {
             if (editing && key === 8) { return; }
             event.preventDefault();
+            var support = document.getElementById("support-record");
+            if (support) { document.getElementById("player-menu").plexDismiss(); return; }
             if (player && active && active.id === "playback-progress") {
                 commitScrub();
                 restoreScrubControl();
                 return;
             }
             if (player && subtitleTiming) { closeSubtitleTiming(); return; }
-            if (player && playerPanel) {
-                var activePanel = playerPanel;
-                closePlayerPanel();
-                var tabs = screen.querySelectorAll(".player-tabs button");
-                var desired = activePanel === "chapters" ? translate("Chapters") : translate("Info");
-                Array.prototype.some.call(tabs, function (tab) {
-                    if (tab.textContent === desired) { tab.focus(); return true; }
-                    return false;
-                });
-                showHud();
-                return;
-            }
             if (player && document.getElementById("playback-stats")) {
                 togglePlayerStats();
                 return;
@@ -4204,7 +5513,7 @@
             else { togglePlayer(); }
             return;
         }
-        if (player && !document.getElementById("player-menu") && !playerPanel && !playerStatsVisible &&
+        if (player && !document.getElementById("player-menu") && !playerStatsVisible &&
                 !subtitleTiming && !document.getElementById("up-next-panel") &&
                 !document.getElementById("playback-error") && (key === 37 || key === 39)) {
             var hud = screen.querySelector(".player-hud");
@@ -4269,6 +5578,8 @@
     screen.addEventListener("click", function () { if (player) { showHud(); } });
     document.addEventListener("visibilitychange", function () {
         if (document.hidden) {
+            if (videoQueue) { videoGeneration += 1; videoQueue.cancel(); videoLoading = false; }
+            if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
             clearGraphics();
             cancelScrub();
             cancelHold();
@@ -4280,6 +5591,8 @@
                     openDetail(item.ratingKey, client);
                 };
                 stopPlayer(function () {
+                    if (videoQueue) { releaseVideoQueue(videoQueue); }
+                    if (musicQueue) { releaseMusicQueue(musicQueue); }
                     if (!document.hidden && foregroundRecovery) {
                         var recover = foregroundRecovery; foregroundRecovery = null; recover();
                     }
@@ -4303,11 +5616,16 @@
         }
     });
     window.addEventListener("pagehide", function () {
+        if (videoQueue) { videoGeneration += 1; videoQueue.cancel(); videoLoading = false; }
+        if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
         if (graphics) { graphics.dispose(); graphics = null; }
         stopAuthorization();
         resetImages();
         if (viewCleanup) { viewCleanup(); viewCleanup = null; }
-        if (player) { stopPlayer(function () {}); }
+        if (player) { stopPlayer(function () {
+            if (videoQueue) { releaseVideoQueue(videoQueue); }
+            if (musicQueue) { releaseMusicQueue(musicQueue); }
+        }); }
     });
     if (window.tizen && window.tizen.tvinputdevice) {
         try {

@@ -40,6 +40,51 @@ function rig() {
     return { calls: calls, adapter: adapter, client: client };
 }
 async function run() {
+    for (var subtitleCodec of ["ass", "ssa", "pgs", "vobsub"]) {
+        var styled = JSON.parse(JSON.stringify(item));
+        styled.Media[0].Part[0].Stream.push({
+            id: 41, streamType: 3, codec: subtitleCodec, selected: true
+        });
+        var styledPlan = playback.plan(styled, { quality: "original" });
+        assert.strictEqual(styledPlan.reason, "subtitle", subtitleCodec + " needs server-rendered fallback");
+        assert.strictEqual(styledPlan.query.subtitleStreamID, 41);
+        assert.strictEqual(styledPlan.query.subtitles, "burn");
+        assert.strictEqual(styledPlan.query.directPlay, 0);
+        assert.strictEqual(styledPlan.query.directStream, 0, "Burn-in requires rendered video, not a copy");
+        var styledRig = rig();
+        var styledSession = playback.create({ client: styledRig.client, adapter: styledRig.adapter,
+            item: styled, settings: { quality: "original" } });
+        await styledSession.start();
+        assert(styledRig.calls.some(function (call) {
+            return call[0] === "decision" && call[1].subtitles === "burn" && call[1].subtitleStreamID === 41;
+        }), subtitleCodec + " must reach the actual playback negotiation path");
+        await styledSession.stop();
+        assert(styledRig.calls.some(function (call) { return call[0] === "cleanup"; }));
+        var forcedStyledRig = rig();
+        var forcedStyled = playback.create({ client: forcedStyledRig.client, adapter: forcedStyledRig.adapter,
+            item: styled, settings: { quality: "original", directPlay: "force" } });
+        await assert.rejects(forcedStyled.start(), /force|forced/i);
+        assert.strictEqual(forcedStyledRig.calls.length, 0, "Force cannot silently burn " + subtitleCodec);
+    }
+    var audioRig = rig();
+    var directAsks = [];
+    audioRig.client.request = function (path, method, query) {
+        directAsks.push(Object.assign({}, query));
+        return Promise.resolve({ generalDecisionCode: 1001 });
+    };
+    var audioSession = playback.create({
+        client: audioRig.client, adapter: audioRig.adapter, item: item,
+        settings: { quality: "original", audioBoost: 150, profile: {
+            evidence: "synthetic-direct-audio-profile",
+            containers: ["mp4"], video: ["h264"], audio: ["aac"], maxWidth: 1920, maxHeight: 1080
+        } }
+    });
+    await audioSession.start();
+    assert.strictEqual(directAsks[0].audioBoost, undefined,
+        "Converted audio volume never forces or modifies an original-file decision");
+    assert.strictEqual(directAsks[1].audioBoost, 150,
+        "Server refusal of Direct Play retains the explicit converted-volume choice");
+    await audioSession.stop();
     var plan = playback.plan(item, { offset: 5000 });
     assert.strictEqual(plan.direct, false, "Unknown capabilities must not guess direct play");
     assert.strictEqual(plan.query.directPlay, 0);
@@ -188,8 +233,11 @@ async function run() {
     selectedAudioPlan = playback.plan(selectedAudio, {
         profile: selectedProfile, quality: "original", audioId: 31, subtitleId: 0
     });
-    assert.strictEqual(selectedAudioPlan.direct, true,
+    assert.strictEqual(selectedAudioPlan.direct, false,
+        "A supported explicit audio choice still needs a selected-audio stream, not the static file's default");
+    assert.strictEqual(selectedAudioPlan.reason, "audio-track",
         "A supported explicit audio choice must not inherit the default track's codec refusal");
+    assert.strictEqual(selectedAudioPlan.query.directStream, 1, "Supported video may be copied while PMS selects the audio");
     for (var forcedItem of [preferred, multipart]) {
         var forcedRig = rig();
         var forcedSession = playback.create({

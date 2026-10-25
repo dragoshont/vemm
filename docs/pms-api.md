@@ -7,6 +7,119 @@ Rust paths/symbols are historical examples at
 they are not current Samsung modules. Account tokens, server addresses and
 household records must not be used to reproduce examples without authorization.
 
+## Current Samsung selected-audio and version contract
+
+PMS `Stream.id` values are not AVPlay `getTotalTrackInfo()` indices. Updating
+the Part's selection alone does not establish which track an unchanged static
+file decodes. Vemm therefore negotiates selected audio for multi-audio video
+with the existing decision/start requests, `audioStreamID`, `directPlay=0`
+and, where the video capability verdict permits it, `directStream=1`.
+Default selection does not itself issue a Part selection PUT. Explicit audio
+selection retains the existing bounded write/read-back path.
+Force refuses a required selected-audio conversion before retiring the
+working decoder; it does not silently reopen a static file and claim success.
+This is synthetic controller/request evidence, not observed live-PMS/native
+track output or a claim that every server preserves the video.
+
+A new media version resolves audio/subtitle IDs against its own Part, using
+unique language/role/variant matches or advertised selected/default tracks.
+Subtitles off remains off; external cue timing is not copied to another cut.
+Replacement planning precedes stopping the existing player. Retry retains
+owned pause intent across native errors; Up Next freezes while buffering.
+The actual-main/controller/adapter regressions live in
+`tests/tizen/core-playback-ui.test.js`; hardware/service acceptance is separate.
+The native seek adapter verifies/restores actual decoder state against latest
+owned play/pause intent after a native success/error callback. Samsung's
+[seekTo constraint](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-seekTo)
+requires waiting for that callback before other playback APIs. Pending user
+controls queue intent. Normal remote scrubs preview locally, commit on key-up
+or900ms idle, and serialize callbacks with only the newest queued target.
+A slow normal seek shows buffering and keeps its native ownership until the
+callback, never a competing seek/reopen or Retry screen. A startup resume
+deadline remains a terminal error, without claiming verified native pause;
+its late callback cannot turn that startup failure into success.
+After post-callback buffering, a fresh
+[getCurrentTime](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-getCurrentTime)
+updates the cached clock/UI. QN70F tracing observed a second buffering cycle
+after success that moved the native clock from provisional18021 to19029ms;
+callback time alone is not final landed-position acceptance.
+Restoration refusal/unreadable or invalid native clocks are explicit failures.
+Startup offsets use that same owned operation after starting native playback,
+not an unanswered READY-state HLS seek followed by a competing fallback.
+Open waits for resume completion; a timeout does not claim playback from zero.
+Adapter failures from that operation carry `playbackPhase: "resume"` so the
+controller preserves the original error rather than treating it as an original
+file decoder rejection and automatically renegotiating/reopening.
+`avplay-seek-intent.test.js` models those native-state transitions and retired
+callbacks; it does not substitute for re-observing the failed QN70F criterion.
+
+## Plex Web interoperability observation, 2026-10-25
+
+REQ-WEB-01 compares the official public client at
+<https://app.plex.tv/desktop/>, observed as **Plex Web 4.163.0**, HTML hash
+`c55ba34fd4ea83979820`. The observed main asset was
+`js/main-8792-0fadf59092c873ab638b-plex-4.163.0-8246fd2.js`
+(3,508,034 bytes), SHA-384/base64
+`q1H2YK98cS9UgTmCj45B5zzrToCNcPG4bbCoYMW3DOsbU58dRwtkYeJXq6jFl1ZB`,
+matching its HTML integrity attribute. The public assets were inspected as text
+without credentials, cookies or executing downloaded code in that inspection;
+no proprietary implementation is included in Vemm.
+
+A separate isolated startup observation executed the actual public client in
+fresh browser contexts with service workers blocked. Recorded non-static HTTP
+service/account/PMS/telemetry requests were intercepted locally using never-valid
+synthetic credentials; official static GETs were permitted. WebSocket/WebRTC
+egress was not independently instrumented, so comprehensive network isolation
+is not established. Contexts were closed afterward.
+These are observed startup requests, not successful authenticated operations:
+`GET clients.plex.tv/monitoring/health`, `POST /api/v2/users/signin`,
+`GET /api/v2/user`, `GET /api/v2/resources`, privacy/grant/provider reads,
+`POST /api/v2/user/settings` and `GET together.plex.tv/rooms`.
+The unsolicited settings write and query-string tokens are **not** copied into
+Vemm. Its token-destination, header and redirect restrictions remain unchanged.
+The synthetic startup stopped at an incomplete library-access fixture; no
+marker, watched action or playback was observed successfully in Plex Web.
+
+| Compared contract | Actual observation and independently implemented consequence |
+| --- | --- |
+| Metadata | Public Web requests `includeMarkers=1` and `includeChapters=1` for details and queues. Vemm metadata already requests both plus OnDeck. `plex-web-interop.test.js` now binds the query to unsorted, millisecond marker fixtures, including duplicate marker IDs and final credits. Subsequent episode starts refresh metadata before playing; queue rows alone are not assumed complete. |
+| Queue identity | Public Web models `playQueueSelectedItemID` as a string and `playQueueVersion` as an integer. Vemm's fixtures use duplicate library keys and IDs beyond JavaScript's safe-integer range. Video/music host journeys now exercise revision-aware navigation and video playlist reordering/read-back; actual PMS/native queue acceptance remains open. |
+| Adaptive quality | Public Web's boolean preference defaults off, with a conditional numeric `autoAdjustQuality` request. The bundled OpenAPI describes this flag as ABR support and `location` as `lan`/`wan`/`cellular`. Vemm implements its own opt-in policy, request flags and local/remote ceiling; it does not copy the Web adaptation algorithm. Native manifest/representation and rebuffer acceptance remain outstanding. |
+| Watched state | Static Web routes include `/:/scrobble` and `/:/unscrobble`; this alone proves no method or cadence. Existing Vemm methods remain grounded in the PMS reference. New DOM regressions reject unchanged read-back rather than treating HTTP success as accepted watched state. |
+| Audio | Static Web `audioBoost` is an integer transcode option. The bundled OpenAPI independently specifies percent of original loudness (100 unchanged). This is not dialog isolation, loudness normalization, audio-delay support or device output acceptance. |
+| Lifecycle/recovery | Startup fixture failures were recorded as fixture failures, not real service outages. Existing Vemm cancellation and explicit recovery remain authoritative; Web timeline cadence, playback recovery and track-output comparisons have not been observed. |
+
+The privately retained observations are independently authored JSON, not bundles
+or account records. These comparisons and the protocol/DOM tests are partial
+REQ-WEB-01 evidence, **not** full Web parity or Samsung acceptance.
+
+The historical `5747511e` / `10b16abc` `REQ-SEARCH-ONLINE-01` integration reused the documented
+Discover search/details and exact local GUID association contract in the
+[client specification](samsung-tizen-client-spec.md). Its provenance is pinned
+Python-PlexAPI, not a successful online-search observation in the public Web
+startup above. That integration included online movie/show metadata with the
+linked profile's account token, while library search/availability keep each
+server's grant. Catalogue identities/keys and detail GUID/type are validated;
+duplicates are collapsed by GUID and only 30 online results are retained.
+Actual-main.js synthetic journeys cover no-server access, account/server token
+separation, cloud/library partial failures and Retry, query-edit cancellation,
+exact local availability, and GUID/server-key Back focus. These contracts do
+not establish live cloud availability or licensed streaming rights.
+The later owner direction superseded that release scope: default Search is now
+personal/shared-library-only, makes no automatic catalogue request, and exposes
+no catalogue-search promotion. The implementation/regressions remain deferred
+behind a source-disabled switch with no production setting; public metadata
+lookup is optional, not a release blocker. No Plex client distributions are
+downloaded/run and no licensed Plex catalogue playback is enabled.
+
+Marker availability is external to the client. Plex's
+[credits documentation](https://support.plex.tv/articles/credits-detection/)
+requires PMS 1.31.0 or newer, administrator Plex Pass for analysis and a qualifying
+playing account/Home; intermediate credits must preserve extra scenes.
+The empty Markers menu now explains missing server analysis/markers and possible
+entitlement requirements rather than implying that Vemm can manufacture them.
+No household entitlement or media state was inspected for this work.
+
 > **Authoritative source: [`plex-openapi.json`](plex-openapi.json)** — the official Plex Media
 > Server OpenAPI 3.1 spec (205 operations). Check it FIRST for any endpoint (method, path,
 > params, response); this file is a hand-curated, live-verified subset for the paths we use.
@@ -27,6 +140,256 @@ All endpoints below were verified live on 2026-07-03 with read-only GETs, **exce
 **Paging:** either headers `X-Plex-Container-Start` / `X-Plex-Container-Size` or same-named query params. A paged response carries `size`, `totalSize`, `offset`; an unpaged one carries neither total nor offset (see [Paging, observed](#paging-observed)).
 
 ---
+
+## Music PlayQueues: source-backed host contract, 2026-10-25
+
+REQ-MU-01 uses the Play Queue operations in [the bundled OpenAPI](plex-openapi.json),
+not the historical video-only implementation or an inferred Plexamp protocol.
+The following requests are exercised only against synthetic PMS fixtures:
+
+| Operation | Request and ownership |
+| --- | --- |
+| Create | `POST /playQueues?type=audio&continuous=0&shuffle=0&repeat=1&uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/30`. Shuffle creation uses `shuffle=1`. Only an explicit Play/Play album action creates a queue. |
+| Page forward/backward | `GET /playQueues/{id}?center={playQueueItemID}&window=50&includeBefore=0&includeAfter=1`, or `includeBefore=1&includeAfter=0` for previous. OpenAPI defines `window` as the number on each side and excludes the center when one side is disabled. No offset-pagination endpoint or ownership-transfer flag is invented. |
+| Shuffle | `PUT /playQueues/{id}/shuffle` or `/unshuffle`. PMS maintains the selected entry and restores natural order on unshuffle. A mismatched selected ID, shuffle flag or regressing version is an explicit error. There is no Up Next editing in this music lane. |
+| Correlate playback | Existing `POST /:/timeline` includes the exact string `playQueueID` and `playQueueItemID`, including duplicate library keys and IDs beyond JavaScript's safe integer range. A library key or list index is not a queue-entry ID. |
+| Clear | `DELETE /playQueues/{id}/items` after playback stop. This is OpenAPI's clear-items operation, not an invented queue-deletion route. Only the queue this action created is cleared. |
+
+Creation's `repeat=1` requests the documented **wraparound window filling**, not
+a native repeat-one setting. Vemm separately owns repeat off/one/all: off stops
+at the known total, automatic repeat-one keeps the entry, manual next bypasses
+repeat-one, and all permits wrapping in either direction. Queue creation returns
+the selected offset and total; subsequent moves retain that position only while
+the queue's revision and total match. An external order/version change requires
+stopping and reopening the album instead of guessing a new position.
+
+The retained projection is at most 200 entries, with 50-entry directional reads
+and the existing 4 MiB/full-body deadline. The next entry's metadata must arrive
+before the current audio is stopped or queue selection advances. Retry repeats
+that same transition; cancellation rejects/invalidates obsolete reads and cannot
+start delayed audio. Pause intent survives a manual transition. Read cancellation
+is scoped by queue ID, so retiring a stale created queue cannot cancel another
+queue's page. POST/PUT responses are not aborted on view cancellation: a late
+creation is cleared when its identity arrives, and a pending mutation finishes
+before clear. Clear failure is visible and explicitly retryable. A lost creation
+response without a usable queue ID cannot be reconciled by inventing an ID or
+replaying a write automatically.
+
+Initial and next-track metadata must match the selected queue entry's
+`ratingKey`, have type `track`, and pass the existing playback plan's selected
+media Part/key and audio Stream checks before ownership is committed or current
+audio is stopped. Invalid next metadata leaves the current session and queue
+selection intact, including pause intent, with explicit Retry/Cancel. Invalid
+initial metadata retires the newly created queue before another create is
+allowed.
+
+Creation and retirement have separate interlocks: cancelling a create does not
+permit a second POST while the first response is outstanding, and neither a
+late cancelled queue nor a stopped queue can be replaced until its clear
+response drains. Malformed projections still require their revision, selected
+offset and shuffle fields; they are not repaired with defaults. If a malformed
+projection has a valid queue ID but its cleanup fails, the API error retains
+that ID as a cleanup-only owner. The UI keeps the owner behind the retirement
+interlock and offers explicit cleanup retry, never replaying creation to recover
+it. Repeated cleanup controls join the outstanding clear request instead of
+starting concurrent writes. These are music-only ownership changes; the video
+queue contract is unchanged.
+
+`music-queue.test.js` traverses 321 entries with duplicate library keys, string
+queue IDs, versions, repeat boundaries, shuffle, cancellation and retryable
+cleanup. `music-queue-ui.test.js` uses the actual app's music screens and remote
+Enter handling through more than 200 tracks, failed/cancelled creation,
+metadata interruption/retry, cancelled paging, shuffle, previous/next,
+repeat-one, pause intent and cleanup failure/retry. `media-ui.test.js` also
+binds music timelines and stop to the server queue. These are host contracts,
+**not live PMS, named-TV native audio or Plexamp/native-output parity evidence**.
+The ownership regressions additionally cover wrong initial/next identity/type,
+missing Part/key/audio Stream facts, malformed projection cleanup failures,
+cancel/restart before late creation/retirement drains and coalesced explicit
+cleanup retry. No disposable backend is available; these tests do not authorize
+household-profile or live-PMS writes.
+
+---
+
+## Video playlists and queues: source-backed host contract, 2026-10-25
+
+REQ-QU-01 extends the existing `createVideoPlayQueue` rather than creating a
+second video queue. It uses the same bounded server controller as music, with
+explicit video API selection; the default music behavior is unchanged.
+[The bundled OpenAPI](plex-openapi.json) supplies these operations:
+
+| Operation | Request and scope |
+| --- | --- |
+| List/detail | `GET /playlists?playlistType=video`, then `GET /playlists/{id}`. Playlist metadata is not fetched from `/library/metadata/{id}`. |
+| Items | `GET /playlists/{id}/items` with `X-Plex-Container-Start` and `X-Plex-Container-Size=50`. Previous/next pages retain only the current 50 entries; Back restores its page. |
+| Start playlist | `POST /playQueues?type=video&playlistID={id}&continuous=0&shuffle=0&repeat=1`. Explicit shuffle uses `shuffle=1`. Normal movie/episode playback retains the existing `uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/30&continuous=1` creation path. |
+| Navigate/shuffle/clear | The same documented directional 50-entry window, `/shuffle`, `/unshuffle`, timeline entry correlation and owned `/items` clear operations described for music above, using `type=video` metadata validation. No `own=1`, invented offset-based queue endpoint or new queue per transition. |
+| Reorder an existing playlist | Explicit Move to beginning, then Confirm, uses `PUT /playlists/{id}/items/{playlistItemID}/move` without `after`, as documented. This changes the saved playlist, not an already-created playback queue. Smart playlists are not manually reordered. |
+| Add one video | `PUT /playlists/{id}/items?uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/2`. The source client freshly reads its own identity and the selected movie/episode/clip, not a global server ID or an arbitrary pasted URL. |
+| Remove one saved entry | `DELETE /playlists/{id}/items/{playlistItemID}`. The OpenAPI's DELETE path calls this parameter `generatorId`, but its description explicitly deletes an item from a non-smart playlist. Duplicate library IDs are not interchangeable entry IDs. |
+| Create a standard playlist | `POST /playlists?type=video&smart=0&title=...&uri=...` uses the freshly verified selected video's same-client URI; empty creation omits `uri`, following the bundled blank-playlist contract. The returned single ID is independently fetched, and its exact name, standard/video type and zero/one expected initial entries must match. |
+| Rename a playlist | `PUT /playlists/{id}?title.value=...&title.locked=1` after freshly matching the selected ID/title; read back that exact ID and requested name. This uses the documented metadata-edit form, not an arbitrary path or a playback queue. |
+| Delete a playlist | `DELETE /playlists/{id}` after freshly matching ID/title. Only a subsequent same-server typed HTTP 404 confirms deletion; unchanged metadata, 401/403, a malformed response or transport error does not. Never delete media or retry the mutation as cleanup. |
+| Edit smart rules | `PUT /playlists/{id}/items?uri=server://synthetic-server/com.plexapp.plugins.library/library/sections/1/all?...` replaces the smart filter rules, not manual entries. The URI is constructed from validated structured rules using the same freshly read server identity; callers cannot paste a network URI. |
+
+Playlist reordering checks the displayed page's entry IDs and total immediately
+before writing, then independently reads page zero and checks the first entry
+and total. A successful HTTP response with unchanged order is not success.
+Failure/uncertain read-back requires Reload playlist, not automatic write
+replay. `playlistItemID` identifies the edited entry; `playQueueItemID`
+identifies playback; neither is the possibly duplicated library `ratingKey`.
+For add/remove, `REQ-QU-EDIT-01` reads a complete bounded entry-ID/media-ID
+snapshot before and after the one mutation. Add requires the unchanged ordered
+prefix plus one new entry for the selected video; remove requires exactly the
+old ordered entries minus the selected saved-entry ID. The displayed removal
+page is checked against preflight, and standard video-playlist identity is
+checked again immediately before writing. Unknown, incomplete, duplicated or
+concurrently changed pages, unchanged HTTP success and denied read-back are
+explicit uncertainty, never automatic mutation retry.
+
+Verification reads 50-entry pages, retains at most 1000 identity pairs and
+admits no new phase after its 60-second deadline; an issued response still has
+the existing request deadline. Adding at the 1000-entry ceiling rejects before
+writing. View cancellation retires future requests, while an already-sent
+mutation may finish; it cannot be undone or replayed as cancellation cleanup.
+An in-flight per-playlist edit blocks another add/remove/move. Refresh replaces
+the completed confirmation in Back history; failed verification also offers
+read-only Refresh, not another Confirm.
+The confirmation owns the originating client, including a secondary server
+whose details were opened from another server's Home; leaving it cancels that
+client's pending verification, not only the globally selected server's reads.
+
+The independently implemented request forms also agree with the public
+[Python-PlexAPI playlist documentation](https://python-plexapi.readthedocs.io/en/latest/modules/playlist.html)
+and its linked source: standard-item add uses the source server's content URI,
+remove uses `playlistItemID`, and smart playlists require rule edits instead.
+This is protocol evidence, not code copying or a real-PMS acceptance run.
+`REQ-QU-SMART-01` independently parses the playlist's `content` (never its
+artwork `composite`) and requests `includeMeta=1&includeAdvanced=1` with a
+zero-sized library page. `Meta.Type.Field`/`Sort` and
+`Meta.FieldType.Operator` supply the editable video fields/operators/sorts.
+The public [library documentation](https://python-plexapi.readthedocs.io/en/latest/modules/library.html)
+and [smart-filter reference](https://github.com/pkkid/python-plexapi/blob/master/plexapi/mixins/smart_filter.py)
+corroborate this discovery and the ordered `push=1`, `pop=1`, `and=1`, `or=1`
+query grammar; the implementation does not copy that code.
+
+The editor supports at most 32 conditions, four nested group levels, five
+expanded sort components, 512 characters per condition value and a 16 KiB content URI.
+It preserves advertised equality/comparison operators, exact string escaping,
+type-scoped field aliases, optional sort directions, the existing GUID
+projection flag and an optional 1–100000 result limit. Redundant unary groups
+are normalized for equivalent-rule read-back. Unknown query parameters,
+unsupported fields/operators, non-video types, foreign-server/section URIs,
+unbalanced/mixed groups and over-limit rules explicitly stop editing; they
+are not silently dropped. This does not add every possible provider-specific
+or cross-type aggregation grammar.
+
+Sort choices preserve the complete supplied `Sort.key` and `Sort.descKey`,
+including compound tie components. Only a bare single-field key gets explicit
+`:asc`/`:desc` alternatives; a missing opposite compound expression is not
+invented. The shared validator admits complete advertised expressions, groups
+them for removal and counts every expanded component toward the five-field
+bound. A truncated compound is rejected before writing. Library browse reuses
+the same expression selection, never appending a direction to a compound.
+This repairs the independent frozen `cffc986b` REVISE finding: dropping a tie
+component can change smart-playlist membership when a result limit is set.
+
+Confirmation snapshots the draft before asynchronous preflight, reloads
+identity/schema, and checks exact title/content again immediately before the
+single write. Read-back must independently return the exact title, smart
+video type and equivalent complete rules. A local edit interlock prevents
+concurrent operations on the same playlist; it is not a server compare-and-swap
+and cannot prove real PMS race semantics. Scope retirement and the 60-second
+admission deadline apply between phases. An already-sent mutation may finish
+after leaving, but it cannot be replayed or represented as accepted without
+read-back. `smart-playlists` and `smart-playlists-ui` cover this API and actual
+main.js remote forms, nested groups, limits, Cancel/draft/focus, uncertainty
+and secondary-client cancellation. Live PMS and native acceptance remain open.
+
+`playlist-edits` and `playlist-edits-ui` exercise the actual API/main.js,
+duplicate media entries, all pages, empty/maximum/over-limit containers, explicit
+confirmation, denied/unchanged/concurrent results, repeated OK, pre/post-send
+cancellation and originating focus.
+
+`REQ-QU-LIFE-01` extends the same client ownership, phase deadline and edit
+interlock to create/rename/delete. Names are trimmed, nonempty, limited to 128
+characters and reject control characters. Rename must change the name; changing
+the target title elsewhere requires a new confirmation. Create/rename validate
+the requested result; deletion requires typed absence rather than accepting
+authentication loss as success. Their UI offers explicit named confirmation,
+retains the draft and originating control on Cancel, and invalidates bounded
+metadata/Home snapshots before an attempted mutation. Refresh is read-only
+even after uncertainty and never points back into a deleted detail.
+
+The public Python-PlexAPI playlist creation/deletion and
+[title-edit source documentation](https://python-plexapi.readthedocs.io/en/latest/_modules/plexapi/mixins/edit.html#TitleMixin.editTitle)
+corroborate these request parameters. `playlist-lifecycle` and
+`playlist-lifecycle-ui` use synthetic API/actual-main.js journeys; no live PMS
+or Samsung acceptance is implied. Smart-rule editing remains a source gap.
+
+Video retains the PMS version/count/offset and exact string entry IDs. Pages
+retain at most 200 entries, and every next/previous transition validates fresh
+metadata identity and playable source before stopping the old video or selecting
+the new entry. Marker/chapter inclusion remains on the metadata read. Manual
+transitions preserve pause; repeat-one applies only to automatic completion.
+Creation's `repeat=1` is window filling, not a server repeat-playback promise.
+Final credits and Up Next consult that same queue; completion drains/cancels an
+unfinished preview before navigating. The inherited countdown/Back cancellation
+remains; foreground recovery does not autoplay.
+
+Creation is an explicit playback operation. Errors offer Retry/Cancel instead
+of silently dropping queue identity. Cancelled creation is cleared when its ID
+arrives; new creation waits for that request to settle. Stop/background/exit
+clear only the owned queue, after outstanding mutations settle. Cleanup failure
+retains ownership and blocks new creation until explicit cleanup retry succeeds.
+As with music, losing a creation response without a usable ID remains uncertain:
+Vemm cannot fabricate its ID or prove server cleanup.
+
+`video-queue.test.js` traverses 321 entries with duplicate library keys and
+large string IDs. `video-queue-ui.test.js` runs actual remote Enter/Back events
+through more than 200 entries, playlist page/edit/read-back, metadata failure
+and mismatch, paused navigation, repeat/shuffle, pending credits preview,
+cancelled creation/page, stale revision and background cleanup. These are
+synthetic host contracts, not disposable-PMS or named-TV playback, memory,
+remote/lifecycle or server-mutation acceptance.
+
+## DVR storage and priorities: source-backed host contract
+
+The bundled OpenAPI subscription POST defines `targetLibrarySectionID` and
+`targetSectionLocationID` separately. Library section metadata defines
+`Location[]` with numeric `id` and disk `path`. `REQ-TV-STORAGE-01` freshly reads
+the chosen compatible library, validates at most 50 unique numeric locations
+and presents those server-provided choices before named confirmation. The
+selected ID is sent as `targetSectionLocationID`, never as a filesystem path.
+Missing advertised locations permit only an explicit **Use Plex default
+storage** choice, which omits that parameter. Malformed, duplicate or
+over-limit locations are errors, not permission to use a default. Inspection,
+Cancel and a late response after Back never schedule.
+
+The documented `PUT /media/subscriptions/{subscriptionId}/move` changes
+subscription priority; omitting `after` moves it to the beginning.
+`REQ-TV-PRIORITY-01` links scheduled-recording status to this manual priority
+workflow. It requires explicit named confirmation, matches the complete
+displayed/preflight subscription ID order and selected title, sends one PUT,
+then verifies the exact promoted order and title. It rejects duplicates,
+incomplete size/offset reports, more than 200 subscriptions, stale names/order,
+unchanged success, denied access and concurrent changes. A 60-second
+phase-admission deadline and originating-view guard stop future requests;
+already-sent changes may finish and are never undone or replayed as cleanup.
+One per-client pending priority operation remains locked across view instances.
+
+Priority read-back does **not** prove a tuner conflict resolved. The UI keeps
+that distinction explicit, and returning to scheduled recordings reads Plex's
+actual status again. The existing explicit subscription cancellation and
+server-preference forms remain available; no automatic conflict cancellation,
+tuner allocation, keepalive or guessed release endpoint is added.
+
+`television`, `recording-priority`, `recording-storage-ui` and the actual-main.js
+`media-ui` journey cover physical/default storage, malformed and late responses,
+duplicate/reordered/partial/over-limit priority data, cancellation, repeated OK,
+HTTP uncertainty and unchanged conflict status. These are synthetic fixtures,
+not actual subscription persistence, entitlement, recording or named-TV/tuner
+acceptance. Comprehensive conflict/service acceptance remains open.
 
 ## 1. Library sections
 

@@ -32,6 +32,75 @@ does not prove signing, install/update, remote input, AVPlay decoding, HDR,
 panel output or performance. Those require separately authorized named-model
 acceptance, not an LG native benchmark.
 
+## Isolated native product fixture
+
+`tools/tizen/native-fixture.py` prepares a separate **Vemm QA** widget
+(`VemmQaApp0.NativeQa` / `VemmQaApp0`) and account-free HTTP fixture. It is
+development tooling, not another shipped renderer or a real PMS. A clean
+committed source is mandatory for staging; existing output is never overwritten.
+Its explicit single-item video queue contract includes string entry identities,
+revision, count, selected offset and shuffle state, POST timeline updates and
+owned DELETE cleanup. Queue IDs change between creations; an old cleanup retry
+cannot clear the next queue. A host integration journey loads the generated
+boot and production modules against the actual Python HTTP server, reaches
+Play and the Intro prompt, then uses the remote Stop key to confirm stopped
+timeline and queue cleanup. AVPlay is mocked in that host journey; it is not
+native media, full playlist/paging/shuffle, real-PMS or panel acceptance.
+The original `main.js`, modules and notices are retained and hashed. Only the
+canonical startup suffix is replaced in a separately named executable copy,
+which refuses to start outside that exact QA application identity. Production
+Vemm identity, storage, sign-in and signing continuity are untouched; no new
+platform privileges are requested.
+
+```sh
+python3 tools/tizen/native-fixture.py stage --output /absolute/private/new-qa-app
+python3 tools/tizen/native-fixture.py media --output /absolute/private/new-synthetic-media
+python3 tools/tizen/native-fixture.py serve \
+  --media /absolute/private/new-synthetic-media \
+  --bind PRIVATE_HOST_IP --allow-client TV_IP --allow-client 127.0.0.1
+```
+
+The media command uses an already-installed `ffmpeg` to generate 30 seconds of
+synthetic H.264/AAC, HLS, artwork and SRT; it installs nothing and accepts no
+household input. Video has a one-second fixed GOP and HLS segment target, so
+the synthetic seek criterion is not undermined by the encoder's default
+ten-second keyframe gaps. Measure generated keyframe timestamps when collecting
+native seek evidence; flags alone are not an observed landing.
+The server verifies media checksums, binds an explicit
+private IPv4 interface, admits only explicitly listed client addresses, limits
+assets/ranges/request bodies and rejects unknown contracts rather than
+returning generic success. Mutations affect only its disposable RAM records.
+It does not implement real cloud entitlement, tuner, licensed catalogue or all
+PMS behavior.
+
+Build/sign/install the QA widget only under the authorized Samsung lane after
+checking the QA ID is not somebody else's existing app. Use the existing
+approved author/profile, never replace or uninstall production Vemm, and
+record the separate QA payload/source hashes. Following fresh live identity
+matching, invoke `VemmNativeFixture.start()` through its owned inspector with
+the explicit private fixture origin supplied **at runtime**, not stored in the
+widget. Fetch is restricted to that exact origin. No Plex account/server token
+is configured, and the HTTP fixture rejects unexpected token values. This is
+a fetch boundary, not an assertion of
+general network isolation. Synthetic setup functions cannot navigate away
+from an active player or change ownership silently. Exercise real remote
+actions after setup; source helper calls alone do not prove D-pad behavior.
+
+Keep per-model native samples/receipts private and distinguish native
+DOM/resource/AVPlay observations from real PMS interoperability, production
+startup/update and physical panel/audio acceptance. Heap absence is `null`,
+not zero; timing is not presented FPS. Stop the owned fixture server and
+release only owned links/forwards when the bounded run ends.
+
+Inspect the actual WGT, not only the stage or a green toolkit audit. The
+program's pinned toolkit `pack` and source-based `package` commands were
+observed to restage assets and omit Vemm's root notices and `licenses/`.
+Those outputs are not approved Vemm packages. Keep the independent static
+audit, but package the exact repository-created stage without that asset-only
+restage. Separately authorized SDK signing must use the approved existing
+profile and retain that payload. Do not create a new certificate or export it
+to another installer to work around a packaging error.
+
 ## Separate Vemm distribution
 
 Vemm uses `VemmTvApp0` / `VemmTvApp0.Vemm`, `vemm-tizen-*` storage,
@@ -60,6 +129,19 @@ authorization. Do not execute the publisher merely to validate source cleanup.
 inventory from `licenses/` (not arbitrary local directory contents). Hidden files, source maps, old WGTs
 and unrelated/private file types are not product assets. This is a staging
 boundary, not a secret scanner: review the actual source and staged entries.
+`js/product.js` carries the source version, matching `config.xml`.
+The default local build uses that version. Explicit `stage(app, X.Y.Z)` stamps
+both files in the staged copy, so About and both PMS/account protocol headers
+agree with the package version without rewriting source or retaining a
+historical client version. This metadata agreement is not release acceptance.
+Before SDK packaging the local builder snapshots the staged file bytes;
+afterward `samsung.build.verify_package` rejects missing, additional, modified,
+duplicate or symbolic-link payloads and unknown directory entries. Only the
+SDK's root author/distributor signature files may be additional files.
+The output is not moved to `dist` or checksummed if that inventory/content
+gate fails. The same gate can check an isolated QA payload against its
+prepared stage. It does not establish signature trust, installed version,
+native functionality or author continuity.
 The notices are legal payload,
 not executable dependencies. Review actual archive entries and preserve matching
 complete-source availability under GPL section 6(d).

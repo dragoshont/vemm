@@ -15,6 +15,7 @@ var api = fs.readFileSync(path.join(app, "js/plex-api.js"), "utf8");
 
 assert.deepStrictEqual(product, {
     name: "Vemm",
+    version: "0.2.0",
     pronunciation: "/vem/",
     tagline: "Your media. At its best.",
     platform: "Samsung Tizen",

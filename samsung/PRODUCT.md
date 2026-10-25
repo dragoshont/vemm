@@ -28,7 +28,110 @@ music/photos, Watchlist/catalogue, DVR, playback, settings and explicit confirma
 Preserve remote focus and Back behavior, bounded image/metadata retention and lifecycle cleanup.
 Do not initiate playback or account writes merely to display or inspect a screen.
 Do not add private APIs or unsupported playback claims to make the interface seem complete.
-Licensed catalogue streaming and verified live tuning remain acceptance gaps.
+Licensed catalogue streaming is disabled/deferred; verified live tuning remains
+a separate service/native acceptance gap.
+
+Current release priority is movie/TV browsing and personal/shared-library search, video
+playback/seeking/remote controls, subtitles and video audio-track selection.
+Saved playlists (including smart editing), music and photos are explicitly
+deferred, not completed or removed. Preserve their existing behavior and tests;
+do not add or enable new optional surfaces. Core video queue ownership,
+automatic episode transitions and pause/cleanup behavior remain required.
+The current release scope and conditional release gate are recorded in `SPEC.md`.
+
+Protected owners require their PIN even through Use linked account after a
+managed profile. Failed/empty profile lookup never offers an unverified owner
+shortcut. Video Retry retains the last owned pause intent across terminal
+decoder/preparation errors, and buffering cannot consume the Up Next countdown.
+Selecting audio from a multi-audio file negotiates the chosen PMS audio in a
+server stream instead of treating PMS stream IDs as native decoder indices.
+Supported video may still be copied. Force refuses that required conversion
+explicitly before stopping the working player. Version changes resolve track
+IDs from the destination Part using matching language/variant metadata or its
+advertised/default tracks, preserve Subtitles off, and discard external cues
+timed for another cut. Invalid replacement plans leave the working player intact.
+These are host contracts, not acceptance of real-PMS output or native audio.
+Seek success/error callbacks verify actual decoder state against the latest
+owned Play/Pause intent. Pending user controls queue intent without calling
+native playback APIs before the callback. Normal scrubbing previews locally,
+commits on key-up or900ms idle, and keeps only the latest queued target while a
+native seek is outstanding. Its slow-callback threshold shows buffering, not
+the playback-problem/Retry view; the callback completes recovery before any
+queued request runs. Startup resume retains an explicit terminal deadline,
+not verified pause; a late owned startup callback cannot erase that failure.
+Closed/new
+sources cannot inherit it. Post-callback buffering completion refreshes the
+actual native clock, including a second buffer phase that snaps to a keyframe.
+Failed restoration/clock reads are explicit player errors, never enum-only
+success. Exact-source native acceptance remains required.
+Startup resume uses the same owned PLAYING-state seek, avoiding unreliable
+READY-state HLS seeks on older engines. Opening completes only after resume
+answers and the latest intent/native clock are verified. Missing callbacks
+fail explicitly instead of claiming that playback resumed or started over.
+Resume failures retain their identity and phase; they are not decoder rejection
+and must not automatically renegotiate/reopen a Direct Play source while its
+owned seek is still outstanding.
+Player Info and Chapters buttons/overlays and their navigation paths are
+removed. Detail-page File information remains unchanged.
+
+Video playlists are server-backed: browse existing playlists, play/shuffle them,
+page their items, and explicitly confirm moving an entry to the beginning.
+Playback's More menu provides previous/next video, shuffle and repeat; queue
+transitions preserve entry identity and marker/chapter metadata without creating
+another queue. Metadata or cleanup failures remain visible and retryable.
+Movie/episode/clip More offers a paged standard-playlist picker. Adding a video
+or removing its exact saved entry requires item/playlist confirmation and
+complete bounded identity/order read-back, not HTTP success alone. Duplicate
+media entries remain distinct. Smart playlists do not expose manual item edits.
+Create a named standard playlist from the selected video through that picker,
+or create an empty playlist from Video playlists.
+Playlist details > More provides confirmed rename and deletion, with a fresh
+identity/title check and independent read-back. Deletion removes the playlist,
+not its media. Pending confirmations own the actual source server; leaving
+preflight prevents a late write even when another server is globally selected.
+Cancel restores the opening field/control and expanded More state. Changes
+invalidate retained metadata so Back cannot reuse an old name or deleted card.
+Smart video-playlist details > More > Edit smart rules loads the saved content
+URI and fresh server-advertised fields/operators/sorts. Remote forms preserve
+supported nested all/any groups, ordered sorts and a result limit, including
+the server's complete compound sort expressions and tie components;
+the five-sort-field bound counts expanded components, not just visible choices.
+Changes require named confirmation, unchanged-title/content preflight and independent
+equivalent-rule read-back; HTTP success alone is not confirmation. Unsupported,
+unknown or over-limit rules stop editing rather than being silently removed.
+No arbitrary network/filter URI can be pasted, and artwork is not rule data.
+Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
+
+Server search includes supported clip and video-playlist results. Playlist
+details retain their source server and playlist-specific identity; opening a
+result does not start playback. Editing or clearing a query retires its old
+requests/results. Back waits for results before restoring the exact server/item
+focus; retained results and headings share the 200-result bound.
+Search is library-first, including with a linked profile: it queries only
+reachable personal/shared PMS libraries and retains up to 200 results.
+It makes no automatic Discover/catalogue request and does not promote
+Plex-distributed Movies & Shows. Plex authentication and each server's own
+access grant remain necessary; this is not removal of account linking.
+Source failures remain visible beside successful results and offer Retry
+without discarding the query. Back restores the exact server and rating key,
+not position alone.
+
+Online catalogue search is deferred behind a source-disabled switch with no
+production setting or default Home/server-selection entry. Its existing
+metadata-only implementation/regressions remain, including validated GUIDs,
+bounded results, exact local availability, no-PMS empty state and cancellation.
+Public metadata lookup is at most optional future scope, not a release blocker.
+Do not download/run Plex client distributions for this release work; no
+licensed Plex catalogue playback is enabled. Explicit Watchlist/local-availability
+behavior remains separate from default library search.
+
+DVR scheduling offers fresh storage locations within the chosen library, or an
+explicit Plex-default choice when none are advertised; it never picks a hidden
+default or creates a recording while browsing. Scheduled recordings link to
+confirmed manual priority management with complete bounded order read-back.
+Changing priority is not a claim that Plex resolved a tuner conflict. Existing
+subscription cancellation/preferences remain explicit; actual scheduling,
+comprehensive conflicts and tuner allocation/lifecycle still need acceptance.
 
 ## Brand commitments
 

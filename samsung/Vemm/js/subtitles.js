@@ -23,7 +23,10 @@
             .replace(/&(#\d{1,6}|#x[0-9a-f]{1,6}|[a-z]+);/gi, function (whole, name) {
                 if (name.charAt(0) === "#") {
                     var code = name.charAt(1).toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-                    return code > 0 && code < 0x110000 ? String.fromCharCode(code) : whole;
+                    if (code <= 0 || code >= 0x110000 || code >= 0xD800 && code <= 0xDFFF) { return whole; }
+                    if (code <= 0xFFFF) { return String.fromCharCode(code); }
+                    code -= 0x10000;
+                    return String.fromCharCode(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF));
                 }
                 return Object.prototype.hasOwnProperty.call(ENTITIES, name.toLowerCase()) ? ENTITIES[name.toLowerCase()] : whole;
             })
@@ -51,6 +54,13 @@
         });
         if (!cues.length) { throw new Error("No SRT or WebVTT cues were found. Use server-rendered subtitles instead."); }
         cues.sort(function (a, b) { return a.start - b.start; });
+        var maxEnds = [];
+        var maxEnd = 0;
+        cues.forEach(function (cue) {
+            maxEnd = Math.max(maxEnd, cue.end);
+            maxEnds.push(maxEnd);
+        });
+        Object.defineProperty(cues, "_vemmMaxEnds", { value: maxEnds });
         return cues;
     }
     function at(cues, position) {
@@ -61,10 +71,13 @@
             if (cues[mid].start <= position) { low = mid + 1; } else { high = mid - 1; }
         }
         var text = [];
-        for (var i = high; i >= Math.max(0, high - 10); i -= 1) {
-            if (cues[i].start <= position && position < cues[i].end) { text.unshift(cues[i].text); }
+        var maxEnds = cues._vemmMaxEnds;
+        for (var i = high; i >= 0; i -= 1) {
+            // An expired prefix cannot hide an older, still-active overlapping cue.
+            if (maxEnds && maxEnds.length === cues.length && maxEnds[i] <= position) { break; }
+            if (cues[i].start <= position && position < cues[i].end) { text.push(cues[i].text); }
         }
-        return text.join("\n");
+        return text.reverse().join("\n");
     }
     return { parse: parse, at: at, clean: clean };
 }));

@@ -236,6 +236,13 @@ Every tested app JS file matched the installed build. The run ended on Home with
 
 Follow-up: LG restarts the transcode with `offset=` and treats the stream as starting at 0 plus a display base (`plex/src/plex/transcoder.rs`). Samsung still sends `offset: 0` and relies on AVPlay seeking. The PLAYING-state retry fixes the hang. Moving to server-side offsets would avoid a long first seek, but it means remapping positions in timelines and markers.
 
+The READY/fallback description above is historical. The current source avoids
+the unreliable READY seek entirely: startup resume shares the owned
+PLAYING-state seek used by remote controls and waits for its callback.
+Pending controls queue intent; timeout is explicit failure, not claimed
+playback from zero, and position comes from the native clock. The earlier
+device observations do not accept this changed path on current sources.
+
 ## Direct-play device pass (build `ea0d7c9b` = `11e87f78` + `9eaaa04c`)
 
 Same TV. Once the update was installed, `productinfo` reported firmware `T-KTMDEUC-1410.1`, model family `UMU6100` and UHD support. All 19 live scripts matched the build. The pass ended on Home with AVPlay `NONE` and preferences restored.

@@ -102,8 +102,7 @@
                                     })
                                         .forEach(function (section) {
                                             options.button(options.screen, section.title || "Library", function () {
-                                                options.confirm("Schedule recording", function () { return api.record(template, section.key); },
-                                                    function () { openRecordings(true); });
+                                                openRecordingStorage(program, template, section, api, openDestination);
                                             });
                                         });
                                     options.status("Choose the destination library. Scheduling requires explicit confirmation.");
@@ -116,6 +115,51 @@
                         "No recording options are available for this program.");
                     options.focus();
                 }).catch(function (error) { if (generation === options.generation()) { options.status(root.VemmI18n.error(error), true); } });
+            }
+
+            function openRecordingStorage(program, template, section, api, chooseLibrary) {
+                var restore = function () { openRecordingStorage(program, template, section, api, chooseLibrary); };
+                var generation = options.view("Recording storage", restore, "recording-storage");
+                var client = options.client();
+                options.screen.appendChild(options.element("p", "help-text", section.title || options.translate("Library")));
+                options.button(options.screen, "Choose another library", chooseLibrary);
+                client.getSections().then(function (sections) {
+                    if (generation !== options.generation()) { return; }
+                    var fresh = sections.filter(function (item) { return String(item.key) === String(section.key); })[0];
+                    if (!fresh || fresh.type !== section.type) { throw new Error("The recording library is no longer available."); }
+                    var locations = fresh.Location === undefined ? [] : fresh.Location;
+                    var seen = {};
+                    if (!Array.isArray(locations) || locations.length > 50 || locations.some(function (location) {
+                        if (!location || !/^[0-9]+$/.test(String(location.id)) || seen[location.id] ||
+                                location.path !== undefined && (typeof location.path !== "string" || location.path.length > 2048)) {
+                            return true;
+                        }
+                        seen[location.id] = true;
+                        return false;
+                    })) { throw new Error("Plex returned invalid recording storage locations."); }
+                    function destination(location, label) {
+                        options.confirm(options.translate("Schedule {title}?", { title: program.title || options.translate("Program") }),
+                            function () { return api.record(template, fresh.key, location); },
+                            function () { openRecordings(true); }, client,
+                            options.translate("Library: {library}. Storage: {location}.",
+                                { library: fresh.title || options.translate("Library"), location: label }));
+                    }
+                    var choices = options.group(options.screen, "", "selection-list");
+                    locations.forEach(function (location) {
+                        var label = location.path || options.translate("Storage location {id}", { id: location.id });
+                        options.button(choices, label, function () { destination(location.id, label); });
+                    });
+                    if (!locations.length) {
+                        options.button(choices, "Use Plex default storage", function () {
+                            destination(null, options.translate("Plex default storage"));
+                        });
+                    }
+                    options.status(locations.length ? "Choose a storage location. Nothing changes until you confirm." :
+                        "Plex did not advertise storage locations. You may explicitly use its default or choose another library.");
+                    options.focus();
+                }).catch(function (error) {
+                    if (generation === options.generation()) { options.status(root.VemmI18n.error(error), true); options.focus(); }
+                });
             }
 
             function openChannel(provider, media, date) {
@@ -147,12 +191,35 @@
                 var generation = options.view(subscriptions ? "Recording subscriptions" : "Scheduled recordings",
                     function () { openRecordings(subscriptions); }, "recordings");
                 var api = root.VemmTelevision.create(options.client());
+                if (!subscriptions) {
+                    options.button(options.screen, "Recording priorities", function () {
+                        options.visit(function () { openRecordings(true); });
+                    });
+                }
                 (subscriptions ? api.subscriptions() : api.scheduled()).then(function (items) {
                     if (generation !== options.generation()) { return; }
-                    items.slice(0, 200).forEach(function (item) {
+                    var priorities = subscriptions && items.length <= 200 && items.every(function (item) {
+                        return item && /^[0-9]+$/.test(String(item.key)) && typeof item.title === "string";
+                    });
+                    if (subscriptions) {
+                        options.screen.appendChild(options.element("p", "help-text",
+                            options.translate("Higher subscriptions get recording priority. Plex may still report tuner conflicts.")));
+                    }
+                    items.slice(0, 200).forEach(function (item, index) {
                         var recording = options.group(options.screen, item.title || item.Metadata && item.Metadata.title || "Recording", "recording-row");
                         recording.appendChild(options.element("p", "detail-meta", String(item.status || "")));
                         if (!subscriptions) { return; }
+                        if (priorities && index > 0) {
+                            options.button(recording, "Move to highest priority", function () {
+                                options.confirm(options.translate("Give {title} highest recording priority?", { title: item.title }),
+                                    function () {
+                                        var own = options.generation();
+                                        return api.prioritize(item, items.map(function (subscription) { return String(subscription.key); }),
+                                            function () { return own === options.generation(); });
+                                    }, function () { openRecordings(true); }, options.client(),
+                                    "This changes recording priority, not tuner availability. Review scheduled recordings afterward.");
+                            });
+                        }
                         options.button(recording, "Cancel recording subscription", function () {
                             options.confirm("Cancel recording subscription", function () { return api.remove(item.key); },
                                 function () { openRecordings(true); });
@@ -199,7 +266,8 @@
                             });
                         });
                     });
-                    options.status(items.length > 200 ? "Showing the first 200 recordings." :
+                    options.status(subscriptions && !priorities ? "Plex did not provide a complete editable recording-priority list." :
+                        items.length > 200 ? "Showing the first 200 recordings." :
                         items.length ? "Recording status supplied by Plex. Conflicts are not automatically changed." : "No recordings were returned.");
                     options.focus();
                 }).catch(function (error) { if (generation === options.generation()) { options.status(root.VemmI18n.error(error), true); } });

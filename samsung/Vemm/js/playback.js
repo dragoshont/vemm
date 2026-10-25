@@ -47,6 +47,8 @@
         delete ask.videoQuality;
         delete ask.videoCodec;
         delete ask.audioCodec;
+        delete ask.autoAdjustQuality;
+        delete ask.audioBoost;
         return ask;
     }
 
@@ -60,7 +62,7 @@
         "720l": { height: 720, width: 1280, bitrate: 2000 },
         "480": { height: 480, width: 854, bitrate: 720 }
     };
-    var COPYABLE = { container: true, "audio-codec": true, "audio-container": true };
+    var COPYABLE = { container: true, "audio-codec": true, "audio-container": true, "audio-track": true };
     function explanation(kind, direct, reason, force, profile) {
         var selected = direct ? "direct" : kind === "video" && COPYABLE[reason] ? "directstream" : "transcode";
         return {
@@ -77,6 +79,45 @@
     function rungFor(quality) {
         var rung = LADDER[quality] || LADDER["1080"];
         return { cap: rung.height, width: rung.width, height: rung.heightAsk || rung.height, bitrate: rung.bitrate };
+    }
+
+    function adaptivePolicy(options) {
+        var order = ["original", "1080h", "1080", "720", "720l", "480"];
+        var index = order.indexOf(options.quality || "original");
+        if (index < 0) { throw new Error("The requested playback quality is invalid."); }
+        var enabled = options.enabled === true && options.directPlay !== "force";
+        if (enabled && options.location === "wan") { index = Math.max(2, index); }
+        var readyAt = null;
+        var bufferAt = null;
+        var lastChange = -Infinity;
+        var stalls = [];
+        return {
+            enabled: enabled,
+            quality: function () { return order[index]; },
+            ready: function (now) { readyAt = now; bufferAt = null; stalls = []; },
+            buffer: function (active, now, playing) {
+                if (!enabled || readyAt === null || !playing || now - readyAt < 30000) {
+                    bufferAt = null;
+                    return null;
+                }
+                if (active) {
+                    if (bufferAt === null) { bufferAt = now; }
+                    return null;
+                }
+                if (bufferAt === null) { return null; }
+                var elapsed = now - bufferAt;
+                bufferAt = null;
+                if (elapsed < 1500) { return null; }
+                stalls = stalls.filter(function (time) { return now - time <= 60000; });
+                stalls.push(now);
+                if ((elapsed < 8000 && stalls.length < 2) || now - lastChange < 60000 ||
+                        index === order.length - 1) { return null; }
+                index += 1;
+                lastChange = now;
+                stalls = [];
+                return order[index];
+            }
+        };
     }
 
     function videoStream(streams) {
@@ -140,6 +181,9 @@
 
     function plan(item, options) {
         options = options || {};
+        if (options.audioBoost !== undefined && [50, 100, 150, 200].indexOf(options.audioBoost) === -1) {
+            throw new Error("The converted audio volume is invalid.");
+        }
         var mediaIndex = options.mediaIndex || 0;
         var media = (item.Media || [])[mediaIndex];
         var part = media && (media.Part || [])[0];
@@ -155,6 +199,9 @@
         }
         var multipart = media.Part.length > 1;
         var tracks = resolveTracks(part, options);
+        var selectedAudio = tracks.audioId > 0 && streams.filter(function (stream) {
+            return Number(stream.streamType) === 2;
+        }).length > 1;
         // A text subtitle the app renders itself stays selected on PMS but is never burned in.
         var burn = tracks.subtitleId && !options.overlaySubtitle ? tracks.subtitleId : 0;
         var profile = options.profile;
@@ -167,9 +214,12 @@
         var force = options.directPlay === "force";
         var verdict = kind !== "video" ? "" : multipart ? "multipart" : burn ? "subtitle" :
             options.directPlay === "off" ? "settings" : fits(profile, media, streams, hdr, rung, tracks.audioId);
-        var direct = verdict === "" && kind === "video" && !multipart && !burn && !!profile;
+        // PMS stream IDs are not AVPlay indices. Negotiate the chosen audio instead of
+        // reopening a multi-audio file on the decoder's unrelated default track.
+        if (selectedAudio && kind === "video" && !verdict) { verdict = "audio-track"; }
+        var direct = verdict === "" && kind === "video" && !multipart && !burn && !selectedAudio && !!profile;
         // Force asks for the original even where the profile predicts a refusal; the device is the judge.
-        if (force && kind === "video" && !multipart && !burn) { direct = true; }
+        if (force && kind === "video" && !multipart && !burn && !selectedAudio) { direct = true; }
         var session = "tizen-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
         var query = {
             path: "/library/metadata/" + item.ratingKey, mediaIndex: mediaIndex, partIndex: multipart ? -1 : 0,
@@ -189,6 +239,9 @@
             "X-Plex-Client-Profile-Name": "Generic",
             "X-Plex-Client-Profile-Extra": "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)"
         };
+        if (options.location === "lan" || options.location === "wan") { query.location = options.location; }
+        if (options.adaptiveQuality === true && !force && kind === "video") { query.autoAdjustQuality = 1; }
+        if (options.audioBoost !== undefined && options.audioBoost !== 100) { query.audioBoost = options.audioBoost; }
         if (tracks.audioId > 0) { query.audioStreamID = tracks.audioId; }
         if (direct) {
             query["X-Plex-Client-Profile-Extra"] += "+add-direct-play-profile(type=videoProfile&protocol=http&container=" +
@@ -319,7 +372,8 @@
                 var url = client.streamUrl(path, selection.direct ? {} : selection.query);
                 allocated = true;
                 return adapter.open(url, settings.offset || 0, settings.paused).catch(function (error) {
-                    if (!selection.direct || selection.force || closed || stopping) { throw error; }
+                    if (!selection.direct || selection.force || closed || stopping ||
+                            (error && error.playbackPhase === "resume")) { throw error; }
                     // The capability profile is a prediction; the decoder has the last word.
                     emit({ type: "direct-fallback", message: error && error.message });
                     selection.direct = false;
@@ -339,7 +393,7 @@
                 return Promise.resolve().then(function () {
                     if (closed || stopping) { throw new Error("Playback was cancelled."); }
                     if (selection.force && !selection.direct) {
-                        throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change subtitle settings or turn off Force.");
+                        throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change audio or subtitle settings or turn off Force.");
                     }
                     if (!selection.tracks.explicit) { return null; }
                     return client.selectStreams(selection.part.id, selection.tracks.audioId, selection.tracks.subtitleId);
@@ -392,5 +446,6 @@
         };
     }
     return { plan: plan, create: create, fits: fits, rungFor: rungFor, streamMode: streamMode,
+        adaptivePolicy: adaptivePolicy,
         qualities: Object.keys(LADDER) };
 }));

@@ -65,6 +65,13 @@ async function run() {
     assert(!native.calls.includes("play"), "Stale prepare callback must not start playback");
 
     native = fake();
+    adapter = av.create({ avplay: native, onEvent: function (event) {
+        if (event.type === "state" && event.state === "ready") { adapter.close(); }
+    } });
+    await assert.rejects(adapter.open("https://synthetic.invalid"), /cancelled/);
+    assert(!native.calls.includes("play"), "Retirement at the ready event must prevent starting the closed decoder");
+
+    native = fake();
     native.prepareAsync = function () {};
     adapter = av.create({ avplay: native, prepareTimeout: 5 });
     await assert.rejects(adapter.open("https://synthetic.invalid"), /prepare-timeout/);
@@ -87,35 +94,38 @@ async function run() {
     await adapter.open("https://synthetic.invalid", 0);
     native.seekTo = function (target, success) { completeSeek = success; };
     seeking = adapter.seek(50000);
-    var timeoutFailure = assert.rejects(seeking, /seek-timeout/);
     await assert.rejects(adapter.seek(10000), /already/);
-    await timeoutFailure;
+    await new Promise(function (done) { setTimeout(done, 15); });
+    assert.strictEqual(adapter.snapshot().state, "playing", "Slow scrub waits without a Retry transition");
     completeSeek();
-    assert.strictEqual(adapter.snapshot().position, 0, "A timed-out seek must not later mutate the playhead");
+    await seeking;
+    assert.strictEqual(adapter.snapshot().position, 0, "Recovery reports the observed native clock rather than the target");
     adapter.close();
     // Tizen 3.0 (UE55MU6172): reopening a transcode at 6690 s after an audio switch left AVPlay
     // READY forever, because a READY-state seekTo on HLS never called back.
     native = fake();
     var seeks = [];
+    var observedResume = 0;
+    native.getCurrentTime = function () { return observedResume; };
     native.seekTo = function (target, success) {
         seeks.push(native.getState());
-        if (native.getState() === "PLAYING") { success(); }
+        if (native.getState() === "PLAYING") { observedResume = target - 1000; success(); }
     };
     adapter = av.create({ avplay: native, resumeSeekTimeout: 5 });
     await adapter.open("https://synthetic.invalid/stream", 6690000);
     assert.strictEqual(adapter.snapshot().state, "playing", "A silent READY seek must not strand the player in READY");
-    assert.deepStrictEqual(seeks, ["READY", "PLAYING"], "The resume seek must be retried once playback has started");
+    assert.deepStrictEqual(seeks, ["PLAYING"], "Resume must avoid the unreliable READY seek and own one PLAYING-state operation");
     assert.strictEqual(native.getState(), "PLAYING");
+    assert.strictEqual(adapter.snapshot().position, observedResume, "Resume must report the observed clock, not the requested offset");
     adapter.close();
 
     native = fake();
     native.seekTo = function () {};
     events = [];
     adapter = av.create({ avplay: native, resumeSeekTimeout: 5, onEvent: function (event) { events.push(event); } });
-    await adapter.open("https://synthetic.invalid/stream", 6690000);
-    assert.strictEqual(adapter.snapshot().state, "playing", "A resume that never lands still plays rather than hanging");
-    await new Promise(function (done) { setTimeout(done, 30); });
-    assert(events.some(function (event) { return event.type === "resume-failed"; }), "A lost resume position must be reported");
+    await assert.rejects(adapter.open("https://synthetic.invalid/stream", 6690000), /seek-timeout/);
+    assert.strictEqual(adapter.snapshot().state, "error", "An unanswered resume is explicit failure, not claimed playback from the start");
+    assert(events.some(function (event) { return event.type === "error"; }), "A lost resume position must be reported");
     adapter.close();
     console.log("Tizen AVPlay state/cancellation/seek tests: passed");
 }

@@ -141,6 +141,10 @@ The Samsung Rust/.NET/NaCl experiments remain parked, with
 [their actual results retained](docs/samsung-rust-runtime-results.md).
 
 Send Vemm issues to the [canonical repository](https://github.com/dragoshont/vemm/issues).
+Vemm's maintainers track these reports here, not through Plex, Samsung or the
+original project's support channels. Use the Samsung bug form and remove
+credentials, private addresses, DUIDs and personal media/account information
+before submitting. Do not attach raw inspector logs or signing files.
 
 Historical repository URLs, package IDs, author continuity, tags and release
 filenames are preserved as history. Vemm deliberately uses a new package,

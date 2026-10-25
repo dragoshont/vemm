@@ -63,7 +63,7 @@ identity surface, with an Account text fallback when artwork is unavailable.
 | Servers and favourites | Structured selection rows, then grouped account/navigation actions |
 | Home | Full-bleed feature, persistent Home/favourite-library/Search capsule, separate Account menu, explicit play/info/cycle controls and poster shelves |
 | Libraries and collections | Browse toolbar and six-column portrait grid; three-column landscape or square music artwork |
-| Search and people | Large search field, server-labelled shelves; biography/portrait and image/title credit rows |
+| Search and people | Large library-search field and server-labelled shelves; biography/portrait and image/title credit rows. No default catalogue/distribution-search promotion |
 | Details | Cinematic art and scrim, expandable two-line synopsis, primary action and round restart/More controls; secondary actions hidden until requested; extras and cast below |
 | Watchlist and catalogue | Poster grid and selected filters; cover, metadata and explicit local-availability actions |
 | Guide and DVR | Provider selection, program rows, channel/date views, recording status and server-supplied preference fields |
@@ -88,6 +88,17 @@ PMS-selected on-deck **episode**, not its show ID. A missing on-deck episode lea
 available. All watched-state, Watchlist and DVR changes retain explicit confirmation.
 Home episode shelves use the series poster when supplied, retaining episode number/title and
 progress. Episode lists retain their stills rather than making every episode indistinguishable.
+Account > Customize Home reuses Settings' single-column value rows and the favourite-library
+editor's explicit selection indicators. Shelf show/hide, Move up/down and Featured title On/Off
+are optional TV-local choices for the current server/profile; Home stays unchanged by default.
+Focus follows the moved shelf (its visibility control at an ordering boundary). Save and Reset
+return to the opening Account action; remote Back discards edits. A hidden hero must not trap
+Up at the first shelf. All-hidden shelves retain navigation and an explicit recovery message.
+This follows existing app controls, not a claim that Plex Web exposes these same settings.
+After an accepted watched-state mutation, Back must not reuse stale watch badges or
+resume progress from a retained library/collection page. Reload the bounded page containing
+the opening item, preserving its filter/cursor and restoring focus by media identity.
+Discard the Home outage snapshot rather than presenting its pre-mutation viewing state.
 Original-file metadata, the PMS-reported stream and the requested transcode limit are distinct.
 Missing stream metadata is labelled unreported, never substituted with the chosen limit.
 Original/direct playback is requested when Samsung's published media specifications (or an exact
