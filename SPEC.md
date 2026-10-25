@@ -222,6 +222,10 @@ revision invalidation refreshes retained lists after changes; actual Back into
 a previously empty list displays the newly created playlist. Complete this
 source's committed full gates/review, then continue smart rules, DVR source
 gaps and the remaining interaction reconciliation.
+The first `7de5110f` full gate stopped at the small detail-back-focus DOM
+double, which has `document.querySelector` but not `screen.querySelector`.
+Capturing More through the existing document selector seam preserves identical
+browser behavior without adding unsupported test-only production fallbacks.
 Signing, distribution and device/shipping work are on the owner's explicit
 hold. These local corrections are not deployed fixes.
 

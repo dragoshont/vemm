@@ -199,7 +199,7 @@
         if (restoreView) {
             var controls = Array.prototype.slice.call(screen.querySelectorAll("button, input, select"));
             var focusedItem = document.activeElement && document.activeElement.vemmCard;
-            var detailMore = screen.querySelector(".detail-more");
+            var detailMore = document.querySelector("#screen .detail-more");
             navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
                 mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className,
                 detailMore: !!detailMore && !detailMore.hidden });
