@@ -133,12 +133,12 @@
     function supportRecord(quality, savedCeiling) {
         var decision = quality && quality.explanation || {};
         var reason = choice(decision.reason, ["supported", "profile", "video-codec", "container", "audio-codec",
-            "audio-container", "resolution", "quality", "bitrate", "bit-depth", "frame-rate", "level", "hdr",
+            "audio-container", "audio-track", "resolution", "quality", "bitrate", "bit-depth", "frame-rate", "level", "hdr",
             "dolby-vision", "subtitle", "multipart", "settings", "server", "decoder"]);
         var action = "verify-output";
         if (["quality", "bitrate", "resolution"].indexOf(reason) !== -1) { action = "quality-settings"; }
         else if (reason === "settings") { action = "direct-play-settings"; }
-        else if (["subtitle", "audio-codec", "audio-container"].indexOf(reason) !== -1) { action = "track-settings"; }
+        else if (["subtitle", "audio-codec", "audio-container", "audio-track"].indexOf(reason) !== -1) { action = "track-settings"; }
         else if (reason && reason !== "supported") { action = "server-conversion"; }
         return {
             schema: "vemm-support-1",

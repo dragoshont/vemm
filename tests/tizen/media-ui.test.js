@@ -55,7 +55,9 @@ async function run() {
         calls.push({ path: url.pathname, method: options.method, query: url.searchParams });
         var container;
         if (url.pathname === "/api/v2/home/users") {
-            return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ users: [] }); } });
+            return Promise.resolve({ ok: true, status: 200, json: function () {
+                return Promise.resolve({ users: [{ uuid: "synthetic-owner", title: "Synthetic owner", admin: true }] });
+            } });
         } else if (url.pathname === "/api/v2/resources") {
             return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve([{
                 clientIdentifier: "synthetic-server", name: "Synthetic PMS", provides: "server", owned: true,

@@ -62,7 +62,7 @@
         "720l": { height: 720, width: 1280, bitrate: 2000 },
         "480": { height: 480, width: 854, bitrate: 720 }
     };
-    var COPYABLE = { container: true, "audio-codec": true, "audio-container": true };
+    var COPYABLE = { container: true, "audio-codec": true, "audio-container": true, "audio-track": true };
     function explanation(kind, direct, reason, force, profile) {
         var selected = direct ? "direct" : kind === "video" && COPYABLE[reason] ? "directstream" : "transcode";
         return {
@@ -199,6 +199,9 @@
         }
         var multipart = media.Part.length > 1;
         var tracks = resolveTracks(part, options);
+        var selectedAudio = tracks.audioId > 0 && streams.filter(function (stream) {
+            return Number(stream.streamType) === 2;
+        }).length > 1;
         // A text subtitle the app renders itself stays selected on PMS but is never burned in.
         var burn = tracks.subtitleId && !options.overlaySubtitle ? tracks.subtitleId : 0;
         var profile = options.profile;
@@ -211,9 +214,12 @@
         var force = options.directPlay === "force";
         var verdict = kind !== "video" ? "" : multipart ? "multipart" : burn ? "subtitle" :
             options.directPlay === "off" ? "settings" : fits(profile, media, streams, hdr, rung, tracks.audioId);
-        var direct = verdict === "" && kind === "video" && !multipart && !burn && !!profile;
+        // PMS stream IDs are not AVPlay indices. Negotiate the chosen audio instead of
+        // reopening a multi-audio file on the decoder's unrelated default track.
+        if (selectedAudio && kind === "video" && !verdict) { verdict = "audio-track"; }
+        var direct = verdict === "" && kind === "video" && !multipart && !burn && !selectedAudio && !!profile;
         // Force asks for the original even where the profile predicts a refusal; the device is the judge.
-        if (force && kind === "video" && !multipart && !burn) { direct = true; }
+        if (force && kind === "video" && !multipart && !burn && !selectedAudio) { direct = true; }
         var session = "tizen-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
         var query = {
             path: "/library/metadata/" + item.ratingKey, mediaIndex: mediaIndex, partIndex: multipart ? -1 : 0,
@@ -386,7 +392,7 @@
                 return Promise.resolve().then(function () {
                     if (closed || stopping) { throw new Error("Playback was cancelled."); }
                     if (selection.force && !selection.direct) {
-                        throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change subtitle settings or turn off Force.");
+                        throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change audio or subtitle settings or turn off Force.");
                     }
                     if (!selection.tracks.explicit) { return null; }
                     return client.selectStreams(selection.part.id, selection.tracks.audioId, selection.tracks.subtitleId);

@@ -28,15 +28,29 @@ music/photos, Watchlist/catalogue, DVR, playback, settings and explicit confirma
 Preserve remote focus and Back behavior, bounded image/metadata retention and lifecycle cleanup.
 Do not initiate playback or account writes merely to display or inspect a screen.
 Do not add private APIs or unsupported playback claims to make the interface seem complete.
-Licensed catalogue streaming and verified live tuning remain acceptance gaps.
+Licensed catalogue streaming is disabled/deferred; verified live tuning remains
+a separate service/native acceptance gap.
 
-Current release priority is movie/TV browsing and online/library search, video
+Current release priority is movie/TV browsing and personal/shared-library search, video
 playback/seeking/remote controls, subtitles and video audio-track selection.
 Saved playlists (including smart editing), music and photos are explicitly
 deferred, not completed or removed. Preserve their existing behavior and tests;
 do not add or enable new optional surfaces. Core video queue ownership,
 automatic episode transitions and pause/cleanup behavior remain required.
 The current release scope and conditional release gate are recorded in `SPEC.md`.
+
+Protected owners require their PIN even through Use linked account after a
+managed profile. Failed/empty profile lookup never offers an unverified owner
+shortcut. Video Retry retains the last owned pause intent across terminal
+decoder/preparation errors, and buffering cannot consume the Up Next countdown.
+Selecting audio from a multi-audio file negotiates the chosen PMS audio in a
+server stream instead of treating PMS stream IDs as native decoder indices.
+Supported video may still be copied. Force refuses that required conversion
+explicitly before stopping the working player. Version changes resolve track
+IDs from the destination Part using matching language/variant metadata or its
+advertised/default tracks, preserve Subtitles off, and discard external cues
+timed for another cut. Invalid replacement plans leave the working player intact.
+These are host contracts, not acceptance of real-PMS output or native audio.
 
 Video playlists are server-backed: browse existing playlists, play/shuffle them,
 page their items, and explicitly confirm moving an entry to the beginning.

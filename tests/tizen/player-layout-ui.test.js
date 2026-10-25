@@ -8,7 +8,7 @@ var vm = require("vm");
 var JSDOM = require("jsdom").JSDOM;
 var root = path.resolve(__dirname, "../..");
 var item = {
-    ratingKey: "synthetic-episode",
+    ratingKey: "10",
     type: "episode",
     title: "A Synthetic Journey",
     grandparentTitle: "Synthetic Show",
@@ -72,22 +72,25 @@ function playerFixture(trackOptions, mediaItem) {
     window.VemmSubtitleSearch = require("../../samsung/Vemm/js/subtitle-search.js");
     window.VemmAvplay = { create: function (options) { adapters += 1; callbacks.avplay = options; return {}; } };
     window.VemmPlayback = {
+        plan: require("../../samsung/Vemm/js/playback.js").plan,
         adaptivePolicy: require("../../samsung/Vemm/js/playback.js").adaptivePolicy,
         create: function (options) {
             playerSettings.push(options.settings);
             var state = "idle";
+            var events = callbacks.avplay;
             return {
                 start: function () {
                     starts += 1;
                     if (trackOptions && trackOptions.failFirstStart && starts === 1) {
                         return Promise.reject(new Error("Synthetic stream negotiation failure"));
                     }
-                    state = "playing";
+                    state = options.settings.paused ? "paused" : "playing";
+                    events.onEvent({ type: "state", state: state });
                     return Promise.resolve();
                 },
                 snapshot: function () { return { state: state, position: 45000, duration: item.duration }; },
-                pause: function () { state = "paused"; return Promise.resolve(); },
-                play: function () { plays += 1; state = "playing"; return Promise.resolve(); },
+                pause: function () { state = "paused"; events.onEvent({ type: "state", state: state }); return Promise.resolve(); },
+                play: function () { plays += 1; state = "playing"; events.onEvent({ type: "state", state: state }); return Promise.resolve(); },
                 seek: function (position) { seeks.push(position); return Promise.resolve(position); },
                 stop: function () { state = "idle"; return Promise.resolve(item); },
                 selection: function () { return trackOptions && trackOptions.selectedTracks || { audioId: 11, subtitleId: 21 }; },

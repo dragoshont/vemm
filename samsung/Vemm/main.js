@@ -687,64 +687,69 @@
         setStatus("Loading Plex Home profiles...");
         accountClient.getProfiles().then(function (profiles) {
             if (generation !== viewGeneration) { return; }
+            if (!profiles.length) { throw new Error("Plex returned an invalid profile list."); }
+            linkedProfile = null;
             var identities = group(screen, "", "identity-list");
+            function chooseProfile(profile) {
+                retryView = null;
+                var selection = ++viewGeneration;
+                clear(screen);
+                page(profile.title || "Profile", "profile-pin");
+                var pin = element("input", "remote-input");
+                pin.type = "password";
+                pin.maxLength = 4;
+                pin.setAttribute("inputmode", "numeric");
+                pin.setAttribute("aria-label", translate("Profile PIN"));
+                if (profile.protected) { screen.appendChild(pin); }
+                var retryProfile = null;
+                function selectProfile() {
+                    if (profile.protected && !/^[0-9]{4}$/.test(pin.value)) {
+                        setStatus("Enter the four-digit profile PIN.", true);
+                        return;
+                    }
+                    var request = ++selection;
+                    var generation = viewGeneration;
+                    setStatus("Switching profile...");
+                    if (retryProfile) { retryProfile.disabled = true; }
+                    accountClient.switchProfile(profile.uuid, profile.protected ? pin.value : "")
+                        .then(function (token) {
+                            pin.value = "";
+                            if (generation !== viewGeneration || request !== selection) { return; }
+                            activeProfile = profile;
+                            accountClient = window.PlexApi.createAccountClient({ token: token });
+                            openServers();
+                        }).catch(function (error) {
+                            pin.value = "";
+                            if (generation !== viewGeneration || request !== selection) { return; }
+                            if (error.status === 401 || error.status === 403) {
+                                accountClient.getProfiles().then(function () {
+                                    if (generation === viewGeneration) {
+                                        setStatus("Profile PIN refused. Check the PIN and retry.", true);
+                                    }
+                                }).catch(function (sessionError) {
+                                    if (generation === viewGeneration && !recoverSession(sessionError)) {
+                                        setStatus(errorText(sessionError), true);
+                                    }
+                                });
+                            } else {
+                                setStatus(errorText(error), true);
+                                if (!profile.protected) {
+                                    if (!retryProfile) { retryProfile = button(screen, "Retry", selectProfile); }
+                                    retryProfile.disabled = false;
+                                    retryProfile.focus();
+                                }
+                            }
+                        });
+                }
+                if (profile.protected) { button(screen, "Use this profile", selectProfile); }
+                button(screen, "Back to profiles", openProfiles);
+                focusFirst();
+                if (!profile.protected) { selectProfile(); }
+            }
             profiles.forEach(function (profile) {
                 if (profile.admin) { linkedProfile = profile; }
                 var identity = button(identities, profile.title || profile.username || "Profile", function () {
-                    retryView = null;
-                    var selection = ++viewGeneration;
-                    clear(screen);
-                    page(profile.title || "Profile", "profile-pin");
-                    var pin = element("input", "remote-input");
-                    pin.type = "password";
-                    pin.maxLength = 4;
-                    pin.setAttribute("inputmode", "numeric");
-                    pin.setAttribute("aria-label", translate("Profile PIN"));
-                    if (profile.protected) { screen.appendChild(pin); }
-                    var retryProfile = null;
-                    function selectProfile() {
-                        if (profile.protected && !/^[0-9]{4}$/.test(pin.value)) {
-                            setStatus("Enter the four-digit profile PIN.", true);
-                            return;
-                        }
-                        var request = ++selection;
-                        var generation = viewGeneration;
-                        setStatus("Switching profile...");
-                        if (retryProfile) { retryProfile.disabled = true; }
-                        accountClient.switchProfile(profile.uuid, profile.protected ? pin.value : "")
-                            .then(function (token) {
-                                pin.value = "";
-                                if (generation !== viewGeneration || request !== selection) { return; }
-                                activeProfile = profile;
-                                accountClient = window.PlexApi.createAccountClient({ token: token });
-                                openServers();
-                            }).catch(function (error) {
-                                pin.value = "";
-                                if (generation !== viewGeneration || request !== selection) { return; }
-                                if (error.status === 401 || error.status === 403) {
-                                    accountClient.getProfiles().then(function () {
-                                        if (generation === viewGeneration) {
-                                            setStatus("Profile PIN refused. Check the PIN and retry.", true);
-                                        }
-                                    }).catch(function (sessionError) {
-                                        if (generation === viewGeneration && !recoverSession(sessionError)) {
-                                            setStatus(errorText(sessionError), true);
-                                        }
-                                    });
-                                } else {
-                                    setStatus(errorText(error), true);
-                                    if (!profile.protected) {
-                                        if (!retryProfile) { retryProfile = button(screen, "Retry", selectProfile); }
-                                        retryProfile.disabled = false;
-                                        retryProfile.focus();
-                                    }
-                                }
-                            });
-                    }
-                    if (profile.protected) { button(screen, "Use this profile", selectProfile); }
-                    button(screen, "Back to profiles", openProfiles);
-                    focusFirst();
-                    if (!profile.protected) { selectProfile(); }
+                    chooseProfile(profile);
                 }, true);
                 identity.className = "identity-choice";
                 identity.setAttribute("data-initial", (profile.title || profile.username || "P").slice(0, 1).toUpperCase());
@@ -752,7 +757,12 @@
                 profileAvatar(identity, profile, accountClient);
             });
             var actions = group(screen, "", "page-actions");
-            button(actions, "Use linked account", function () { activeProfile = linkedProfile; openServers(); });
+            if (linkedProfile) {
+                button(actions, "Use linked account", function () {
+                    if (linkedProfile.protected) { chooseProfile(linkedProfile); }
+                    else { activeProfile = linkedProfile; openServers(); }
+                });
+            }
             button(actions, "Sign out", signOut);
             if (typeof warning === "string" && warning) { setStatus(warning, true); }
             else { setStatus("Select the Plex identity to use. Protected profiles require their PIN."); }
@@ -761,7 +771,6 @@
             if (generation !== viewGeneration) { return; }
             if (recoverSession(error)) { return; }
             button(screen, "Retry profiles", openProfiles);
-            button(screen, "Use linked account", openServers);
             button(screen, "Sign out", signOut);
             setStatus(errorText(error), true);
             focusFirst();
@@ -3050,7 +3059,7 @@
         var tracks = {
             audioId: settings.audioId,
             subtitleId: settings.subtitleId,
-            paused: snapshot.state === "paused",
+            paused: settings.paused,
             subtitleSidecar: settings.subtitleSidecar,
             adaptivePolicy: settings.adaptivePolicy,
             adaptiveDisabled: settings.adaptiveDisabled
@@ -4100,7 +4109,8 @@
             supported: "media matches this TV capability profile",
             profile: "this TV's formats are not known", "video-codec": "video format not supported by this TV",
             container: "file type not supported for this format", "audio-codec": "audio format not supported by this TV",
-            "audio-container": "audio format not supported in this file type", resolution: "resolution too high for this TV",
+            "audio-container": "audio format not supported in this file type",
+            "audio-track": "the server selects the requested audio track", resolution: "resolution too high for this TV",
             quality: "quality limit chosen", bitrate: "bitrate too high for this TV", "bit-depth": "colour depth not supported",
             "frame-rate": "frame rate above 60 fps", level: "H.264 level too high for this TV",
             hdr: "HDR not supported by this panel", "dolby-vision": "Dolby Vision not supported",
@@ -4356,7 +4366,7 @@
                     if (!player || player !== ownPlayer || playerClosing || skip.control !== control) {
                         clearInterval(tick); return;
                     }
-                    if (document.hidden || player.snapshot().state !== "playing") { return; }
+                    if (document.hidden || hudBuffering || player.snapshot().state !== "playing") { return; }
                     remaining -= 1;
                     if (remaining > 0) { label(); return; }
                     clearInterval(tick);
@@ -4411,6 +4421,9 @@
                             recoverPlayer(false);
                         }
                     } else if (event.type === "state") {
+                        if (event.state === "paused" || event.state === "playing") {
+                            playerSettings.paused = event.state === "paused";
+                        }
                         pauseControl.className = pauseControl.className.replace(/menu-icon-(pause|play)/,
                             event.state === "paused" ? "menu-icon-play" : "menu-icon-pause");
                         showHud();
@@ -4586,6 +4599,21 @@
         if (control) { control.focus(); }
     }
 
+    function replacementPlan(version, quality, options) {
+        var settings = {};
+        Object.keys(playerSettings).forEach(function (key) { settings[key] = playerSettings[key]; });
+        settings.mediaIndex = version;
+        settings.quality = quality;
+        settings.audioId = options.audioId;
+        settings.subtitleId = options.subtitleId;
+        settings.overlaySubtitle = !!options.cues;
+        var plan = window.VemmPlayback.plan(playerItem, settings);
+        if (plan.force && !plan.direct) {
+            throw new Error("Direct Play is set to Force, but this selection requires server conversion. Change audio or subtitle settings or turn off Force.");
+        }
+        return plan;
+    }
+
     // Restart playback at the current position with an explicit track choice. `cues` keeps an
     // app-rendered text overlay; only "Subtitles off" may send subtitleStreamID=0, because moving
     // the PMS selection off a downloaded subtitle deletes it (docs/pms-api.md section 8).
@@ -4595,11 +4623,13 @@
         var client = playerClient;
         var position = player.snapshot().position;
         var version = playerSettings.mediaIndex;
-        var options = { audioId: audioId, subtitleId: subtitleId, paused: player.snapshot().state === "paused",
+        var options = { audioId: audioId, subtitleId: subtitleId, paused: playerSettings.paused,
             adaptivePolicy: playerSettings.adaptivePolicy, adaptiveDisabled: playerSettings.adaptiveDisabled,
             subtitleSidecar: cues ? (subtitleSidecar === undefined ?
                 playerSettings.subtitleSidecar : !!subtitleSidecar) : false };
         if (cues) { options.cues = cues; }
+        try { replacementPlan(version, playerSettings.quality, options); }
+        catch (error) { showPlayerError(error); return; }
         stopPlayer(function () { startPlayer(item, client, position, version, options); });
     }
 
@@ -4859,13 +4889,59 @@
         menu.id = "player-menu";
         menu.appendChild(element("h2", "", translate("Quality and media version")));
         menu.appendChild(element("p", "help-text", translate("Original source") + ": " + qualityLabel(player.quality().source)));
+        if ((playerItem.Media || []).length > 1) {
+            menu.appendChild(element("p", "help-text", translate("Another version uses matching language tracks or its own defaults. External subtitle timing is not reused.")));
+        }
+        function versionTrack(previous, destination, id, type) {
+            if (!id && type === 3) { return 0; }
+            var source = (previous.Stream || []).filter(function (stream) {
+                return Number(stream.streamType) === type && String(stream.id) === String(id);
+            })[0];
+            var available = (destination.Stream || []).filter(function (stream) {
+                return Number(stream.streamType) === type && /^[1-9][0-9]*$/.test(String(stream.id));
+            });
+            function sameLanguage(stream) {
+                var before = window.VemmSubtitleSearch.twoLetter(source.languageCode || source.languageTag);
+                var after = window.VemmSubtitleSearch.twoLetter(stream.languageCode || stream.languageTag);
+                if (before && after) { return before === after; }
+                return !!source.language && !!stream.language &&
+                    String(source.language).toLowerCase() === String(stream.language).toLowerCase();
+            }
+            var matching = source ? available.filter(function (stream) {
+                return sameLanguage(stream) &&
+                    streamFlag(stream.forced) === streamFlag(source.forced) &&
+                    streamFlag(stream.hearingImpaired) === streamFlag(source.hearingImpaired) &&
+                    streamFlag(stream.audioDescription) === streamFlag(source.audioDescription);
+            }) : [];
+            var exact = source && (source.displayTitle || source.title) ? matching.filter(function (stream) {
+                return (stream.displayTitle || stream.title) === (source.displayTitle || source.title) &&
+                    stream.codec === source.codec && stream.channels === source.channels;
+            }) : [];
+            var selected = exact.length === 1 ? exact[0] : matching.length === 1 ? matching[0] :
+                available.filter(function (stream) { return streamFlag(stream.selected); })[0] ||
+                available.filter(function (stream) { return streamFlag(stream.default); })[0] || available[0];
+            return selected ? Number(selected.id) : 0;
+        }
         function change(quality, version) {
             var item = playerItem;
             var client = playerClient;
             var position = player.snapshot().position;
-            var tracks = { audioId: playerSettings.audioId, subtitleId: playerSettings.subtitleId, cues: externalCues,
-                paused: player.snapshot().state === "paused", subtitleSidecar: playerSettings.subtitleSidecar,
+            var currentTracks = player.selection();
+            var tracks = { audioId: currentTracks.audioId, subtitleId: currentTracks.subtitleId,
+                paused: playerSettings.paused, cues: externalCues, subtitleSidecar: playerSettings.subtitleSidecar,
                 adaptiveDisabled: true };
+            try {
+                if (version !== playerSettings.mediaIndex) {
+                    var destination = item.Media[version] && item.Media[version].Part && item.Media[version].Part[0];
+                    if (!destination) { throw new Error("This item has no playable media version."); }
+                    var previous = player.part();
+                    tracks.audioId = versionTrack(previous, destination, currentTracks.audioId, 2);
+                    tracks.subtitleId = versionTrack(previous, destination, currentTracks.subtitleId, 3);
+                    delete tracks.cues;
+                    tracks.subtitleSidecar = false;
+                }
+                replacementPlan(version, quality, tracks);
+            } catch (error) { showPlayerError(error); return; }
             preferences.quality = quality;
             stopPlayer(function () { startPlayer(item, client, position, version, tracks); });
         }

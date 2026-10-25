@@ -61,7 +61,9 @@ async function run() {
         var u = new URL(target);
         calls.push({ path: u.pathname, method: options.method, query: u.searchParams });
         if (u.pathname === "/api/v2/home/users") {
-            return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ users: [] }); } });
+            return Promise.resolve({ ok: true, status: 200, json: function () {
+                return Promise.resolve({ users: [{ uuid: "synthetic-owner", title: "Synthetic owner", admin: true }] });
+            } });
         }
         if (u.pathname === "/api/v2/resources") {
             return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve([{

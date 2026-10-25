@@ -127,7 +127,7 @@ playlist portion of `QU-01` from its still-active core video queue criteria.
 | REQ-TV-STORAGE-01 | Choose DVR storage within the selected destination library. | After a compatible library is selected, show freshly advertised Location IDs/paths, validate bounds/identity and explicitly confirm the selected location. Encode targetSectionLocationID exactly; no guessed path, library change or automatic scheduling. If no locations are advertised, offer only an explicitly labelled Plex-default choice. Cancel/Back and stale responses cannot schedule. | Vemm | in_progress | Observed red television API: missing targetSectionLocationID; actual-main.js media-ui: missing physical-location action. Repaired both. television/media-ui verify exact selected library/location and confirmation/Cancel focus; recording-storage-ui verifies explicit default omission, invalid/duplicate/>50 locations and late response after remote Back. Exact clean 937ca455 full host/source gates and independent frozen scoped review passed, including extra malformed/removed-library probes. No account/tuner operation; real service/native acceptance remains open. |
 | REQ-TV-PRIORITY-01 | Provide explicit recording-priority management for conflicts. | Scheduled recordings link to priorities; a non-first subscription can be explicitly promoted. Validate complete bounded preflight identity/order and selected title, issue one documented move, then verify exact new order. Denied/unchanged/concurrent/stale/cancelled outcomes remain explicit and never replay. State priority acceptance separately from whether Plex resolves tuner conflicts. | Vemm | in_progress | Observed red API missing prioritize; actual UI missing Recording priorities; partial total-size regression also failed before its repair. recording-priority/media-ui pass complete <=200 identity order, named preflight, denied/unchanged/concurrent/duplicate/partial data, deadline, pending-client lock and cancellation. Exact clean 937ca455 full host/source gates and independent frozen scoped review passed, including ten additional priority probes. UI retains unresolved server conflict status after verified priority change. No invented tuner lifecycle or automatic cancellation; real service/native acceptance remains open. |
 
-| REQ-SEARCH-01 | Complete supported search kinds and retire superseded query ownership. | Server search retains the supplied hub/item order and source-client identity for supported clips and video playlists as well as existing movie/show/music/photo kinds. Playlist details use the playlist endpoint, never a library-ID substitute; no search result implicitly starts playback. Editing/clearing the query cancels outstanding reads, clears stale results and keeps the edited query in Back/Retry state. Empty queries issue no requests, denied servers remain explicit, 50-per-hub/200-global bounds and remote Back/focus behavior remain intact. | Vemm | in_progress | Binding BROWSE-3. Observed and repaired omitted clip/playlist kinds, late cleared-query results, unbounded empty headings, lost Back focus and wrong-server equal-key focus. Exact clean 49baa2ad full host/source gates and independent frozen search/product/ES5/M47 source review pass. This retains existing deferred kinds without new optional surfaces; online search is separately required below. Older-PMS/native acceptance remains unverified. |
+| REQ-SEARCH-01 | Complete supported search kinds and retire superseded query ownership. | Server search retains the supplied hub/item order and source-client identity for supported clips and video playlists as well as existing movie/show/music/photo kinds. Playlist details use the playlist endpoint, never a library-ID substitute; no search result implicitly starts playback. Editing/clearing the query cancels outstanding reads, clears stale results and keeps the edited query in Back/Retry state. Empty queries issue no requests, denied servers remain explicit, 50-per-hub/200-global bounds and remote Back/focus behavior remain intact. | Vemm | in_progress | Binding BROWSE-3. Observed and repaired omitted clip/playlist kinds, late cleared-query results, unbounded empty headings, lost Back focus and wrong-server equal-key focus. Exact clean 49baa2ad full host/source gates and independent frozen search/product/ES5/M47 source review pass. This retains existing deferred kinds without new optional surfaces; online search is explicitly deferred below. Older-PMS/native acceptance remains unverified. |
 
 | REQ-SEARCH-ONLINE-01 | Search Plex online catalogue as well as libraries from the main Search journey. | Use the existing evidence-grounded Discover search and validated metadata detail APIs with the linked profile's account token, distinct online/library labels and exact GUID availability matching using each library's own grant. No catalogue ID becomes a PMS rating key, title-only match, implicit playback or licensed-stream authorization. Query edit/clear, Retry, errors/empty results, partial server/cloud failures and Back preserve current query, ownership and exact focused result. Bound online results to 30 and retained results to 200; deny malformed identities and stale account/server responses. Retain standalone catalogue search without enabling deferred media workflows. | Vemm | deferred | Latest owner direction supersedes online priority. The retained implementation uses pinned Python-PlexAPI evidence, not Web cloud parity. Exact 5747511e host/build gates and source review plus 10b16abc no-PMS finding closure are recorded, not service/native acceptance. Current release source-disables catalogue search with no production setting or promoted Home/server entry. Observed failing default-query regression now passes: even with a linked account, main Search makes no Discover/metadata requests and retains the 200-library-result bound. Retained deferred contracts are tested only through explicit test-owned activation; public metadata lookup is optional, not a current release blocker. |
 
@@ -193,7 +193,7 @@ summaries.
 | PRODUCT video queues: playlist pages, move-to-beginning confirmation/read-back, previous/next/shuffle/repeat | QU-01 | implemented: `video-queue`, `video-queue-ui`, `plex-api` | Real server/native order, cleanup and playback unverified |
 | Original full-client goal / QU-01 editing: saved-playlist item add/remove | QU-EDIT-01, INT-01 | implemented source with observed red-to-green API/actual-UI regressions; complete bounded read-back and exact entry identity | Real PMS/native acceptance unverified; an already-sent write is not undone by leaving verification |
 | Original full-client goal / QU-01 editing: saved-playlist create/rename/delete | QU-LIFE-01, INT-01 | implemented source: empty/seeded creation, name validation, named confirmation, exact result/absence read-back and cache/focus restoration; exact cbf34867 clean gates and independent scoped PASS | Real PMS/native behavior remains unverified |
-| Original full-client goal / QU-01 editing: smart-playlist rules | QU-SMART-01, QU-01, INT-01 | implemented bounded structured editor with advertised fields/operators/sorts, nested all/any groups, limit, same-client URI, exact preflight/equivalent read-back and actual-UI regressions | Unknown/provider-specific or over-limit grammar is explicitly not editable, not silently discarded or called accepted. Current source awaits full committed gates/review; real PMS/native acceptance remains open |
+| Original full-client goal / QU-01 editing: smart-playlist rules | QU-SMART-01, QU-01, INT-01 | implemented bounded structured editor with advertised fields/operators/sorts, nested all/any groups, limit, same-client URI, exact preflight/equivalent read-back and actual-UI regressions | Unknown/provider-specific or over-limit grammar is explicitly not editable, not silently discarded or called accepted. Exact eb5b6823 passed full committed host/source gates and scoped independent compound-sort closure. Deferred, not real PMS/native acceptance |
 | PRODUCT music: server audio queue, >200 entries, transactional next, shuffle/repeat and retryable cleanup | MU-01 | implemented: `music-queue`, `music-queue-ui`; not Plexamp parity | Real server ordering, native audio, interruption and memory unverified |
 | PRODUCT photos: cross-page albums, rotate/slideshow, bounds, download/decode cleanup and return focus | PH-01 | implemented: `photos`, `photo-api`, `photos-ui` | Actual source formats/PMS conversion, panel output and old-engine resource limits unverified |
 | Watchlist: account GUID read/add/remove verification, bounded paging and explicit unchanged-success feedback | WL-01 | implemented: `watchlist-readback`, `watchlist`, `media-ui` | Actual account persistence/concurrency external-blocked; not licensed streaming |
@@ -230,6 +230,8 @@ summaries.
 | 2026-10-25 | revise | SEARCH-01, SEARCH-ONLINE-01, UX-03, WEB-01 | "malke sur ethe search works. i like how [pe searches", clarified as "online, not only libraries. can we do that? hasnt this come up when reverse eng plex. web??". Online Plex/Discover catalogue search, details and exact local availability association are core release scope, separate from licensed streaming rights. Preserve query/results/focus and cancellation/error/retry ownership. Recover lawful Web/protocol evidence rather than invent endpoints or reference-client UX equivalence. Existing frozen search/sort review may finish; do not expand deferred media scope. |
 | 2026-10-25 | supersede | SEARCH-01, SEARCH-ONLINE-01, SV-01, UX-03, WEB-01 | "do not search and run plex own distributions please. focus on a godd own search. from library for now and at most public search like plex does. no plex movies". Library-first Vemm search is current core scope. No automatic Discover/Plex-distributed Movies & Shows queries, promotion or playback, and no downloading/running Plex client distributions. Retain online code/regressions deferred, without default search entry points; optional separate public metadata is not a release blocker. Legitimate Plex authentication/library grants remain. Conditional release evaluates revised core scope, not deferred cloud completion. |
 | 2026-10-25 | revise | QA-01, PF-01, RUNTIME-01, REVIEW-01 | "If native acceptance is next cheapest action, prepare authorized serial synthetic-content/account-safe plan and execute within existing grants, without guessing ambiguous livingroom identity or writing household progress." Bounded synthetic QA may produce the missing native evidence under existing author/exact-target grants; do not require completed native acceptance before its authorized creation. Production release remains conditional on revised core completion and whole-candidate review. Earlier transport failures are dated history, not a current blanket blocker. |
+| 2026-10-25 | revise | REVIEW-01, AC-01, PB-01, ST-01, MARK-01, UX-03 | Whole-core frozen c8aee1ea review is REVISE: protected linked-owner shortcut/profile-error fallback bypasses PIN; direct-file audio selection does not select the native decoder track; version changes forward old Part stream IDs/cues; Retry loses paused intent after terminal decoder error; buffering does not suspend final-credits countdown. Reproduce all five with actual production-path regressions, repair and independently review the frozen corrections/cross-effects before release. Deferred media/cloud are not blockers. |
+| 2026-10-25 | revise | REVIEW-01, QA-01 | Parent's retained c8 reconstruction scripts are not the original reviewer probes. Reconstructed 02 mocks the controller/adapter and 04 models initial failure rather than actual Pause then native error; neither proves the original real-controller finding. Independently authored core-playback-ui regressions now exercise actual main/controller/adapter with synthetic transport/native decoder, including actual Pause then native onerror. Their observed red/green is host evidence, never hardware output. |
 
 ## Execution and acceptance
 
@@ -263,15 +265,36 @@ core against PRODUCT, DESIGN and the original concrete client criteria.
 | Active core slice | Concrete source evidence | Remaining observation / next action |
 | --- | --- | --- |
 | Movie/show/season/episode browse, Home and Account/Settings | `product-ui`, `home-season-navigation`, `account-navigation-ui`, `home-paging-ui`, retained per-library page/filter/cursor closures | Current-artifact native D-pad, focus/Back, text-fit, large-library/decoded-image memory and cold/warm measurements are unattempted. |
-| Vemm personal/shared-library search | `search-completeness-ui` covers movie/show/episode detail/Back, exact source-server identity, edited/cleared query ownership, empty and bounded results; `online-search-ui` now proves linked-account default has no catalogue requests/promotions and keeps 200 library results | Whole-core source review pending; actual PMS responses/grants and native search/input/focus remain unverified. No online catalogue completion is required. |
+| Vemm personal/shared-library search | `search-completeness-ui` covers movie/show/episode detail/Back, exact source-server identity, edited/cleared query ownership, empty and bounded results; `online-search-ui` now proves linked-account default has no catalogue requests/promotions and keeps 200 library results | Whole-core c8aee1ea review ran, with five other defects reported below; actual PMS responses/grants and native search/input/focus remain unverified. No online catalogue completion is required. |
 | Video skipping / HUD / remote seeking | `player-layout-ui` and `product-ui`: four transport actions, Pause/Play first, expired marker opener, row arrows versus slider/hidden-HUD seek, dedicated media keys, held acceleration, bounds, key-up/300 ms idle single commit and pause intent | Highest-priority unresolved report: actual native landed seek/latency/error behavior. The old exact failure wording is unavailable; do not claim the native problem fixed from host tests or installed version. |
 | Core video episode transitions and recovery | `video-queue-ui`, `player-transitions`, `playback`, `progress-bounds`: fresh metadata/markers, string queue identity, pause-preserving credits/Up Next, bounded ownership, Retry/Cancel and final cleanup | Account-free synthetic HTTP can observe native AVPlay and owned fixture timeline/cleanup; real PMS viewing-state read-back separately requires disposable records. |
 | Audio/subtitle selection and text/format handling | `player-layout-ui`, `account-preferences-ui`, `subtitles`, `subtitle-search`, `subtitle-api`, `player-transitions`: language/forced/default/SDH/duplicates, Unicode/overlap/delay, selected stream and burn-in/Force boundaries | Native audible/visible output and timing/seek/version changes remain unobserved. Styled/image output and PMS font/burn correctness cannot be accepted from SRT/DOM tests. |
 | Quality/source, identity/privacy and lifecycle | `capabilities`, `playback-metadata-ui`, `stream-token-exposure`, `support-record`, `session-ui`, `profile-boundary-ui`, packaging/ES5/M47 contracts | Decoder/HDR/aspect/output, physical remote, standby, real PIN/profile persistence and author/state continuity remain separate native/service gates. Existing host capabilities are not model-wide certification. |
 
-No additional actionable core source defect is currently reproduced beyond
-the corrected review findings and latest default-search revision. That is a
-candidate for whole-core adversarial inspection, not exhaustive-coverage PASS.
+Frozen c8aee1ea whole-core review reported five actionable source defects:
+protected-owner PIN bypass, direct-file native audio mismatch, cross-version
+stream/cue ownership, paused Retry intent and buffering credits countdown.
+All five now have independently authored observed-red/green regressions and
+source repairs: protected owner uses the named PIN path and failed/empty
+profile lookup fails closed; multi-audio uses selected-audio negotiation
+instead of guessed native indices, with honest pre-stop Force refusal;
+versions resolve destination IDs/defaults and discard another cut's cues;
+Retry retains owned pause intent; buffering suspends the credits countdown.
+`profile-boundary-ui` also covers fresh owner reauthorization and restoration
+of an explicitly unprotected owner's grant. `core-playback-ui` loads actual
+main/controller/adapter and tests default selection without an unsolicited PUT,
+Force without selection/stop side effects, invalid destination preserving the
+working player, subtitle Off and same-cut cue/ID preservation. Working-tree
+full host/28-file ES5/M47 checks pass; the frozen corrections and cross-effects
+still require clean committed gates and independent review. None is native
+acceptance. The
+account-free exact-source QN70F QA run confirmed fresh original identity,
+installation/loaded source, actual AVPlay play/pause and Intro focus; paused
+Intro landing timed out and needs a final native state/position observation.
+No seek, physical-remote, subtitle-output or full-native PASS is claimed.
+Resume exact-source synthetic native acceptance after freezing these repairs,
+recording final native state/position on any seek timeout rather than assuming
+a cause or a successful landing.
 Remaining source/service boundaries are explicit: no speculative Live TV
 consumer ownership; no unsupported audio DSP; scoped RAM-only outage metadata
 does not promise offline authentication/grant bypass. No household account may
@@ -313,6 +336,23 @@ actual grant boundary must be reported specifically; do not revive the old
 blanket SDK blocker or silently accept unmeasured behavior.
 
 ## Handoff
+
+Next: freeze the five c8aee1ea repairs described above, run exact clean committed
+host/source gates, and send the immutable delta for independent finding closure
+and core cross-effects review. Rebind QA staging/signing/observer helpers to
+that candidate before any new native operation; the installed QN70F QA is
+still c8aee1ea. The earlier actual play/pause/Intro-focus observations do not
+accept the repaired source or the unresolved landed seek.
+No original reviewer probe scripts were recovered; do not promote reconstructed
+mock-controller seeds to equivalent evidence.
+
+Current authorization: bounded separate account-free QA is permitted within
+the existing exact-target/author grants, with fresh Ethernet/live original-DUID
+matching and the sole Samsung lane. Production signing/rollout, distribution
+and publication remain conditional on revised core completion and independent
+adversarial acceptance. Older blanket shipping/device-hold statements in the
+historical narrative below do not revoke this later synthetic-QA direction.
+There is no active device lease/owned fixture connection at this source freeze.
 
 Online Search at exact clean `5747511e` passed the full host/28-file ES5/M47
 gate and temporary unsigned source build, clean afterward. Independent frozen
@@ -508,7 +548,8 @@ title/version fields that precede `app_tizen_id`. The private install helper's
 parser now passes that synthetic record-order regression; no fresh native
 version read-back was possible. Do not invent an alternative app-info command.
 
-Preserve private session artifacts and generated synthetic media. Continue all
+Historical hold (superseded only to the extent stated above): preserve private
+session artifacts and generated synthetic media. Continue all
 local source/feasibility rows, concrete interaction reconciliation and the
 independent frozen-source review. Do not run signing/distribution, device or
 publication work under the current shipping hold. Real cloud/tuner/account-write
@@ -530,8 +571,9 @@ Verify: confirm canonical `dragoshont/vemm`, the intended isolated branch and
 this committed ledger; read `AGENTS.md` and the governing client/product/design
 contracts. Use focused `tests/tizen` regressions while iterating, then
 `tools/tizen/test.sh` and `tools/tizen/build-source.sh samsung/Vemm` on the
-committed clean candidate. Device/signing/distribution/publication work is on
-hold; do not act on older shipping grants. Retain existing source/package
+committed clean candidate. Production signing/distribution/publication remains
+conditional; bounded account-free QA follows the current authorization above.
+Retain existing source/package
 hashes and actual per-target installed-version/native evidence without
 promoting it to current-source acceptance. No adopted Architrave config or gate runner existed at intake;
 do not invent one as a prerequisite to product work.

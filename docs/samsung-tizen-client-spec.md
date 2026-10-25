@@ -191,6 +191,8 @@ contract. This does not repair an incomplete or corrupt source file.
   typing a Plex password into the TV app.
 - **AUTH-2:** Support Plex Home profile selection, sign-out, account/session expiry, and returning
   to sign-in with a clear explanation when reauthentication is needed.
+  A protected linked owner requires the same fresh PIN flow as the named profile;
+  profile-list failure/emptiness must not expose an owner-token shortcut.
 - **AUTH-3:** Discover the user's owned and shared servers, select among them, and handle servers
   that are unavailable, indirect/relayed, or require TLS according to tested Plex behavior.
 - **AUTH-4:** Keep the account token out of URLs where headers are supported, UI, logs, screenshots,

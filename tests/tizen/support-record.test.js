@@ -37,6 +37,9 @@ assert.strictEqual(safe.serverReportedOutput.height, 720);
 assert.strictEqual(safe.source.height, 2160);
 assert.strictEqual(safe.nativeOutput, "not-measured");
 assert.strictEqual(safe.nextAction, "quality-settings");
+var selectedAudio = fileInfo.supportRecord({ explanation: { reason: "audio-track" } });
+assert.strictEqual(selectedAudio.reason, "audio-track");
+assert.strictEqual(selectedAudio.nextAction, "track-settings");
 assert.strictEqual(fileInfo.supportRecord(null, "720").requestedCeiling, "720");
 require("../../samsung/Vemm/js/preferences.js").qualities.forEach(function (quality) {
     assert.strictEqual(fileInfo.supportRecord({ limit: quality }).requestedCeiling, quality);

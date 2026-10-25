@@ -24,7 +24,9 @@ async function run() {
         var url = new URL(target);
         calls.push({ path: url.pathname, method: options.method });
         var payload;
-        if (url.pathname === "/api/v2/home/users") { payload = { users: [] }; }
+        if (url.pathname === "/api/v2/home/users") {
+            payload = { users: [{ uuid: "synthetic-owner", title: "Synthetic owner", admin: true }] };
+        }
         else if (url.pathname === "/api/v2/resources") {
             payload = [{ clientIdentifier: "synthetic-server", name: "Synthetic PMS", provides: "server", owned: true,
                 accessToken: "synthetic-server-token", connections: [{ uri: "https://pms.synthetic.invalid" }] }];

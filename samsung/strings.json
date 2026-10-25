@@ -1,4 +1,12 @@
 {
+  "the server selects the requested audio track": {
+    "es": "el servidor selecciona la pista de audio solicitada",
+    "be": "сервер выбірае запытаную аўдыядарожку"
+  },
+  "Another version uses matching language tracks or its own defaults. External subtitle timing is not reused.": {
+    "es": "Otra versión usa pistas del mismo idioma o sus valores predeterminados. No se reutiliza la sincronización de subtítulos externos.",
+    "be": "Іншая версія выкарыстоўвае дарожкі адпаведнай мовы або ўласныя стандартныя налады. Час знешніх субтытраў не пераносіцца."
+  },
   "Edit smart rules": { "es": "Editar reglas inteligentes", "be": "Змяніць разумныя правілы" },
   "These smart rules cannot be safely edited. Nothing was changed.": {
     "es": "Estas reglas no se pueden editar de forma segura. No se cambió nada.",

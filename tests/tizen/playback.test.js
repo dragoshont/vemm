@@ -233,8 +233,11 @@ async function run() {
     selectedAudioPlan = playback.plan(selectedAudio, {
         profile: selectedProfile, quality: "original", audioId: 31, subtitleId: 0
     });
-    assert.strictEqual(selectedAudioPlan.direct, true,
+    assert.strictEqual(selectedAudioPlan.direct, false,
+        "A supported explicit audio choice still needs a selected-audio stream, not the static file's default");
+    assert.strictEqual(selectedAudioPlan.reason, "audio-track",
         "A supported explicit audio choice must not inherit the default track's codec refusal");
+    assert.strictEqual(selectedAudioPlan.query.directStream, 1, "Supported video may be copied while PMS selects the audio");
     for (var forcedItem of [preferred, multipart]) {
         var forcedRig = rig();
         var forcedSession = playback.create({

@@ -7,6 +7,28 @@ Rust paths/symbols are historical examples at
 they are not current Samsung modules. Account tokens, server addresses and
 household records must not be used to reproduce examples without authorization.
 
+## Current Samsung selected-audio and version contract
+
+PMS `Stream.id` values are not AVPlay `getTotalTrackInfo()` indices. Updating
+the Part's selection alone does not establish which track an unchanged static
+file decodes. Vemm therefore negotiates selected audio for multi-audio video
+with the existing decision/start requests, `audioStreamID`, `directPlay=0`
+and, where the video capability verdict permits it, `directStream=1`.
+Default selection does not itself issue a Part selection PUT. Explicit audio
+selection retains the existing bounded write/read-back path.
+Force refuses a required selected-audio conversion before retiring the
+working decoder; it does not silently reopen a static file and claim success.
+This is synthetic controller/request evidence, not observed live-PMS/native
+track output or a claim that every server preserves the video.
+
+A new media version resolves audio/subtitle IDs against its own Part, using
+unique language/role/variant matches or advertised selected/default tracks.
+Subtitles off remains off; external cue timing is not copied to another cut.
+Replacement planning precedes stopping the existing player. Retry retains
+owned pause intent across native errors; Up Next freezes while buffering.
+The actual-main/controller/adapter regressions live in
+`tests/tizen/core-playback-ui.test.js`; hardware/service acceptance is separate.
+
 ## Plex Web interoperability observation, 2026-10-25
 
 REQ-WEB-01 compares the official public client at
