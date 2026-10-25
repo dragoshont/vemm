@@ -97,6 +97,17 @@ negative findings require evidence, not speculation.
 
 ## Handoff
 
+Latest integrated product source is `92b61919`: ISO language-group correction,
+exact final-WGT payload gate and remote-only Account navigation regression are
+included with the earlier functional slices. Its full host gate (including
+10 Python contracts), strict ES5/M47 gate and unsigned SDK source build pass
+with the tree clean before/after. Private matching-source artifacts include
+separate unsigned production/QA WGTs, unchanged toolkit static audits, exact
+payload inventories and complete tracked-source archive/checksum. Packaging
+retains all four root notices and the explicit 16-file licence inventory.
+These receipts replace the stripped unsigned candidates as package evidence,
+not as SDK-signing trust, native acceptance or production deployment.
+
 Playback diagnostics session `6e881844-fa5a-4679-b6dd-d38c12dcbf00` delivered
 `127e3998`, integrated as `2f416d4e` after the Unicode/overlap fixes. The full
 host gate and unsigned product build passed on that exact clean combined
