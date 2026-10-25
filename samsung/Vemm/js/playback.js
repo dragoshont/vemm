@@ -48,6 +48,7 @@
         delete ask.videoCodec;
         delete ask.audioCodec;
         delete ask.autoAdjustQuality;
+        delete ask.audioBoost;
         return ask;
     }
 
@@ -180,6 +181,9 @@
 
     function plan(item, options) {
         options = options || {};
+        if (options.audioBoost !== undefined && [50, 100, 150, 200].indexOf(options.audioBoost) === -1) {
+            throw new Error("The converted audio volume is invalid.");
+        }
         var mediaIndex = options.mediaIndex || 0;
         var media = (item.Media || [])[mediaIndex];
         var part = media && (media.Part || [])[0];
@@ -231,6 +235,7 @@
         };
         if (options.location === "lan" || options.location === "wan") { query.location = options.location; }
         if (options.adaptiveQuality === true && !force && kind === "video") { query.autoAdjustQuality = 1; }
+        if (options.audioBoost !== undefined && options.audioBoost !== 100) { query.audioBoost = options.audioBoost; }
         if (tracks.audioId > 0) { query.audioStreamID = tracks.audioId; }
         if (direct) {
             query["X-Plex-Client-Profile-Extra"] += "+add-direct-play-profile(type=videoProfile&protocol=http&container=" +

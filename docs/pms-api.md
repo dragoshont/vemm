@@ -20,9 +20,11 @@ without credentials, cookies or executing downloaded code in that inspection;
 no proprietary implementation is included in Vemm.
 
 A separate isolated startup observation executed the actual public client in
-fresh browser contexts with service workers blocked. Only official static GETs
-reached the network; all service/account/PMS/telemetry calls were intercepted
-locally using never-valid synthetic credentials. Contexts were closed afterward.
+fresh browser contexts with service workers blocked. Recorded non-static HTTP
+service/account/PMS/telemetry requests were intercepted locally using never-valid
+synthetic credentials; official static GETs were permitted. WebSocket/WebRTC
+egress was not independently instrumented, so comprehensive network isolation
+is not established. Contexts were closed afterward.
 These are observed startup requests, not successful authenticated operations:
 `GET clients.plex.tv/monitoring/health`, `POST /api/v2/users/signin`,
 `GET /api/v2/user`, `GET /api/v2/resources`, privacy/grant/provider reads,

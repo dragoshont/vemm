@@ -9,6 +9,7 @@
     var holdTimer = null;
     var currentSection = null;
     var homeSections = [];
+    var homeCache = null;
     var currentItems = [];
     var currentOffset = 0;
     var viewGeneration = 0;
@@ -71,7 +72,7 @@
     var preferences = { quality: "original", nextEpisode: "countdown", language: "en", continueAction: "details",
         skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low", subtitleColor: "white",
         subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false,
-        adaptiveQuality: false };
+        adaptiveQuality: false, transcodeAudioVolume: 100 };
     var preferenceError = "";
     var graphics = null;
     var graphicsFailure = false;
@@ -345,6 +346,7 @@
         }
         if (error.scope === "server" && error.status === 401 && accountClient) {
             currentClient = null;
+            homeCache = null;
             openServers("This server's access grant expired. Select a server again; your Plex account is still linked.");
             return true;
         }
@@ -601,6 +603,7 @@
     }
 
     function openProfiles(warning) {
+        homeCache = null;
         restoreView = function () { openProfiles(); };
         retryView = restoreView;
         stopAuthorization();
@@ -702,6 +705,7 @@
         stopAuthorization();
         accountToken = "";
         accountClient = null;
+        homeCache = null;
         activeProfile = null;
         linkedProfile = null;
         servers = [];
@@ -1099,6 +1103,38 @@
         });
     }
 
+    function homeProfileKey() {
+        var profile = activeProfile || linkedProfile;
+        return String(profile && (profile.uuid || profile.id) || "");
+    }
+
+    function rememberHome(sections, hubs) {
+        var fields = ["ratingKey", "type", "title", "summary", "thumb", "art", "grandparentTitle",
+            "grandparentThumb", "grandparentArt", "parentTitle", "parentIndex", "index", "year",
+            "contentRating", "duration", "viewOffset", "viewCount", "leafCount", "viewedLeafCount"];
+        var remaining = 200;
+        var snapshot = {
+            sections: sections.slice(0, 100).map(function (section) {
+                return { key: section.key, type: section.type, title: section.title };
+            }),
+            hubs: hubs.slice(0, 20).map(function (hub) {
+                var metadata = (Array.isArray(hub.Metadata) ? hub.Metadata : []).slice(0, Math.min(12, remaining));
+                remaining -= metadata.length;
+                return { title: hub.title, hubIdentifier: hub.hubIdentifier, librarySectionID: hub.librarySectionID,
+                    size: hub.size, more: hub.more, Metadata: metadata.map(function (item) {
+                        var cached = {};
+                        fields.forEach(function (field) {
+                            if (typeof item[field] === "string" || typeof item[field] === "number") { cached[field] = item[field]; }
+                        });
+                        return cached;
+                    }) };
+            })
+        };
+        homeCache = JSON.stringify(snapshot).length <= 256 * 1024 ? {
+            client: currentClient, profile: homeProfileKey(), expires: Date.now() + 300000, snapshot: snapshot
+        } : null;
+    }
+
     function loadHome(showConnectOnError) {
         restoreView = function () { loadHome(showConnectOnError); };
         retryView = restoreView;
@@ -1111,10 +1147,27 @@
             currentClient.getHomeHubs()
         ]).then(function (result) {
             if (generation !== viewGeneration) { return; }
+            rememberHome(result[0], result[1]);
             renderHome(result[0], result[1]);
         }).catch(function (error) {
             if (generation !== viewGeneration) { return; }
             if (accountClient && recoverSession(error)) { return; }
+            if (!showConnectOnError && error.code !== "cancelled" && (!error.status || error.status >= 500) &&
+                    homeCache && homeCache.client === currentClient && homeCache.profile === homeProfileKey() &&
+                    Date.now() < homeCache.expires) {
+                renderHome(homeCache.snapshot.sections, homeCache.snapshot.hubs);
+                button(screen, "Retry", function () { loadHome(false); }).id = "home-retry";
+                setStatus("Cached Home: limited recent metadata, up to five minutes old. Actions still require a reachable server. Select Retry to reconnect.");
+                return;
+            }
+            homeCache = null;
+            if (/screen-(home|detail|library|listing|search)/.test(screen.className)) {
+                clear(screen);
+                resetImages();
+                page("Home", "home");
+                if (accountClient) { button(screen, "Choose a server", openServers); }
+                button(screen, "Settings", function () { visit(openSettings); });
+            }
             if (showConnectOnError) {
                 currentClient = null;
                 addConnectForm(errorText(error));
@@ -2984,6 +3037,7 @@
             adaptivePolicy: adaptive,
             adaptiveDisabled: !!(trackOptions && trackOptions.adaptiveDisabled),
             location: client.location,
+            audioBoost: preferences.transcodeAudioVolume,
             audioId: trackOptions ? trackOptions.audioId : undefined,
             subtitleId: trackOptions ? trackOptions.subtitleId : undefined,
             overlaySubtitle: !!(trackOptions && trackOptions.cues),
@@ -3853,6 +3907,10 @@
             function (value) { return value ? "On" : "Off"; });
         playbackSettings.appendChild(element("p", "help-text", translate(
             "Opt-in adaptation stays below your quality ceiling. Remote playback starts at up to 8 Mbps. Repeated buffering can lower quality; Force and manual playback quality choices stay fixed.")));
+        preferenceChoice(playbackSettings, "Converted audio volume", "transcodeAudioVolume", [50, 100, 150, 200],
+            function (value) { return value + "%"; });
+        playbackSettings.appendChild(element("p", "help-text", translate(
+            "Server-converted audio only; 100% keeps original loudness. This is not dialog isolation or loudness normalization and does not change Direct Play audio. Higher values may distort.")));
         button(playbackSettings, translate("Continue Watching: {state}", {
             state: translate(preferences.continueAction === "play" ? "Play" : "Open details")
         }), function () {

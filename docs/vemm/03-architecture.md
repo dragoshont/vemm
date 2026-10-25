@@ -53,8 +53,8 @@ flowchart LR
 - LG, Windows, macOS or other platform implementations.
 - Broad `main.js` decomposition without a separately proven ownership boundary.
 - New graphics engines, AI upscaling, frame interpolation or default-on WebGL.
-- Repository rename/fork detachment, Store distribution, signing changes,
-  device deployment and release publication.
+- Repository rename/fork detachment, Store distribution, signing-identity
+  changes and release publication.
 - Device support expansion beyond named evidence.
 
 ## Implemented seams
@@ -83,7 +83,29 @@ The explanation changes when PMS or AVPlay refuses the original. Stats for
 nerds surfaces the bounded, non-sensitive explanation. Tokens, origins, titles
 and raw native errors remain excluded.
 
-## Sequenced plan and acceptance
+### Scoped Home outage recovery
+
+The current client can retain one in-memory Home snapshot: at most 100 library
+descriptors, 20 shelves, 12 preview cards per shelf and 200 cards overall.
+Only explicit display/identity fields are copied; snapshots larger than
+256 Ki UTF-16 code units are discarded. The snapshot expires after five
+minutes and is tied to the exact PMS client and active profile identity.
+It is never written to app storage.
+
+A transient network/5xx failure may display explicitly labelled cached Home
+with Retry. Cancellation, authorization refusal, changed client/profile,
+profile-selection/PIN entry, sign-out and expired grants do not authorize a
+cached fallback. Cached cards are not offline media: playback, mutations,
+detail reads and grant checks still need their normal reachable endpoints.
+No offline write queue, saved grant extension or media download is added.
+
+## Historical identity-transition plan and acceptance
+
+The sequence below describes the earlier identity-only transition, not the
+current product-backlog authorization. `SPEC.md` now governs the complete
+0.2.0 implementation and specifically authorized existing-author TV updates;
+Store submission, signing-identity changes and public releases remain outside
+that deployment grant.
 
 1. **Audit:** bind the current tree, release history, architecture, evidence and
    holds in `01-current-state-audit.md`.

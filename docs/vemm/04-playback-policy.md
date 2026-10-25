@@ -38,6 +38,23 @@ These thresholds are conservative implementation limits, not measured per-TV
 performance budgets. Synthetic controller and real-UI/fake-adapter tests cover
 the limits, cancellation and no-unintended-autoplay behavior.
 
+## Converted audio volume
+
+Settings offers 50%, 100%, 150% and 200% for server-converted audio.
+The bundled PMS OpenAPI defines `audioBoost` as percent of original loudness,
+not decibels. The unchanged default, 100%, omits the option. Direct Play's
+decision and original-file URL omit it; a server-conversion fallback retains
+the explicitly selected percentage. This does not force conversion merely to
+change volume. Higher percentages can distort; this is neither dialog
+isolation, loudness normalization nor AV sync adjustment.
+
+No local PCM/gain hook has been established for AVPlay. Samsung's deprecated
+sound-analysis listener provides spectrum analysis, not audio processing.
+`setSubtitlePosition` is external-subtitle timing in milliseconds, not audio
+delay or vertical placement. It is not wired to Vemm's DOM text overlay.
+Server support and audible output still require disposable-backend and
+named-model acceptance; the request option alone does not establish them.
+
 ## Inputs
 
 `js/playback.js` evaluates:

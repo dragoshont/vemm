@@ -40,6 +40,25 @@ function rig() {
     return { calls: calls, adapter: adapter, client: client };
 }
 async function run() {
+    var audioRig = rig();
+    var directAsks = [];
+    audioRig.client.request = function (path, method, query) {
+        directAsks.push(Object.assign({}, query));
+        return Promise.resolve({ generalDecisionCode: 1001 });
+    };
+    var audioSession = playback.create({
+        client: audioRig.client, adapter: audioRig.adapter, item: item,
+        settings: { quality: "original", audioBoost: 150, profile: {
+            evidence: "synthetic-direct-audio-profile",
+            containers: ["mp4"], video: ["h264"], audio: ["aac"], maxWidth: 1920, maxHeight: 1080
+        } }
+    });
+    await audioSession.start();
+    assert.strictEqual(directAsks[0].audioBoost, undefined,
+        "Converted audio volume never forces or modifies an original-file decision");
+    assert.strictEqual(directAsks[1].audioBoost, 150,
+        "Server refusal of Direct Play retains the explicit converted-volume choice");
+    await audioSession.stop();
     var plan = playback.plan(item, { offset: 5000 });
     assert.strictEqual(plan.direct, false, "Unknown capabilities must not guess direct play");
     assert.strictEqual(plan.query.directPlay, 0);

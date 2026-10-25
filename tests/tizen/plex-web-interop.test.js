@@ -61,6 +61,10 @@ async function run() {
     assert.strictEqual(adaptive.query.autoAdjustQuality, 1);
     assert.strictEqual(adaptive.query.location, "wan");
     assert.strictEqual(adaptive.query.videoBitrate, 4000, "Auto retains a truthful quality ceiling");
+    assert.strictEqual(playback.plan(item, { audioBoost: 150 }).query.audioBoost, 150,
+        "Documented audioBoost is percent of original converted loudness, not dB or dialog isolation");
+    assert.strictEqual(playback.plan(item, { audioBoost: 100 }).query.audioBoost, undefined);
+    assert.throws(function () { playback.plan(item, { audioBoost: "700" }); }, /volume is invalid/);
     var forced = playback.plan(item, { directPlay: "force", quality: "original", adaptiveQuality: true,
         profile: { containers: ["mp4"], video: ["h264"], audio: ["aac"] } });
     assert.strictEqual(forced.query.autoAdjustQuality, undefined, "Force must not request ABR conversion");
