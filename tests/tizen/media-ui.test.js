@@ -145,6 +145,15 @@ async function run() {
         for (var i = 0; i < 50; i += 1) { await Promise.resolve(); }
         await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
     }
+    async function photoReady() {
+        var deadline = Date.now() + 2000;
+        while (Date.now() < deadline) {
+            var image = window.document.querySelector(".photo-display");
+            if (image && image.src.startsWith("blob:") && typeof image.onload === "function") { return image; }
+            await new Promise(function (resolve) { window.setTimeout(resolve, 1); });
+        }
+        assert.fail("Photo header/decode setup did not finish: " + window.document.getElementById("status").textContent);
+    }
     try {
         await settle();
         click("Use linked account"); await settle();
@@ -213,12 +222,13 @@ async function run() {
         click("Photos"); await settle();
         window.document.querySelector(".media-card").click(); await settle();
         assert(window.document.querySelector(".screen-photos .photo-controls"), "Photo navigation is grouped below the image");
-        var image = window.document.querySelector(".photo-display");
+        var image = await photoReady();
         assert(image.src.startsWith("blob:"));
         image.onload();
         assert.strictEqual(window.document.querySelector(".screen h2").textContent, "Photo 1");
         var timelines = calls.filter(function (call) { return call.path === "/:/timeline"; }).length;
         click("Next photo"); await settle();
+        image = await photoReady();
         image.onload();
         assert.strictEqual(window.document.querySelector(".screen h2").textContent, "Photo 2");
         click("Back"); await settle();
