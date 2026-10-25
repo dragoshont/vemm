@@ -3041,3 +3041,27 @@ input:focus,
         transition: none;
     }
 }
+
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+    -webkit-transition: none !important;
+    transition: none !important;
+    -webkit-animation: none !important;
+    animation: none !important;
+}
+
+html[data-interface-text="large"] .help-text,
+html[data-interface-text="large"] .inline-error,
+html[data-interface-text="large"] .empty-state,
+html[data-interface-text="large"] .status,
+html[data-interface-text="large"] .menu-control,
+html[data-interface-text="large"] .card-title,
+html[data-interface-text="large"] .detail-meta {
+    font-size: 30px;
+}
+
+html[data-interface-text="large"] .card-meta,
+html[data-interface-text="large"] .title-tile-caption {
+    font-size: 28px;
+}

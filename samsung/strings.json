@@ -1,4 +1,13 @@
 {
+  "Accessibility": { "es": "Accesibilidad", "be": "Даступнасць" },
+  "Reduced motion": { "es": "Movimiento reducido", "be": "Менш анімацыі" },
+  "Interface text": { "es": "Texto de la interfaz", "be": "Тэкст інтэрфейсу" },
+  "Larger": { "es": "Más grande", "be": "Большы" },
+  "Standard": { "es": "Estándar", "be": "Стандартны" },
+  "These TV-local controls reduce interface animations and enlarge labels and help text. Subtitle appearance is configured separately. They do not enable Samsung Voice Guide or certify screen-reader support.": {
+    "es": "Estos controles locales reducen las animaciones y amplían las etiquetas y la ayuda. La apariencia de los subtítulos se configura aparte. No activan la guía de voz de Samsung ni certifican la compatibilidad con lectores de pantalla.",
+    "be": "Гэтыя лакальныя налады памяншаюць анімацыю і павялічваюць надпісы ды падказкі. Выгляд субцітраў наладжваецца асобна. Яны не ўключаюць галасавы гід Samsung і не пацвярджаюць падтрымку чытальнікаў экрана."
+  },
   "Converted audio volume": { "es": "Volumen del audio convertido", "be": "Гучнасць перакадзіраванага аўдыя" },
   "The converted audio volume is invalid.": {
     "es": "El volumen del audio convertido no es válido.",

@@ -72,7 +72,7 @@
     var preferences = { quality: "original", nextEpisode: "countdown", language: "en", continueAction: "details",
         skipInterval: 10, subtitleSize: "medium", subtitlePosition: "low", subtitleColor: "white",
         subtitleBackground: "off", subtitleDelayMs: 0, directPlay: "auto", enhancedGraphics: false,
-        adaptiveQuality: false, transcodeAudioVolume: 100 };
+        adaptiveQuality: false, transcodeAudioVolume: 100, reducedMotion: false, interfaceTextSize: "standard" };
     var preferenceError = "";
     var graphics = null;
     var graphicsFailure = false;
@@ -144,6 +144,7 @@
             window.VemmI18n.setLanguage(preferences.language);
         } catch (error) { preferenceError = errorText(error); }
     }
+    applyInterfacePreferences();
     if (typeof window.Promise !== "function" || typeof window.fetch !== "function" ||
             typeof window.URL !== "function" || typeof window.Blob !== "function") {
         status.textContent = "This browser lacks required network or media APIs. Use a supported Samsung runtime.";
@@ -162,10 +163,18 @@
             translate(error && error.message || "Playback failed. Stop and retry.");
     }
 
+    function applyInterfacePreferences() {
+        if (!document.documentElement) { return; }
+        document.documentElement.setAttribute("lang", preferences.language);
+        document.documentElement.setAttribute("data-reduced-motion", String(preferences.reducedMotion === true));
+        document.documentElement.setAttribute("data-interface-text", preferences.interfaceTextSize || "standard");
+    }
+
     function savePreferences() {
         try {
             window.VemmPreferences.save(window.localStorage, preferences);
             window.VemmI18n.setLanguage(preferences.language);
+            applyInterfacePreferences();
             return true;
         } catch (error) {
             setStatus("Could not save preferences. Check app storage permissions.", true);
@@ -2962,8 +2971,10 @@
             settingsChoices(title, options.map(function (option) {
                 return { value: option.value, label: translate(option.label) };
             }), preferences[preferenceKey], function (value) {
+                var previous = preferences[preferenceKey];
                 preferences[preferenceKey] = value;
                 if (savePreferences()) { backView(); }
+                else { preferences[preferenceKey] = previous; }
             });
         }, false, "settings");
     }
@@ -3929,6 +3940,13 @@
             var librarySettings = group(menu, translate("Libraries"), "settings-group");
             button(librarySettings, "Favorite libraries", function () { visit(function () { openFavorites(false); }); });
         }
+        var accessibility = group(menu, translate("Accessibility"), "settings-group");
+        preferenceChoice(accessibility, "Reduced motion", "reducedMotion", [false, true],
+            function (value) { return value ? "On" : "Off"; });
+        preferenceChoice(accessibility, "Interface text", "interfaceTextSize", ["standard", "large"],
+            function (value) { return value === "large" ? "Larger" : "Standard"; });
+        accessibility.appendChild(element("p", "help-text", translate(
+            "These TV-local controls reduce interface animations and enlarge labels and help text. Subtitle appearance is configured separately. They do not enable Samsung Voice Guide or certify screen-reader support.")));
         var languages = group(menu, translate("Language"), "settings-group");
         var names = { en: "English", es: "Español", be: "Беларуская" };
         button(languages, translate("Language") + ": " + names[preferences.language], function () {
@@ -4000,6 +4018,7 @@
                 graphicsFailure = false;
                 if (graphics) { graphics.setEnabled(false); }
                 window.VemmI18n.setLanguage(preferences.language);
+                applyInterfacePreferences();
                 openSettings();
             } catch (error) { setStatus("Could not reset preferences. Check app storage permissions.", true); }
         });
