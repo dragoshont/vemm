@@ -192,6 +192,9 @@ class Fixture:
                 raise ValueError("Synthetic asset checksum mismatch.")
             self.assets[name] = path
         self.watched = {}
+        self.next_queue_id = 9007199254740993
+        self.queue_id = None
+        self.cleared_queue_id = None
         self.calls = {}
         self.lock = threading.Lock()
 
@@ -230,7 +233,9 @@ class Fixture:
         def container(**values):
             return {"MediaContainer": values}
         mutation = path == "/playQueues" and method == "POST" or (
-            re.fullmatch(r"/library/parts/[0-9]+", path) and method == "PUT")
+            re.fullmatch(r"/library/parts/[0-9]+", path) and method == "PUT") or (
+            path == "/:/timeline" and method == "POST") or (
+            re.fullmatch(r"/playQueues/[0-9]+/items", path) and method == "DELETE")
         if method not in ("GET", "HEAD") and not mutation:
             raise LookupError("No fixture contract for this method.")
         if path == "/library/sections":
@@ -266,6 +271,9 @@ class Fixture:
                 self.watched[watched_key] = int(path == "/:/scrobble")
             return container(size=0)
         if path == "/:/timeline":
+            if method != "POST":
+                raise LookupError("Timeline updates require the production POST contract.")
+            self.item(query.get("ratingKey", [""])[0])
             if query.get("state", [""])[0] not in ("playing", "paused", "buffering", "stopped"):
                 raise ValueError("Invalid synthetic timeline state.")
             return container(size=0)
@@ -279,12 +287,26 @@ class Fixture:
             return container(size=0)
         if path == "/playQueues" and method == "POST":
             match = re.search(r"/library/metadata/([0-9]+)$", query.get("uri", [""])[0])
-            if not match:
+            if not match or query.get("type") != ["video"]:
                 raise ValueError("Only explicit synthetic video items are supported.")
+            if self.queue_id is not None:
+                raise ValueError("Clear the active synthetic queue before creating another.")
             item = self.item(match[1], query.get("includeMarkers") == ["1"])
-            item["playQueueItemID"] = "9007199254740995"
-            return container(playQueueID="9007199254740993", playQueueSelectedItemID="9007199254740995",
-                             playQueueVersion=1, playQueueTotalCount=1, Metadata=[item])
+            if item["type"] not in ("movie", "episode"):
+                raise ValueError("A synthetic video queue requires a playable item.")
+            self.queue_id = str(self.next_queue_id)
+            self.next_queue_id += 10
+            item["playQueueItemID"] = str(int(self.queue_id) + 2)
+            return container(playQueueID=self.queue_id, playQueueSelectedItemID=item["playQueueItemID"],
+                             playQueueVersion=1, playQueueTotalCount=1,
+                             playQueueSelectedItemOffset=0, playQueueShuffled=False, Metadata=[item])
+        match = re.fullmatch(r"/playQueues/([0-9]+)/items", path)
+        if match and method == "DELETE":
+            if match[1] == self.queue_id:
+                self.cleared_queue_id, self.queue_id = self.queue_id, None
+            elif match[1] != self.cleared_queue_id:
+                raise LookupError("Only the explicitly owned synthetic queue can be cleared.")
+            return container(size=0)
         raise LookupError("No fixture contract for this route.")
 
 

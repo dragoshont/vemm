@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -75,6 +76,7 @@ class NativeFixtureTests(unittest.TestCase):
                         ("/library/sections", {"X-Plex-Token": "deliberately-invalid-nonsynthetic"}, 403),
                         ("/media/synthetic.mp4", {"Range": "bytes=9999-"}, 416),
                         ("/media/../private.txt", {}, 404),
+                        ("/:/timeline", {}, 404),
                     ]:
                         with self.assertRaises(HTTPError) as error:
                             get(path, headers)
@@ -94,6 +96,35 @@ class NativeFixtureTests(unittest.TestCase):
                         self.assertEqual(len(container["Metadata"]), 50)
                         self.assertEqual(container["Metadata"][0]["ratingKey"], "10200")
                         self.assertEqual(container["totalSize"], 1001)
+                    subprocess.run(["node", str(ROOT / "tests/tizen/native-fixture-ui.test.js"), base],
+                                   cwd=ROOT, check=True, timeout=15)
+                    self.assertIsNone(fixture.queue_id, "The production remote Stop must clear its owned queue")
+                    cleared = fixture.cleared_queue_id
+                    self.assertEqual(cleared, "9007199254740993")
+                    with get(f"/playQueues/{cleared}/items", method="DELETE") as response:
+                        self.assertEqual(response.status, 200, "An owned lost-response cleanup can be retried")
+                    with get("/playQueues?type=video&uri=server://synthetic-server/"
+                             "com.plexapp.plugins.library/library/metadata/20001", method="POST") as response:
+                        queue = json.load(response)["MediaContainer"]
+                        self.assertEqual(queue["playQueueSelectedItemOffset"], 0)
+                        self.assertIs(queue["playQueueShuffled"], False)
+                        self.assertNotEqual(queue["playQueueID"], cleared)
+                    with self.assertRaises(HTTPError) as error:
+                        get("/playQueues?type=video&uri=server://synthetic-server/"
+                            "com.plexapp.plugins.library/library/metadata/20000", method="POST")
+                    self.assertEqual(error.exception.code, 400, "The fixture refuses unbounded active queue accumulation")
+                    error.exception.close()
+                    with get(f"/playQueues/{cleared}/items", method="DELETE") as response:
+                        self.assertEqual(response.status, 200)
+                    self.assertEqual(fixture.queue_id, queue["playQueueID"],
+                                     "Retrying an old clear cannot clear a subsequent owned queue")
+                    with self.assertRaises(HTTPError) as error:
+                        get("/playQueues/123/items", method="DELETE")
+                    self.assertEqual(error.exception.code, 404, "Unknown queue ownership is not fabricated")
+                    error.exception.close()
+                    with get(f"/playQueues/{queue['playQueueID']}/items", method="DELETE") as response:
+                        self.assertEqual(response.status, 200)
+                    self.assertIsNone(fixture.queue_id)
                 finally:
                     server.shutdown()
                     thread.join(timeout=3)

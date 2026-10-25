@@ -38,6 +38,14 @@ acceptance, not an LG native benchmark.
 (`VemmQaApp0.NativeQa` / `VemmQaApp0`) and account-free HTTP fixture. It is
 development tooling, not another shipped renderer or a real PMS. A clean
 committed source is mandatory for staging; existing output is never overwritten.
+Its explicit single-item video queue contract includes string entry identities,
+revision, count, selected offset and shuffle state, POST timeline updates and
+owned DELETE cleanup. Queue IDs change between creations; an old cleanup retry
+cannot clear the next queue. A host integration journey loads the generated
+boot and production modules against the actual Python HTTP server, reaches
+Play and the Intro prompt, then uses the remote Stop key to confirm stopped
+timeline and queue cleanup. AVPlay is mocked in that host journey; it is not
+native media, full playlist/paging/shuffle, real-PMS or panel acceptance.
 The original `main.js`, modules and notices are retained and hashed. Only the
 canonical startup suffix is replaced in a separately named executable copy,
 which refuses to start outside that exact QA application identity. Production
