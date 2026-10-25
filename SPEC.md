@@ -1,6 +1,18 @@
 # Vemm 0.2.0 requirements
 
 Status: implementation authorized; not delivered.
+Latest operation authorization: the owner explicitly directs updating the
+already-signed-in production apps in place now, without waiting for synthetic
+QA: "no,. i need you to update the app in place as these are alredy loggin.
+do not overcomplicate, do not use a fakje place" and "updaet the apps directly,
+is my server i am the single users. fake server are misleading".
+This supersedes the acceptance hold for normal existing production installation
+only. Use the reviewed dc82768c product bytes, unchanged identities and existing
+author/profile; preserve data by normal update, never uninstall/clear/relink.
+Fresh original-DUID matching remains mandatory. No unnecessary launch,
+playback, household mutations, public release/tag/merge or full acceptance
+claim is implied. The exclusive-input hold still applies to playback QA, not
+this explicitly authorized update.
 Baseline: `2b50628cd9a346dbe1d374e103124665b749b260`.
 Owner: the Vemm product-backlog session.
 
@@ -242,6 +254,13 @@ summaries.
 | 2026-10-25 | revise | PB-01, QA-01, REVIEW-01 | Independent dc82768c narrow source closure PASS observed original7c decisions[1,0]/avplay-close/latePLAYING versus repaired[1]/original seek-timeout with resume phase/latePAUSED terminal error position0. Callback error/native retirement refuse reopen; startup Play, explicit close/new source and ordinary decoder fallback also pass. Exact dc full host/11 Python/28ES5-M47 and unsigned source build passed clean. No full-core, native or release acceptance; the exclusive-input device hold remains. |
 
 ## Execution and acceptance
+
+2026-10-26: direct owner authorization now permits serial normal in-place
+production updates on the available original-identity-matched known TVs,
+despite remaining native/service acceptance gaps. Retain the reviewed product
+and version0.2.0; bind source, exact signed package and raw installed-version
+read-back per target. Do not represent version read-back as loaded-source or
+sign-in continuity measurement. No fake/QA backend substitutes for delivery.
 
 7c234c65 source review returned REVISE: making open await startup resume exposed
 the controller's generic Direct Play decoder fallback to a terminal seek
