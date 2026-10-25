@@ -65,6 +65,13 @@ async function run() {
     assert(!native.calls.includes("play"), "Stale prepare callback must not start playback");
 
     native = fake();
+    adapter = av.create({ avplay: native, onEvent: function (event) {
+        if (event.type === "state" && event.state === "ready") { adapter.close(); }
+    } });
+    await assert.rejects(adapter.open("https://synthetic.invalid"), /cancelled/);
+    assert(!native.calls.includes("play"), "Retirement at the ready event must prevent starting the closed decoder");
+
+    native = fake();
     native.prepareAsync = function () {};
     adapter = av.create({ avplay: native, prepareTimeout: 5 });
     await assert.rejects(adapter.open("https://synthetic.invalid"), /prepare-timeout/);

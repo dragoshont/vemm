@@ -137,6 +137,7 @@
                         try {
                             duration = Math.max(0, Number(avplay.getDuration()) || 0);
                             transition("ready");
+                            if (ownGeneration !== generation || !pending) { return; }
                             var resumeWait = options.resumeSeekTimeout || 8000;
                             // READY-state HLS seeks can never call back on older TVs.
                             // Start first, then use the same owned seek as remote actions.
