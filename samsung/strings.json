@@ -1,4 +1,33 @@
 {
+  "Video playlists": { "es": "Listas de vídeo", "be": "Спісы прайгравання відэа" },
+  "Move to beginning": { "es": "Mover al principio", "be": "Перамясціць у пачатак" },
+  "Move this playlist entry to the beginning?": { "es": "¿Mover esta entrada de la lista al principio?", "be": "Перамясціць гэты запіс спіса ў пачатак?" },
+  "Confirming playlist order...": { "es": "Confirmando el orden de la lista...", "be": "Пацвярджэнне парадку спіса..." },
+  "Reload playlist": { "es": "Volver a cargar la lista", "be": "Перазагрузіць спіс" },
+  "Playlist order confirmed.": { "es": "Orden de la lista confirmado.", "be": "Парадак спіса пацверджаны." },
+  "Loading video queue...": { "es": "Cargando la cola de vídeo...", "be": "Загрузка чаргі відэа..." },
+  "Wait for the cancelled video queue request to finish.": {
+    "es": "Espera a que termine la solicitud cancelada de la cola de vídeo.",
+    "be": "Дачакайцеся завяршэння скасаванага запыту чаргі відэа."
+  },
+  "The previous video queue still needs cleanup. Retry cleanup before playing again.": {
+    "es": "La cola de vídeo anterior aún debe vaciarse. Reintenta la limpieza antes de reproducir de nuevo.",
+    "be": "Папярэднюю чаргу відэа яшчэ трэба ачысціць. Паўтарыце ачыстку перад новым прайграваннем."
+  },
+  "Previous video": { "es": "Vídeo anterior", "be": "Папярэдняе відэа" },
+  "Next video": { "es": "Siguiente vídeo", "be": "Наступнае відэа" },
+  "Plex did not confirm the playlist order. Reload before editing.": {
+    "es": "Plex no confirmó el orden de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Plex не пацвердзіў парадак спіса. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "The playlist changed on Plex. Reload before editing.": {
+    "es": "La lista cambió en Plex. Vuelve a cargarla antes de editar.",
+    "be": "Спіс змяніўся ў Plex. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "The play queue changed on Plex. Stop and reopen it.": {
+    "es": "La cola cambió en Plex. Detén la reproducción y vuelve a abrirla.",
+    "be": "Чарга змянілася ў Plex. Спыніце прайграванне і адкрыйце яе зноў."
+  },
   "Version {version}": { "es": "Versión {version}", "be": "Версія {version}" },
   "Customize Home": { "es": "Personalizar Inicio", "be": "Наладзіць галоўны экран" },
   "Featured title: {state}": { "es": "Título destacado: {state}", "be": "Рэкамендаваны твор: {state}" },

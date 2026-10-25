@@ -30,6 +30,14 @@ Do not initiate playback or account writes merely to display or inspect a screen
 Do not add private APIs or unsupported playback claims to make the interface seem complete.
 Licensed catalogue streaming and verified live tuning remain acceptance gaps.
 
+Video playlists are server-backed: browse existing playlists, play/shuffle them,
+page their items, and explicitly confirm moving an entry to the beginning.
+Playback's More menu provides previous/next video, shuffle and repeat; queue
+transitions preserve entry identity and marker/chapter metadata without creating
+another queue. Metadata or cleanup failures remain visible and retryable.
+Saved-playlist item addition/removal and smart-playlist editing are not offered.
+Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
+
 ## Brand commitments
 
 Vemm (`/vem/`) is the working product brand and **Your media. At its best.** is

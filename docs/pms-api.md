@@ -37,7 +37,7 @@ marker, watched action or playback was observed successfully in Plex Web.
 | Compared contract | Actual observation and independently implemented consequence |
 | --- | --- |
 | Metadata | Public Web requests `includeMarkers=1` and `includeChapters=1` for details and queues. Vemm metadata already requests both plus OnDeck. `plex-web-interop.test.js` now binds the query to unsorted, millisecond marker fixtures, including duplicate marker IDs and final credits. Subsequent episode starts refresh metadata before playing; queue rows alone are not assumed complete. |
-| Queue identity | Public Web models `playQueueSelectedItemID` as a string and `playQueueVersion` as an integer. Vemm's fixture uses distinct duplicate-title queue entries and IDs beyond JavaScript's safe-integer range, proving timeline correlation preserves the string item ID rather than a library key or index. Queue revision/editing acceptance is still open. |
+| Queue identity | Public Web models `playQueueSelectedItemID` as a string and `playQueueVersion` as an integer. Vemm's fixtures use duplicate library keys and IDs beyond JavaScript's safe-integer range. Video/music host journeys now exercise revision-aware navigation and video playlist reordering/read-back; actual PMS/native queue acceptance remains open. |
 | Adaptive quality | Public Web's boolean preference defaults off, with a conditional numeric `autoAdjustQuality` request. The bundled OpenAPI describes this flag as ABR support and `location` as `lan`/`wan`/`cellular`. Vemm implements its own opt-in policy, request flags and local/remote ceiling; it does not copy the Web adaptation algorithm. Native manifest/representation and rebuffer acceptance remain outstanding. |
 | Watched state | Static Web routes include `/:/scrobble` and `/:/unscrobble`; this alone proves no method or cadence. Existing Vemm methods remain grounded in the PMS reference. New DOM regressions reject unchanged read-back rather than treating HTTP success as accepted watched state. |
 | Audio | Static Web `audioBoost` is an integer transcode option. The bundled OpenAPI independently specifies percent of original loudness (100 unchanged). This is not dialog isolation, loudness normalization, audio-delay support or device output acceptance. |
@@ -120,6 +120,56 @@ binds music timelines and stop to the server queue. These are host contracts,
 **not live PMS, named-TV native audio or Plexamp/native-output parity evidence**.
 
 ---
+
+## Video playlists and queues: source-backed host contract, 2026-10-25
+
+REQ-QU-01 extends the existing `createVideoPlayQueue` rather than creating a
+second video queue. It uses the same bounded server controller as music, with
+explicit video API selection; the default music behavior is unchanged.
+[The bundled OpenAPI](plex-openapi.json) supplies these operations:
+
+| Operation | Request and scope |
+| --- | --- |
+| List/detail | `GET /playlists?playlistType=video`, then `GET /playlists/{id}`. Playlist metadata is not fetched from `/library/metadata/{id}`. |
+| Items | `GET /playlists/{id}/items` with `X-Plex-Container-Start` and `X-Plex-Container-Size=50`. Previous/next pages retain only the current 50 entries; Back restores its page. |
+| Start playlist | `POST /playQueues?type=video&playlistID={id}&continuous=0&shuffle=0&repeat=1`. Explicit shuffle uses `shuffle=1`. Normal movie/episode playback retains the existing `uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/30&continuous=1` creation path. |
+| Navigate/shuffle/clear | The same documented directional 50-entry window, `/shuffle`, `/unshuffle`, timeline entry correlation and owned `/items` clear operations described for music above, using `type=video` metadata validation. No `own=1`, invented offset-based queue endpoint or new queue per transition. |
+| Reorder an existing playlist | Explicit Move to beginning, then Confirm, uses `PUT /playlists/{id}/items/{playlistItemID}/move` without `after`, as documented. This changes the saved playlist, not an already-created playback queue. Smart playlists are not manually reordered. |
+
+Playlist reordering checks the displayed page's entry IDs and total immediately
+before writing, then independently reads page zero and checks the first entry
+and total. A successful HTTP response with unchanged order is not success.
+Failure/uncertain read-back requires Reload playlist, not automatic write
+replay. `playlistItemID` identifies the edited entry; `playQueueItemID`
+identifies playback; neither is the possibly duplicated library `ratingKey`.
+Creation/deletion of saved playlists, item addition/removal and smart-playlist
+editing are not supplied by this workflow.
+
+Video retains the PMS version/count/offset and exact string entry IDs. Pages
+retain at most 200 entries, and every next/previous transition validates fresh
+metadata identity and playable source before stopping the old video or selecting
+the new entry. Marker/chapter inclusion remains on the metadata read. Manual
+transitions preserve pause; repeat-one applies only to automatic completion.
+Creation's `repeat=1` is window filling, not a server repeat-playback promise.
+Final credits and Up Next consult that same queue; completion drains/cancels an
+unfinished preview before navigating. The inherited countdown/Back cancellation
+remains; foreground recovery does not autoplay.
+
+Creation is an explicit playback operation. Errors offer Retry/Cancel instead
+of silently dropping queue identity. Cancelled creation is cleared when its ID
+arrives; new creation waits for that request to settle. Stop/background/exit
+clear only the owned queue, after outstanding mutations settle. Cleanup failure
+retains ownership and blocks new creation until explicit cleanup retry succeeds.
+As with music, losing a creation response without a usable ID remains uncertain:
+Vemm cannot fabricate its ID or prove server cleanup.
+
+`video-queue.test.js` traverses 321 entries with duplicate library keys and
+large string IDs. `video-queue-ui.test.js` runs actual remote Enter/Back events
+through more than 200 entries, playlist page/edit/read-back, metadata failure
+and mismatch, paused navigation, repeat/shuffle, pending credits preview,
+cancelled creation/page, stale revision and background cleanup. These are
+synthetic host contracts, not disposable-PMS or named-TV playback, memory,
+remote/lifecycle or server-mutation acceptance.
 
 ## 1. Library sections
 

@@ -61,6 +61,13 @@
     var upNextGeneration = 0;
     var externalCues = null;
     var musicQueue = null;
+    var videoQueue = null;
+    var videoLoading = false;
+    var videoGeneration = 0;
+    var videoShuffle = false;
+    var videoRepeat = "off";
+    var videoCreating = false;
+    var videoRetiring = null;
     var musicLoading = false;
     var musicGeneration = 0;
     var queueShuffle = false;
@@ -285,7 +292,7 @@
                     openListing(item.parentTitle || item.title, function (offset) {
                         return client.getChildren(item.ratingKey, offset);
                     }, client, 0, null, null, item.parentRatingKey ? { showRatingKey: item.parentRatingKey } : null);
-                } else { openDetail(item.ratingKey, client); }
+                } else { openDetail(item.ratingKey, client, item.type === "playlist" && item.playlistType === "video"); }
             });
         });
         node.className = "media-card";
@@ -1481,6 +1488,15 @@
             if (selected && String(selected.key) === String(section.key)) { choice.setAttribute("aria-current", "page"); }
         });
         button(nav, "Search", function () { visit(openSearch); });
+        if (currentClient.getVideoPlaylists) {
+            button(nav, "Video playlists", function () {
+                visit(function () {
+                    openListing(translate("Video playlists"), function (start) {
+                        return currentClient.getVideoPlaylists(start);
+                    }, currentClient);
+                });
+            });
+        }
         header.appendChild(nav);
         screen.appendChild(header);
         var utilities = element("div", "home-utilities");
@@ -1915,8 +1931,8 @@
         if (typeof savedQuery === "string" && savedQuery) { search(); }
     }
 
-    function openDetail(id, client) {
-        retryView = function () { openDetail(id, client); };
+    function openDetail(id, client, videoPlaylist) {
+        retryView = function () { openDetail(id, client, videoPlaylist); };
         restoreView = retryView;
         var generation = ++viewGeneration;
         clear(screen);
@@ -1925,13 +1941,13 @@
         button(screen, "Back", backView);
         setStatus("Loading details...");
         focusLoading();
-        client.getMetadata(id).then(function (item) {
+        (videoPlaylist ? client.getVideoPlaylist(id) : client.getMetadata(id)).then(function (item) {
             if (generation !== viewGeneration) { return; }
             if (!item) { throw new Error("This item is no longer on the server."); }
             renderDetail(item, client);
         }).catch(function (error) {
             if (generation !== viewGeneration) { return; }
-            button(screen, "Retry details", function () { openDetail(id, client); });
+            button(screen, "Retry details", function () { openDetail(id, client, videoPlaylist); });
             setStatus(errorText(error), true);
             focusFirst();
         });
@@ -1971,7 +1987,7 @@
         clear(screen);
         viewClients.push(client);
         resetImages();
-        restoreView = function () { openDetail(item.ratingKey, client); };
+        restoreView = function () { openDetail(item.ratingKey, client, item.type === "playlist" && item.playlistType === "video"); };
         setDetailMode(true);
         screen.className = "screen screen-detail";
         var playable = ["movie", "episode", "clip", "track"].indexOf(item.type) !== -1;
@@ -2107,6 +2123,13 @@
             detailAction(actions, "Play album", "play", function () { startAlbum(item, client, false); }).className =
                 "detail-pill detail-primary detail-pill-play";
             detailAction(actions, "Shuffle album", "shuffle", function () { startAlbum(item, client, true); });
+        }
+        if (item.type === "playlist" && item.playlistType === "video") {
+            detailAction(actions, "Play playlist", "play", function () { startVideo(item, client, true, false); });
+            detailAction(actions, "Shuffle playlist", "shuffle", function () { startVideo(item, client, true, true); });
+            detailAction(actions, "Playlist items", "list", function () {
+                visit(function () { openVideoPlaylist(item, client, 0); });
+            });
         }
         if (item.type === "photo") {
             detailAction(actions, "View photo", "play", function () { visit(function () { openPhotos([item], 0, client); }); }).className =
@@ -2603,7 +2626,7 @@
     }
 
     function showUpNext(watchCredits) {
-        if (!player || playerItem.type !== "episode" || !playerClient.nextEpisode) { return null; }
+        if (!player || playerItem.type !== "episode" || !videoQueue && !playerClient.nextEpisode) { return null; }
         closeUpNext();
         var generation = upNextGeneration;
         var panel = element("section", "up-next-card");
@@ -2619,7 +2642,9 @@
         var card = element("div", "up-next-pending", translate("Loading next episode..."));
         panel.appendChild(card);
         screen.appendChild(panel);
-        playerClient.nextEpisode(playerItem).then(function (next) {
+        (videoQueue ? videoQueue.peek(1, true).then(function (candidate) {
+            return candidate && candidate.item;
+        }) : playerClient.nextEpisode(playerItem)).then(function (next) {
             if (generation !== upNextGeneration || !panel.parentNode || !next) { return; }
             clear(card);
             card.className = "up-next-pending";
@@ -2954,6 +2979,7 @@
                 if (cancelled || generation !== viewGeneration || player) {
                     releaseMusicQueue(owned); owned = null; return;
                 }
+
                 musicQueue = owned;
                 owned = null;
                 viewCleanup = null;
@@ -2971,6 +2997,263 @@
             if (viewCleanup === cleanup) { viewCleanup = null; }
             if (request === musicGeneration) { musicLoading = false; }
         });
+    }
+
+    function openVideoPlaylist(playlist, client, offset, confirmed) {
+        var generation = ++viewGeneration;
+        clear(screen);
+        viewClients.push(client);
+        resetImages();
+        restoreView = function () { openVideoPlaylist(playlist, client, offset); };
+        page(playlist.title, "listing");
+        setStatus("Loading...");
+        client.getVideoPlaylistItems(playlist.ratingKey, offset).then(function (container) {
+            if (generation !== viewGeneration) { return; }
+            var items = container.Metadata || [];
+            items.forEach(function (item, index) {
+                var row = element("section", "playlist-entry");
+                row.appendChild(element("p", "", String(offset + index + 1) + " · " + item.title));
+                button(row, "Details", function () { visit(function () { openDetail(item.ratingKey, client); }); });
+                if (!playlist.smart && offset + index > 0) {
+                    button(row, "Move to beginning", function () {
+                        var dialog = element("section", "playback-error");
+                        dialog.setAttribute("role", "alertdialog");
+                        dialog.appendChild(element("p", "", translate("Move this playlist entry to the beginning?")));
+                        button(dialog, "Confirm", function () {
+                            clear(dialog);
+                            dialog.appendChild(element("p", "", translate("Confirming playlist order...")));
+                            var expected = items.map(function (entry) { return String(entry.playlistItemID); }).join(",");
+                            client.getVideoPlaylistItems(playlist.ratingKey, offset).then(function (before) {
+                                if (generation !== viewGeneration) { throw new Error("The playlist edit was cancelled."); }
+                                if (before.totalSize !== container.totalSize || (before.Metadata || []).map(function (entry) {
+                                    return String(entry.playlistItemID);
+                                }).join(",") !== expected) { throw new Error("The playlist changed on Plex. Reload before editing."); }
+                                return client.moveVideoPlaylistItem(playlist.ratingKey, item.playlistItemID);
+                            }).then(function () {
+                                return client.getVideoPlaylistItems(playlist.ratingKey, 0);
+                            }).then(function (after) {
+                                if (generation !== viewGeneration) { return; }
+                                if (after.totalSize !== container.totalSize || !after.Metadata.length ||
+                                        String(after.Metadata[0].playlistItemID) !== String(item.playlistItemID)) {
+                                    throw new Error("Plex did not confirm the playlist order. Reload before editing.");
+                                }
+                                openVideoPlaylist(playlist, client, 0, true);
+                            }).catch(function (error) {
+                                if (generation !== viewGeneration) { return; }
+                                clear(dialog);
+                                dialog.appendChild(element("p", "", errorText(error)));
+                                button(dialog, "Reload playlist", function () { openVideoPlaylist(playlist, client, offset); });
+                                setStatus(errorText(error), true);
+                                dialog.querySelector("button").focus();
+                            });
+                        });
+                        var cancel = button(dialog, "Cancel", function () {
+                            dialog.parentNode.removeChild(dialog);
+                            row.querySelectorAll("button")[1].focus();
+                        });
+                        dialog.addEventListener("keydown", function (event) {
+                            if ([10009, 27, 8].indexOf(event.keyCode) >= 0) {
+                                event.preventDefault(); event.stopPropagation();
+                                if (cancel.parentNode === dialog) { cancel.click(); }
+                            }
+                        });
+                        screen.appendChild(dialog);
+                        cancel.focus();
+                    });
+                }
+                screen.appendChild(row);
+            });
+            if (offset > 0) { button(screen, "Previous page", function () { openVideoPlaylist(playlist, client, Math.max(0, offset - 50)); }); }
+            if (offset + items.length < container.totalSize && items.length) {
+                button(screen, "Next page", function () { openVideoPlaylist(playlist, client, offset + items.length); });
+            }
+            button(screen, "Back", backView);
+            setStatus(confirmed ? "Playlist order confirmed." : translate("{count} items shown.", { count: items.length }));
+            focusFirst();
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", function () { openVideoPlaylist(playlist, client, offset); });
+            button(screen, "Back", backView); focusFirst();
+        });
+    }
+
+    function videoQueuePanel(error, retry, cancel) {
+        var old = document.getElementById("video-queue-panel");
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        var panel = element("section", "playback-error");
+        panel.id = "video-queue-panel";
+        panel.setAttribute("role", error ? "alertdialog" : "dialog");
+        panel.appendChild(element("p", "help-text", error ? errorText(error) : translate("Loading video queue...")));
+        if (retry) {
+            button(panel, "Retry", function () { panel.parentNode.removeChild(panel); retry(); });
+        }
+        var control = button(panel, "Cancel", function () {
+            if (cancel) { cancel(); }
+            if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            if (player) { showHud(); }
+            focusFirst();
+        });
+        panel.addEventListener("keydown", function (event) {
+            if ([10009, 27, 8].indexOf(event.keyCode) >= 0) {
+                event.preventDefault(); event.stopPropagation(); control.click();
+            }
+        });
+        screen.appendChild(panel);
+        panel.querySelector("button").focus();
+        if (error) { setStatus(errorText(error), true); }
+    }
+
+    function releaseVideoQueue(queue) {
+        if (!queue) { return; }
+        if (videoQueue === queue) { videoQueue = null; videoLoading = false; videoGeneration += 1; }
+        videoRetiring = queue;
+        queue.close().then(function () {
+            if (videoRetiring === queue) { videoRetiring = null; }
+        }).catch(function (error) { videoQueuePanel(error, function () { releaseVideoQueue(queue); }); });
+    }
+
+    function validateVideoItem(item, expected, mediaIndex) {
+        if (!item || String(item.ratingKey) !== String(expected) || ["movie", "episode", "clip"].indexOf(item.type) < 0) {
+            throw new Error("Plex returned metadata for a different queue item. Reload before playing.");
+        }
+        window.VemmPlayback.plan(item, { mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            profile: directPlayProfile(), directPlay: preferences.directPlay });
+    }
+
+    function startVideo(item, client, playlist, shuffle, offset, mediaIndex, options) {
+        if (videoLoading || player || playerClosing || document.hidden) { return; }
+        if (videoRetiring) {
+            videoQueuePanel(new Error("The previous video queue still needs cleanup. Retry cleanup before playing again."),
+                function () { releaseVideoQueue(videoRetiring); });
+            return;
+        }
+        if (videoCreating) { setStatus("Wait for the cancelled video queue request to finish.", true); return; }
+        if (!playlist) {
+            try { validateVideoItem(item, item.ratingKey, mediaIndex); }
+            catch (error) { setStatus(errorText(error), true); return; }
+        }
+        videoLoading = true;
+        videoCreating = true;
+        var generation = viewGeneration;
+        var request = ++videoGeneration;
+        var owned = null;
+        var cancelled = false;
+        var cleanup = function () {
+            cancelled = true;
+            if (request === videoGeneration) { videoGeneration += 1; videoLoading = false; }
+            if (owned) { releaseVideoQueue(owned); owned = null; }
+        };
+        viewCleanup = cleanup;
+        videoQueuePanel(null, null, cleanup);
+        client.createVideoPlayQueue(currentServerId, item.ratingKey, playlist, shuffle).then(function (projection) {
+            owned = window.VemmQueue.createServer(client, projection, "video");
+            if (cancelled || generation !== viewGeneration || document.hidden) { cleanup(); return; }
+            return (playlist ? client.getMetadata(owned.current().ratingKey) : Promise.resolve(item)).then(function (metadata) {
+                if (cancelled || generation !== viewGeneration || document.hidden) { cleanup(); return; }
+                validateVideoItem(metadata, owned.current().ratingKey, mediaIndex);
+                videoQueue = owned; owned = null;
+                videoShuffle = !!shuffle; videoRepeat = "off";
+                viewCleanup = null; videoLoading = false;
+                startPlayer(metadata, client, offset, mediaIndex, options);
+            });
+        }).catch(function (error) {
+            if (owned) { releaseVideoQueue(owned); owned = null; }
+            if (error.videoQueueCleanupId) {
+                var id = error.videoQueueCleanupId;
+                releaseVideoQueue({ close: function () { return client.clearVideoPlayQueue(id); } });
+            }
+            if (!cancelled && generation === viewGeneration) {
+                viewCleanup = null;
+                videoQueuePanel(error, function () { startVideo(item, client, playlist, shuffle, offset, mediaIndex, options); });
+            }
+        }).then(function () {
+            videoCreating = false;
+            if (request === videoGeneration) { videoLoading = false; }
+            if (viewCleanup === cleanup) { viewCleanup = null; }
+        });
+    }
+
+    function skipVideo(direction, automatic, startNow) {
+        if (!player || !videoQueue || videoLoading || playerClosing || document.hidden) { return; }
+        videoLoading = true;
+        var request = ++videoGeneration;
+        var queue = videoQueue;
+        var owner = player;
+        var client = playerClient;
+        function current() { return request === videoGeneration && videoQueue === queue && player === owner && !document.hidden; }
+        videoQueuePanel(null, null, function () {
+            if (playerClosing) { return; }
+            videoGeneration += 1; videoLoading = false; queue.cancel();
+        });
+        // Completion and manual navigation supersede an unfinished credits preview.
+        Promise.resolve(queue.cancel()).then(function () {
+            if (current()) { return queue.peek(direction, automatic); }
+        }).then(function (candidate) {
+            if (!current()) { return; }
+            if (!candidate) {
+                var previous = playerItem;
+                return stopPlayer(function () { releaseVideoQueue(queue); renderDetail(previous, client); });
+            }
+            return client.getMetadata(candidate.item.ratingKey).then(function (metadata) {
+                if (!current()) { return; }
+                validateVideoItem(metadata, candidate.item.ratingKey, 0);
+                var paused = !automatic && owner.snapshot().state === "paused";
+                return stopPlayer(function () {
+                    if (request !== videoGeneration || document.hidden) { releaseVideoQueue(queue); return; }
+                    videoLoading = false;
+                    function play() {
+                        if (request !== videoGeneration || document.hidden || player) { return; }
+                        viewCleanup = null;
+                        if (nextTimer !== null) { clearTimeout(nextTimer); nextTimer = null; }
+                        queue.select(candidate);
+                        startPlayer(metadata, client, 0, 0, { paused: paused });
+                    }
+                    if (!automatic || startNow === true || videoRepeat === "one") { play(); return; }
+                    renderDetail(playerItem, client);
+                    viewCleanup = function () {
+                        if (nextTimer !== null) { clearTimeout(nextTimer); nextTimer = null; }
+                        releaseVideoQueue(queue);
+                    };
+                    button(screen, translate("Up Next: {title}", { title: metadata.title }), play);
+                    if (preferences.nextEpisode !== "off") {
+                        setStatus("Next episode starts in 10 seconds. Back cancels.");
+                        nextTimer = setTimeout(play, 10000);
+                    }
+                });
+            });
+        }).catch(function (error) {
+            if (current()) { videoQueuePanel(error, function () { skipVideo(direction, automatic, startNow); }); }
+        }).then(function () {
+            if (request !== videoGeneration) { return; }
+            videoLoading = false;
+            var panel = document.getElementById("video-queue-panel");
+            if (panel && panel.getAttribute("role") === "dialog" && panel.parentNode) { panel.parentNode.removeChild(panel); }
+        });
+    }
+
+    function shuffleVideo() {
+        if (!videoQueue || !player || videoLoading || playerClosing) { return; }
+        var queue = videoQueue;
+        var owner = player;
+        videoLoading = true;
+        var request = ++videoGeneration;
+        Promise.resolve(queue.cancel()).then(function () {
+            if (request === videoGeneration && videoQueue === queue && player === owner && !document.hidden) {
+                return queue.shuffle(!videoShuffle);
+            }
+        }).then(function (enabled) {
+            if (request !== videoGeneration || videoQueue !== queue || player !== owner || document.hidden) { return; }
+            videoShuffle = enabled;
+            playerSettings.playQueue = queue.snapshot();
+            setStatus(translate(enabled ? "Shuffle on." : "Shuffle off."));
+            if (owner.snapshot().state === "ended") {
+                videoLoading = false;
+                skipVideo(1, true);
+            }
+        }).catch(function (error) {
+            if (request === videoGeneration && videoQueue === queue && player === owner) { videoQueuePanel(error, shuffleVideo); }
+        }).then(function () { if (request === videoGeneration) { videoLoading = false; } });
     }
 
     function releaseMusicQueue(queue) {
@@ -3285,6 +3568,16 @@
                 setStatus(translate("Repeat") + ": " + translate(queueRepeat));
             });
         }
+        if (videoQueue) {
+            button(menu, "Previous video", function () { skipVideo(-1, false); });
+            button(menu, "Next video", function () { skipVideo(1, false); });
+            button(menu, "Shuffle / On or off", shuffleVideo);
+            button(menu, "Repeat / Off, one, all", function () {
+                videoRepeat = videoRepeat === "off" ? "one" : videoRepeat === "one" ? "all" : "off";
+                videoQueue.repeat(videoRepeat);
+                setStatus(translate("Repeat") + ": " + translate(videoRepeat));
+            });
+        }
         button(menu, "Stop and return to details", stopPlayer);
         button(menu, "Close menu", closePlayerMenu);
         screen.appendChild(menu);
@@ -3293,6 +3586,11 @@
 
     function startPlayer(item, client, offset, mediaIndex, trackOptions) {
         if (player || playerClosing) { return; }
+        if ((item.type === "movie" || item.type === "episode") && currentServerId &&
+                client === currentClient && client.createVideoPlayQueue && !videoQueue) {
+            startVideo(item, client, false, false, offset, mediaIndex, trackOptions);
+            return;
+        }
         if (item.type === "track" && (!musicQueue || String(musicQueue.current().ratingKey) !== String(item.ratingKey))) {
             startAlbum(item, client, false, offset, mediaIndex, trackOptions);
             return;
@@ -3332,6 +3630,7 @@
             profile: directPlayProfile(), directPlay: preferences.directPlay
         };
         if (item.type === "track" && musicQueue) { playerSettings.playQueue = musicQueue.snapshot(); }
+        if (videoQueue && item.type !== "track") { playerSettings.playQueue = videoQueue.snapshot(); }
         externalCues = trackOptions && trackOptions.cues || null;
         document.body.className = "playing";
         var hud = element("section", "player-hud");
@@ -3511,13 +3810,6 @@
                     }
                 }
             });
-            if ((item.type === "movie" || item.type === "episode") && currentServerId &&
-                    client === currentClient && client.createVideoPlayQueue) {
-                var queueSettings = playerSettings;
-                client.createVideoPlayQueue(currentServerId, item.ratingKey).then(function (queue) {
-                    if (playerSettings === queueSettings) { queueSettings.playQueue = queue; }
-                }).catch(function () { /* the queue is optional; playback and progress continue without it */ });
-            }
             player = ownPlayer;
             setStatus("Asking Plex for a compatible stream...");
             player.start().then(function () {
@@ -3533,6 +3825,7 @@
             document.body.className = "";
             player = null;
             if (item.type === "track" && musicQueue) { releaseMusicQueue(musicQueue); }
+            if (videoQueue) { releaseVideoQueue(videoQueue); }
             showHud();
             externalCues = null;
             renderDetail(item, client);
@@ -3632,6 +3925,7 @@
             showHud();
             playerClosing = false;
             document.body.className = "";
+            if (videoQueue && typeof after !== "function") { releaseVideoQueue(videoQueue); }
             if (item.type === "track" && typeof after !== "function") {
                 releaseMusicQueue(musicQueue);
             }
@@ -3970,6 +4264,7 @@
 
     function finishEpisode(startNow, suppliedSuccessor) {
         if (playerItem.type === "track" && musicQueue) { skipMusic(1, true); return; }
+        if (videoQueue) { skipVideo(1, true, startNow); return; }
         var item = playerItem;
         var client = playerClient;
         var queue = playerSettings && playerSettings.playQueue;
@@ -4694,6 +4989,7 @@
     screen.addEventListener("click", function () { if (player) { showHud(); } });
     document.addEventListener("visibilitychange", function () {
         if (document.hidden) {
+            if (videoQueue) { videoGeneration += 1; videoQueue.cancel(); videoLoading = false; }
             if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
             clearGraphics();
             cancelScrub();
@@ -4706,6 +5002,7 @@
                     openDetail(item.ratingKey, client);
                 };
                 stopPlayer(function () {
+                    if (videoQueue) { releaseVideoQueue(videoQueue); }
                     if (musicQueue) { releaseMusicQueue(musicQueue); }
                     if (!document.hidden && foregroundRecovery) {
                         var recover = foregroundRecovery; foregroundRecovery = null; recover();
@@ -4730,12 +5027,16 @@
         }
     });
     window.addEventListener("pagehide", function () {
+        if (videoQueue) { videoGeneration += 1; videoQueue.cancel(); videoLoading = false; }
         if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
         if (graphics) { graphics.dispose(); graphics = null; }
         stopAuthorization();
         resetImages();
         if (viewCleanup) { viewCleanup(); viewCleanup = null; }
-        if (player) { stopPlayer(function () { if (musicQueue) { releaseMusicQueue(musicQueue); } }); }
+        if (player) { stopPlayer(function () {
+            if (videoQueue) { releaseVideoQueue(videoQueue); }
+            if (musicQueue) { releaseMusicQueue(musicQueue); }
+        }); }
     });
     if (window.tizen && window.tizen.tvinputdevice) {
         try {

@@ -32,10 +32,10 @@ var client = api.createClient({
         } else if (url.pathname === "/playQueues") {
             assert.strictEqual(options.method, "POST");
             container = { playQueueID: "9007199254740993", playQueueSelectedItemID: "9007199254740995",
-                playQueueVersion: 3, Metadata: [
-                    { ratingKey: "100", playQueueItemID: "9007199254740994" },
-                    { ratingKey: "100", playQueueItemID: "9007199254740995" },
-                    { ratingKey: "101", playQueueItemID: "9007199254740996" }
+                playQueueVersion: 3, playQueueTotalCount: 3, playQueueSelectedItemOffset: 1, playQueueShuffled: false, Metadata: [
+                    { type: "episode", ratingKey: "100", playQueueItemID: "9007199254740994" },
+                    { type: "episode", ratingKey: "100", playQueueItemID: "9007199254740995" },
+                    { type: "episode", ratingKey: "101", playQueueItemID: "9007199254740996" }
                 ] };
         } else if (url.pathname === "/:/timeline") {
             assert.strictEqual(url.searchParams.get("playQueueID"), "9007199254740993");

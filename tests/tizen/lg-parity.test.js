@@ -136,7 +136,9 @@ async function run() {
             if (new URL(url).pathname === "/playQueues") {
                 return Promise.resolve({ ok: true, status: 200, json: function () {
                     return Promise.resolve({ MediaContainer: { playQueueID: 77, playQueueSelectedItemID: 501,
-                        Metadata: [{ ratingKey: "5", playQueueItemID: 501 }, { ratingKey: "6", playQueueItemID: 502 }] } });
+                        playQueueTotalCount: 2, playQueueSelectedItemOffset: 0, playQueueVersion: 1, playQueueShuffled: false,
+                        Metadata: [{ type: "episode", ratingKey: "5", playQueueItemID: 501 },
+                            { type: "episode", ratingKey: "6", playQueueItemID: 502 }] } });
                 } });
             }
             return Promise.resolve({ ok: true, status: 200 });

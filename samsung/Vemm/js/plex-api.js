@@ -720,7 +720,7 @@
             return musicScopes[id];
         }
 
-        function musicProjection(container) {
+        function musicProjection(container, video) {
             var id = queueId(container.playQueueID);
             var selected = queueId(container.playQueueSelectedItemID);
             var total = container.playQueueTotalCount;
@@ -730,7 +730,7 @@
                     !isNonNegativeInteger(version) || version > 9007199254740991 ||
                     !isNonNegativeInteger(offset) || offset >= total ||
                     typeof container.playQueueShuffled !== "boolean") {
-                throw new Error("Plex returned an invalid music queue revision or position.");
+                throw new Error("Plex returned an invalid play queue revision or position.");
             }
             var rows = listFrom(container, "Metadata");
             var selectedIndex = -1;
@@ -742,8 +742,9 @@
             var seen = {};
             var items = rows.slice(start, start + 200).map(function (row) {
                 var itemId = queueId(row && row.playQueueItemID);
-                if (!row || row.type !== "track" || !/^[0-9]+$/.test(String(row.ratingKey)) || seen[itemId]) {
-                    throw new Error("Plex returned invalid music queue entries.");
+                if (!row || (video === true ? ["movie", "episode", "clip"].indexOf(row.type) < 0 : row.type !== "track") ||
+                        !/^[0-9]+$/.test(String(row.ratingKey)) || seen[itemId]) {
+                    throw new Error("Plex returned invalid play queue entries.");
                 }
                 seen[itemId] = true;
                 var item = {};
@@ -1037,21 +1038,87 @@
             },
             // An ephemeral server-side queue (no watch-state change) so the server's dashboard
             // and Up Next agree with this client, as the LG client does for every video start.
-            createVideoPlayQueue: function (machineId, ratingKey) {
+            createVideoPlayQueue: function (machineId, ratingKey, playlist, shuffle) {
                 if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || ""))) {
                     return Promise.reject(new Error("The server identity is invalid."));
                 }
-                return get("/playQueues", "POST", {
-                    type: "video", continuous: 1, shuffle: 0, repeat: 0,
-                    uri: "server://" + machineId + "/com.plexapp.plugins.library/library/metadata/" + key(ratingKey)
-                }).then(function (container) {
-                    var id = String(container.playQueueID || "");
-                    var selected = String(container.playQueueSelectedItemID || "");
-                    if (!/^[1-9][0-9]*$/.test(id) || !/^[1-9][0-9]*$/.test(selected)) {
-                        throw new Error("Plex returned an invalid play queue.");
+                var query = { type: "video", continuous: playlist ? 0 : 1, shuffle: shuffle ? 1 : 0, repeat: 1 };
+                if (playlist) { query.playlistID = key(ratingKey); }
+                else {
+                    query.uri = "server://" + machineId + "/com.plexapp.plugins.library/library/metadata/" + key(ratingKey);
+                }
+                return get("/playQueues", "POST", query).then(function (container) {
+                    try {
+                        var projection = musicProjection(container, true);
+                        if (!projection.items.some(function (item) {
+                            return item.playQueueItemID === projection.itemId;
+                        })) { throw new Error("Plex did not return the selected video queue entry."); }
+                        return projection;
+                    } catch (error) {
+                        var id = queueId(container.playQueueID);
+                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                            throw error;
+                        }, function (cleanupError) {
+                            cleanupError.videoQueueCleanupId = id;
+                            throw cleanupError;
+                        });
                     }
-                    return { id: id, itemId: selected, items: listFrom(container, "Metadata") };
                 });
+            },
+            getVideoPlayQueue: function (id, center, direction) {
+                if (direction !== -1 && direction !== 1) { return Promise.reject(new Error("Choose previous or next video.")); }
+                id = queueId(id);
+                return get("/playQueues/" + id, "GET", {
+                    center: queueId(center), window: 50,
+                    includeBefore: direction < 0 ? 1 : 0, includeAfter: direction > 0 ? 1 : 0
+                }, false, musicRequestScope(id)).then(function (container) { return musicProjection(container, true); });
+            },
+            shuffleVideoPlayQueue: function (id, enabled) {
+                if (typeof enabled !== "boolean") { return Promise.reject(new Error("Choose shuffle on or off.")); }
+                return get("/playQueues/" + queueId(id) + (enabled ? "/shuffle" : "/unshuffle"), "PUT")
+                    .then(function (container) { return musicProjection(container, true); });
+            },
+            clearVideoPlayQueue: function (id) {
+                id = queueId(id);
+                return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () { delete musicScopes[id]; });
+            },
+            cancelVideoQueueRequests: function (id) {
+                id = queueId(id);
+                if (musicScopes[id]) { musicScopes[id].cancel(); }
+            },
+            getVideoPlaylists: function (start) {
+                return get("/playlists", "GET", { playlistType: "video",
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50 });
+            },
+            getVideoPlaylist: function (id) {
+                return get("/playlists/" + key(id)).then(function (container) {
+                    var item = listFrom(container, "Metadata")[0];
+                    if (!item || item.type !== "playlist" || item.playlistType !== "video" ||
+                            String(item.ratingKey) !== String(id)) { throw new Error("This video playlist is no longer available."); }
+                    return item;
+                });
+            },
+            getVideoPlaylistItems: function (id, start) {
+                return get("/playlists/" + key(id) + "/items", "GET", {
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                }).then(function (container) {
+                    var rows = listFrom(container, "Metadata");
+                    var seen = {};
+                    if (rows.length > 50 || !isNonNegativeInteger(container.totalSize) ||
+                            container.offset !== undefined && container.offset !== (start || 0) ||
+                            !rows.length && (start || 0) < container.totalSize ||
+                            rows.some(function (row) {
+                                var id = queueId(row.playlistItemID);
+                                var duplicate = seen[id];
+                                seen[id] = true;
+                                return duplicate || !/^[0-9]+$/.test(String(row.ratingKey)) ||
+                                    ["movie", "episode", "clip"].indexOf(row.type) < 0;
+                            })) { throw new Error("Plex returned an invalid video playlist page."); }
+                    return container;
+                });
+            },
+            moveVideoPlaylistItem: function (id, itemId) {
+                return get("/playlists/" + key(id) + "/items/" + queueId(itemId) + "/move", "PUT", null, true);
             },
             createMusicPlayQueue: function (machineId, ratingKey, shuffle) {
                 if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || "")) || typeof shuffle !== "boolean") {

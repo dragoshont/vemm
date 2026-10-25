@@ -9,7 +9,7 @@ var movie = { ratingKey: "10", type: "movie", title: "Synthetic incomplete movie
 
 async function run() {
     var dom = new JSDOM(fs.readFileSync(path.join(app, "index.html"), "utf8"), {
-        url: "https://app.synthetic.invalid", runScripts: "outside-only"
+        url: "https://app.synthetic.invalid", runScripts: "outside-only", pretendToBeVisual: true
     });
     var window = dom.window;
     var calls = [];
@@ -37,7 +37,11 @@ async function run() {
                 container = { Hub: [{ title: "Movies", Metadata: [movie] }] };
             } else if (url.pathname === "/library/metadata/10") { container = { Metadata: [movie] }; }
             else if (url.pathname === "/playQueues") {
-                container = { playQueueID: 1, Metadata: [{ ratingKey: "10", playQueueItemID: 1 }] };
+                container = { playQueueID: 1, playQueueSelectedItemID: 1, playQueueTotalCount: 1,
+                    playQueueSelectedItemOffset: 0, playQueueVersion: 1, playQueueShuffled: false,
+                    Metadata: [{ type: "movie", ratingKey: "10", playQueueItemID: 1 }] };
+            } else if (url.pathname === "/playQueues/1/items") {
+                return Promise.resolve({ ok: true, status: 204 });
             } else if (url.pathname === "/video/:/transcode/universal/decision") {
                 return Promise.resolve({ ok: false, status: 400 });
             } else if (url.pathname === "/library/sections/1/all") { container = { Metadata: [], size: 0 }; }
