@@ -90,14 +90,23 @@ ISO 639-1/639-2 and region-tag normalization as subtitle search: `spa` matches
 destination. Opening or browsing those groups does not change a stream.
 This presentation preference is not a new automatic track-selection policy.
 
+Within a language, the actual selected stream is first, then any PMS-declared
+default, then the remaining streams in stable PMS order. Forced, SDH, CC, audio
+description and default flags are explicit labels; false numeric/string flags
+do not become badges. Otherwise identical labels receive a localized track
+number so each remote action is distinguishable. Numeric-string stream types
+remain usable. Opening, sorting or focusing a variant cannot write a selection;
+only Enter invokes the existing exact-ID Part selection/restart, retaining pause.
+No forced/non-forced or accessibility variant is silently preferred over PMS.
+
 Without an explicit per-item selection, playback follows PMS `Stream.selected`,
 which owns account/profile language, forced/default and prior-selection policy.
 Settings' account audio/subtitle preferences and the current Part's explicit
 selection use separate documented requests. Vemm does not create a second
 TV-local per-item/profile stream-preference store or infer that a menu highlight
-proves the selected audible/visible track. Duplicate/forced/SDH ranking,
-persistence across profile/item/version changes and actual output still need
-disposable-backend and named-TV acceptance.
+proves the selected audible/visible track. Deterministic menu ranking and
+variant identity are host-covered; persistence across profile/item/version
+changes and actual output still need disposable-backend and named-TV acceptance.
 
 ## Explainable result
 

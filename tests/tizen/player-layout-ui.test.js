@@ -90,7 +90,7 @@ function playerFixture(trackOptions, mediaItem) {
                 play: function () { plays += 1; state = "playing"; return Promise.resolve(); },
                 seek: function (position) { seeks.push(position); return Promise.resolve(position); },
                 stop: function () { state = "idle"; return Promise.resolve(item); },
-                selection: function () { return { audioId: 11, subtitleId: 21 }; },
+                selection: function () { return trackOptions && trackOptions.selectedTracks || { audioId: 11, subtitleId: 21 }; },
                 part: function () { return (mediaItem || item).Media[0].Part[0]; },
                 quality: function () { return trackOptions && trackOptions.qualityFacts ||
                     { source: item.Media[0], stream: item.Media[0], mode: "direct", limit: "original" }; },
@@ -289,6 +289,53 @@ async function creditsCountdownPreservesPause() {
     } finally { app.dom.window.close(); }
 }
 
+async function rankedTrackVariants() {
+    var media = JSON.parse(JSON.stringify(item));
+    media.Media[0].Part[0].Stream = [
+        { id: 31, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "pgs", forced: 1 },
+        { id: 32, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "pgs", hearingImpaired: 1 },
+        { id: 33, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "pgs", default: 1 },
+        { id: 34, streamType: "3", language: "English", languageCode: "eng", displayTitle: "English", codec: "pgs", hearingImpaired: "0" },
+        { id: 35, streamType: 3, language: "English", languageCode: "eng", displayTitle: "English", codec: "pgs" },
+        { id: 11, streamType: "2", language: "English", languageCode: "eng", displayTitle: "English audio", codec: "aac" }
+    ];
+    var app = playerFixture({ selectedTracks: { audioId: 11, subtitleId: 34 } }, media);
+    try {
+        await app.settle();
+        app.click("Subtitles");
+        app.click("English", app.document.getElementById("player-menu"));
+        var choices = Array.from(app.document.querySelectorAll('#player-menu button[aria-pressed]'))
+            .filter(function (node) { return node.textContent !== "Subtitles off"; });
+        assert.strictEqual(choices.length, 5, "Numeric-string stream types remain available as PMS tracks");
+        assert.strictEqual(choices[0].getAttribute("aria-pressed"), "true", "The actual selected track ranks first");
+        assert(!choices[0].textContent.includes("SDH"), "A false string flag cannot mislabel ordinary subtitles as SDH");
+        assert(choices[1].textContent.includes("Default"), "The PMS default ranks next without selecting it");
+        assert(choices[2].textContent.includes("Forced"), "Forced variants remain explicitly identified");
+        assert(choices[3].textContent.includes("SDH"), "Hearing-impaired variants remain explicitly identified");
+        assert.strictEqual(new Set(choices.map(function (node) { return node.textContent; })).size, choices.length,
+            "Otherwise identical track titles require distinct remote labels");
+        assert.strictEqual(app.starts(), 1, "Ranking and inspecting variants cannot restart or select playback");
+        app.click("Close menu");
+        app.click("Audio");
+        app.click("English", app.document.getElementById("player-menu"));
+        assert(app.findButton("English audio"), "Numeric-string audio types remain reachable");
+        assert.strictEqual(app.starts(), 1);
+        app.click("Close menu");
+        app.click("Pause / Play");
+        app.click("Subtitles");
+        app.click("English", app.document.getElementById("player-menu"));
+        var repeated = Array.from(app.document.querySelectorAll('#player-menu button[aria-pressed]'))
+            .filter(function (node) { return node.textContent !== "Subtitles off"; });
+        assert.deepStrictEqual(repeated.map(function (node) { return node.textContent; }),
+            choices.map(function (node) { return node.textContent; }), "Reopening preserves exact variant ordering and duplicate labels");
+        app.click(repeated[2].textContent, app.document.getElementById("player-menu"));
+        for (var i = 0; i < 20 && app.starts() !== 2; i += 1) { await app.settle(); }
+        assert.strictEqual(app.playerSettings[1].subtitleId, 31, "Explicit selection keeps the exact forced variant identity");
+        assert.strictEqual(app.playerSettings[1].audioId, 11);
+        assert.strictEqual(app.playerSettings[1].paused, true, "A ranked track change cannot autoplay a paused session");
+    } finally { app.dom.window.close(); }
+}
+
 async function timingStatsAndErrors() {
     var app = playerFixture({ cues: [
         { start: 44000, end: 44999, text: "Earlier cue" },
@@ -482,6 +529,7 @@ async function run() {
     await upNextAndTracks();
     await preferredTrackLanguage();
     await creditsCountdownPreservesPause();
+    await rankedTrackVariants();
     await timingStatsAndErrors();
     await subtitleTimingUsesTrackBounds();
     await subtitleTimingZeroDetentAndTrackAvailability();

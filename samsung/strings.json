@@ -336,6 +336,8 @@
   "Channel layout": { "es": "Distribución de canales", "be": "Схема каналаў" },
   "Bitrate": { "es": "Tasa de bits", "be": "Бітрэйт" },
   "Forced": { "es": "Forzado", "be": "Прымусовыя" },
+  "Default": { "es": "Predeterminado", "be": "Па змаўчанні" },
+  "{track} / Track {number}": { "es": "{track} / Pista {number}", "be": "{track} / Дарожка {number}" },
   "Default track": { "es": "Pista predeterminada", "be": "Дарожка па змаўчанні" },
   "Server-selected track": { "es": "Pista seleccionada por el servidor", "be": "Дарожка, выбраная серверам" },
   "Hearing impaired": { "es": "Accesibilidad auditiva", "be": "Для людзей з парушэннем слыху" },

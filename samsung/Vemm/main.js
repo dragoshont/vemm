@@ -2441,15 +2441,17 @@
         }
     }
 
+    function streamFlag(value) { return value === true || value === 1 || value === "1"; }
+
     function trackBadge(stream) {
         if (!stream) { return ""; }
         var labels = [];
-        if (stream.streamType === 3 && (stream.hearingImpaired || stream.key === "sdh")) { labels.push("SDH"); }
-        else if (stream.streamType === 3 && (stream.key === "cc" || stream.closedCaptions)) { labels.push("CC"); }
-        if (stream.streamType === 2 && (stream.audioDescription === true ||
-                stream.audioDescription === 1 || stream.audioDescription === "1" ||
+        if (Number(stream.streamType) === 3 && (streamFlag(stream.hearingImpaired) || stream.key === "sdh")) { labels.push("SDH"); }
+        else if (Number(stream.streamType) === 3 && (stream.key === "cc" || streamFlag(stream.closedCaptions))) { labels.push("CC"); }
+        if (Number(stream.streamType) === 2 && (streamFlag(stream.audioDescription) ||
                 /audio description/i.test(stream.displayTitle || ""))) { labels.push("AD"); }
-        if (stream.forced === true || stream.forced === 1 || stream.forced === "1") { labels.push(translate("Forced")); }
+        if (streamFlag(stream.forced)) { labels.push(translate("Forced")); }
+        if (streamFlag(stream.default)) { labels.push(translate("Default")); }
         return labels.join(" / ");
     }
 
@@ -4285,7 +4287,7 @@
         var current = player.selection();
         var reload = reloadTracks;
         var streams = (player.part().Stream || []).filter(function (stream) {
-            return stream.streamType === (type === "audio" ? 2 : 3);
+            return Number(stream.streamType) === (type === "audio" ? 2 : 3);
         });
         var languageNames = [];
         streams.forEach(function (stream) {
@@ -4316,9 +4318,23 @@
         } else {
             var matching = streams.filter(function (stream) {
                 return (stream.language || stream.languageTag || stream.languageCode || translate("Other languages")) === language;
+            }).map(function (stream, index) {
+                var selected = type === "audio" ? current.audioId : externalCues ? 0 : current.subtitleId;
+                return { stream: stream, index: index, rank: String(stream.id) === String(selected) ? 0 :
+                    streamFlag(stream.default) ? 1 : 2 };
+            }).sort(function (a, b) {
+                return a.rank - b.rank || a.index - b.index;
+            }).map(function (entry) { return entry.stream; });
+            var labels = matching.map(function (stream) {
+                var title = stream.displayTitle || stream.language || stream.codec || String(stream.id);
+                var badges = trackBadge(stream);
+                return title + (badges ? " / " + badges : "");
             });
-            matching.forEach(function (stream) {
-                var label = stream.displayTitle || stream.language || stream.codec || String(stream.id);
+            matching.forEach(function (stream, index) {
+                var label = labels[index];
+                if (labels.indexOf(label) !== labels.lastIndexOf(label)) {
+                    label = translate("{track} / Track {number}", { track: label, number: index + 1 });
+                }
                 var choice = button(menu, label, function () {
                     if (type === "audio") { reload(stream.id, current.subtitleId, externalCues); }
                     else { reload(current.audioId, stream.id); }
