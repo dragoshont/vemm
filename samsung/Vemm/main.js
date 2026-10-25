@@ -1578,7 +1578,7 @@
                 });
             }
             openSection(section, { items: refresh ? [] : currentItems.slice(), offset: refresh ? start : currentOffset,
-                filters: JSON.parse(JSON.stringify(libraryFilters)), photoTotal: photoLibraryTotal });
+                filters: JSON.parse(JSON.stringify(libraryFilters)), photoTotal: photoLibraryTotal, refresh: refresh });
             if (refresh) { loadNextPage(); }
         };
         retryView = function () { loadNextPage(); };
@@ -1611,7 +1611,7 @@
         var back = button(screen, "Back to Home", backView);
         back.id = "home-back";
         var restoringFocus = !!pendingRestore;
-        if (saved && !saved.items.length && pendingRestore) { focusLoading(); }
+        if (saved && saved.refresh && pendingRestore) { focusLoading(); }
         else { focusFirst(); }
         sectionLandingFocus = null;
         if (!restoringFocus && document.activeElement === screen.querySelector(".account-control")) {
