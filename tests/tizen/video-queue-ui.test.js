@@ -38,6 +38,8 @@ async function run() {
     var completePage;
     var holdCreate = false;
     var completeCreate;
+    var holdMetadata = false;
+    var completeMetadata;
     function response(container) {
         return { ok: true, status: 200, json: function () { return Promise.resolve({ MediaContainer: container }); } };
     }
@@ -95,6 +97,10 @@ async function run() {
             if (incompleteMetadata) {
                 incompleteMetadata = false;
                 container.Metadata = [Object.assign({}, container.Metadata[0], { Media: [] })];
+            }
+            if (holdMetadata) {
+                holdMetadata = false;
+                return new Promise(function (resolve) { completeMetadata = function () { resolve(response(container)); }; });
             }
         } else if (u.pathname === "/playQueues") {
             if (failCreate) { failCreate = false; return Promise.resolve({ ok: false, status: 503 }); }
@@ -177,7 +183,14 @@ async function run() {
         completePage(); await settle(); assert.strictEqual(selected, 1, "Back cancels late page");
         for (var i = 2; i <= 205; i += 1) { await next(); assert.strictEqual(selected, i); }
         assert.strictEqual(number, 1, "Transitions must reuse the existing video queue");
-        press("Pause / Play"); await settle(); await next(); assert.strictEqual(state, "PAUSED");
+        listener.oncurrentplaytime(80000); await settle();
+        holdMetadata = true;
+        press("Next Episode", w.document.getElementById("up-next")); await settle();
+        assert(completeMetadata, "Automatic transition is awaiting actual successor metadata");
+        press("Pause / Play"); await settle();
+        completeMetadata(); await settle();
+        assert.strictEqual(state, "PAUSED", "Pausing during automatic successor metadata must survive transition commit");
+        await next(); assert.strictEqual(state, "PAUSED", "Manual navigation also retains pause");
         press("More"); press("Shuffle / On or off"); await settle();
         assert.strictEqual(state, "PAUSED");
         press("Repeat / Off, one, all");

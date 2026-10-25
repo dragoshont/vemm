@@ -3333,7 +3333,7 @@
             return client.getMetadata(candidate.item.ratingKey).then(function (metadata) {
                 if (!current()) { return; }
                 validateVideoItem(metadata, candidate.item.ratingKey, 0);
-                var paused = !automatic && owner.snapshot().state === "paused";
+                var paused = owner.snapshot().state === "paused";
                 return stopPlayer(function () {
                     if (request !== videoGeneration || document.hidden) { releaseVideoQueue(queue); return; }
                     videoLoading = false;
@@ -3868,6 +3868,7 @@
                     if (!player || player !== ownPlayer || playerClosing || skip.control !== control) {
                         clearInterval(tick); return;
                     }
+                    if (document.hidden || player.snapshot().state !== "playing") { return; }
                     remaining -= 1;
                     if (remaining > 0) { label(); return; }
                     clearInterval(tick);
@@ -4405,6 +4406,7 @@
         var item = playerItem;
         var client = playerClient;
         var queue = playerSettings && playerSettings.playQueue;
+        var paused = player && player.snapshot().state === "paused";
         stopPlayer(function () {
             renderDetail(item, client);
             var generation = viewGeneration;
@@ -4417,14 +4419,14 @@
                 });
                 if (startNow === true && !document.hidden) {
                     client.getMetadata(next.ratingKey).then(function (metadata) {
-                        if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0); }
+                        if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0, 0, { paused: paused }); }
                     }).catch(showPlayerError);
                 } else if (preferences.nextEpisode !== "off" && !document.hidden) {
                     setStatus("Next episode starts in 10 seconds. Back cancels.");
                     nextTimer = setTimeout(function () {
                         nextTimer = null;
                         client.getMetadata(next.ratingKey).then(function (metadata) {
-                            if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0); }
+                            if (generation === viewGeneration && !player) { startPlayer(metadata, client, 0, 0, { paused: paused }); }
                         }).catch(showPlayerError);
                     }, 10000);
                 }

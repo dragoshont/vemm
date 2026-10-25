@@ -101,6 +101,7 @@ function playerFixture(trackOptions, mediaItem) {
     };
     var client = {
         location: trackOptions && trackOptions.remote ? "wan" : "lan",
+        cancelRequests: function () {},
         nextEpisode: function () {
             return Promise.resolve({ ratingKey: "synthetic-next", type: "episode", title: "Next Synthetic Episode",
                 grandparentTitle: "Synthetic Show", parentIndex: 2, index: 5,
@@ -246,6 +247,46 @@ async function preferredTrackLanguage() {
             assert.strictEqual(app.starts(), 1, "Browsing language groups cannot restart playback");
         } finally { app.dom.window.close(); }
     }
+}
+
+async function creditsCountdownPreservesPause() {
+    var app = playerFixture();
+    try {
+        await app.settle();
+        app.callbacks.avplay.onEvent({ type: "time", position: 56000, duration: item.duration });
+        await app.settle();
+        var tick = app.timers.find(function (timer) {
+            return timer.callback && timer.interval && timer.delay === 1000;
+        });
+        assert(tick, "Final credits start the owned countdown");
+        tick.callback();
+        tick.callback();
+        var remaining = app.document.querySelector(".up-next-countdown").textContent;
+        app.click("Pause / Play");
+        for (var i = 0; i < 15; i += 1) { if (tick.callback) { tick.callback(); } }
+        await app.settle();
+        assert.strictEqual(app.starts(), 1, "A paused credits countdown cannot start another episode");
+        var pausedCountdown = app.document.querySelector(".up-next-countdown");
+        assert(pausedCountdown, "A paused credits countdown must remain owned by the current episode");
+        assert.strictEqual(pausedCountdown.textContent, remaining,
+            "Paused wall-clock time cannot consume the remaining countdown");
+        app.click("Pause / Play");
+        for (i = 0; i < 8; i += 1) { if (tick.callback) { tick.callback(); } }
+        for (i = 0; i < 20 && app.starts() !== 2; i += 1) { await app.settle(); }
+        assert.strictEqual(app.starts(), 2, "Resuming consumes only the remaining playing-time ticks");
+    } finally { app.dom.window.close(); }
+    app = playerFixture();
+    try {
+        await app.settle();
+        app.callbacks.avplay.onEvent({ type: "time", position: 56000, duration: item.duration });
+        await app.settle();
+        app.click("Pause / Play");
+        app.click("Next Episode", app.document.getElementById("up-next"));
+        for (var attempt = 0; attempt < 20 && app.starts() !== 2; attempt += 1) { await app.settle(); }
+        assert.strictEqual(app.starts(), 2, "The explicit next action selects the fallback successor");
+        assert.strictEqual(app.playerSettings[1].paused, true,
+            "A no-queue successor also receives the viewer's paused intent");
+    } finally { app.dom.window.close(); }
 }
 
 async function timingStatsAndErrors() {
@@ -440,6 +481,7 @@ async function run() {
     await hudAndPanels();
     await upNextAndTracks();
     await preferredTrackLanguage();
+    await creditsCountdownPreservesPause();
     await timingStatsAndErrors();
     await subtitleTimingUsesTrackBounds();
     await subtitleTimingZeroDetentAndTrackAvailability();

@@ -38,6 +38,17 @@ These thresholds are conservative implementation limits, not measured per-TV
 performance budgets. Synthetic controller and real-UI/fake-adapter tests cover
 the limits, cancellation and no-unintended-autoplay behavior.
 
+## Credits and successor pause ownership
+
+The final-credits countdown consumes only foreground playing-time ticks.
+Pausing freezes its remaining time; resuming continues from that remainder,
+not from elapsed wall-clock time. Buffering/background time cannot expire it.
+An automatic video transition rechecks the current player's pause state after
+successor metadata arrives, before stopping the current player. Explicit pause
+while that request is pending survives selection of the successor. The
+non-queue fallback also passes its captured pause intent to the new player.
+These host contracts do not establish retail standby or decoder acceptance.
+
 ## Converted audio volume
 
 Settings offers 50%, 100%, 150% and 200% for server-converted audio.
