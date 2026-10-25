@@ -58,7 +58,8 @@ function playerFixture(trackOptions, mediaItem) {
     vm.runInNewContext(fs.readFileSync(path.join(root, "samsung/Vemm/js/i18n.js"), "utf8"), i18nContext);
     window.VemmI18n = i18nContext.VemmI18n;
     window.VemmPreferences = {
-        load: function () { return { quality: "original", nextEpisode: "countdown", language: "en",
+        load: function () { return { quality: "original", nextEpisode: "countdown",
+            language: trackOptions && trackOptions.language || "en",
             skipInterval: 10, subtitleDelayMs: trackOptions && trackOptions.initialDelay || 0,
             subtitleSize: "medium", subtitlePosition: "low",
             subtitleColor: "white", subtitleBackground: "off", directPlay: "auto",
@@ -68,6 +69,7 @@ function playerFixture(trackOptions, mediaItem) {
     window.VemmSkipMarkers = require("../../samsung/Vemm/js/skip-markers.js");
     window.VemmFileInfo = require("../../samsung/Vemm/js/file-info.js");
     window.VemmSubtitles = require("../../samsung/Vemm/js/subtitles.js");
+    window.VemmSubtitleSearch = require("../../samsung/Vemm/js/subtitle-search.js");
     window.VemmAvplay = { create: function (options) { adapters += 1; callbacks.avplay = options; return {}; } };
     window.VemmPlayback = {
         adaptivePolicy: require("../../samsung/Vemm/js/playback.js").adaptivePolicy,
@@ -89,7 +91,7 @@ function playerFixture(trackOptions, mediaItem) {
                 seek: function (position) { seeks.push(position); return Promise.resolve(position); },
                 stop: function () { state = "idle"; return Promise.resolve(item); },
                 selection: function () { return { audioId: 11, subtitleId: 21 }; },
-                part: function () { return item.Media[0].Part[0]; },
+                part: function () { return (mediaItem || item).Media[0].Part[0]; },
                 quality: function () { return trackOptions && trackOptions.qualityFacts ||
                     { source: item.Media[0], stream: item.Media[0], mode: "direct", limit: "original" }; },
                 tracks: function () { return []; },
@@ -218,6 +220,32 @@ async function upNextAndTracks() {
         app.click("French");
         assert(app.findButton("French"), "The selected language step lists its matching track");
     } finally { app.dom.window.close(); }
+}
+
+async function preferredTrackLanguage() {
+    for (var example of [{ locale: "es", code: "spa", name: "Español" },
+            { locale: "be", code: "bel", name: "Беларуская" }]) {
+        var media = JSON.parse(JSON.stringify(item));
+        media.Media[0].Part[0].Stream = [
+            { id: 13, streamType: 2, language: "French", languageCode: "fra", codec: "aac" },
+            { id: 11, streamType: 2, language: example.name, languageCode: example.code, codec: "aac" },
+            { id: 23, streamType: 3, language: "French", languageCode: "fra", codec: "srt" },
+            { id: 21, streamType: 3, language: example.name, languageCode: example.code, codec: "srt" }
+        ];
+        var app = playerFixture({ language: example.locale }, media);
+        try {
+            for (var type of ["Audio", "Subtitles"]) {
+                app.click(app.window.VemmI18n.text(type));
+                assert.strictEqual(app.document.activeElement.textContent, example.name,
+                    "The track language step promotes the matching ISO 639-2 language, not the first server row");
+                var menu = app.document.getElementById("player-menu");
+                assert(!app.findButton("French", menu), "Other languages stay in their explicit destination");
+                app.click(app.window.VemmI18n.text("Other languages"));
+                assert(app.findButton("French"), "Nonpreferred tracks remain reachable");
+            }
+            assert.strictEqual(app.starts(), 1, "Browsing language groups cannot restart playback");
+        } finally { app.dom.window.close(); }
+    }
 }
 
 async function timingStatsAndErrors() {
@@ -411,6 +439,7 @@ async function run() {
     await introRemainsVisibleAndRemoteActionIsSingleShot();
     await hudAndPanels();
     await upNextAndTracks();
+    await preferredTrackLanguage();
     await timingStatsAndErrors();
     await subtitleTimingUsesTrackBounds();
     await subtitleTimingZeroDetentAndTrackAvailability();

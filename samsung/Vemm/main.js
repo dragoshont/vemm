@@ -4204,7 +4204,8 @@
                 return (entry.language || entry.languageTag || entry.languageCode) === name;
             })[0];
             var code = stream && (stream.languageCode || stream.languageTag || "");
-            return code.toLowerCase().slice(0, 2) === preferences.language.slice(0, 2);
+            return window.VemmSubtitleSearch.twoLetter(code) ===
+                window.VemmSubtitleSearch.twoLetter(preferences.language);
         })[0];
         if (language === "__other_languages") {
             var otherOptions = languageNames.filter(function (name) { return name !== preferred; });

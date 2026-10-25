@@ -70,6 +70,24 @@ named-model acceptance; the request option alone does not establish them.
 
 A file lacking playable Part stream facts fails before PMS or AVPlay calls.
 
+### Track language and persistence boundaries
+
+The audio/subtitle menu groups the current Part's streams by their supplied
+language label. The interface-language group is promoted using the same
+ISO 639-1/639-2 and region-tag normalization as subtitle search: `spa` matches
+`es`, and `bel` matches `be`. Other language groups retain an explicit
+destination. Opening or browsing those groups does not change a stream.
+This presentation preference is not a new automatic track-selection policy.
+
+Without an explicit per-item selection, playback follows PMS `Stream.selected`,
+which owns account/profile language, forced/default and prior-selection policy.
+Settings' account audio/subtitle preferences and the current Part's explicit
+selection use separate documented requests. Vemm does not create a second
+TV-local per-item/profile stream-preference store or infer that a menu highlight
+proves the selected audible/visible track. Duplicate/forced/SDH ranking,
+persistence across profile/item/version changes and actual output still need
+disposable-backend and named-TV acceptance.
+
 ## Explainable result
 
 Every plan records:
