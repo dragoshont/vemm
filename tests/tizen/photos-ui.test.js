@@ -12,6 +12,7 @@ async function run() {
     var window = dom.window;
     var pages = [], live = new Set(), peak = 0, sequence = 100000, photoRequests = 0, failure = false;
     var directPhotos = false, libraryPages = [];
+    var homeReads = [];
     var timers = new Map();
     var set = window.setTimeout.bind(window), clear = window.clearTimeout.bind(window);
     window.setTimeout = function (callback, delay) {
@@ -35,7 +36,13 @@ async function run() {
         var url = new URL(target), container;
         assert.strictEqual(url.origin, "https://pms.synthetic.invalid");
         assert.strictEqual(options.method || "GET", "GET", "Photo journeys never mutate Plex viewing state");
-        if (url.pathname === "/library/sections/4/all") {
+        if (url.pathname === "/library/sections") {
+            homeReads.push(url.pathname);
+            container = { Directory: [{ key: "4", type: "photo", title: "Photos" }] };
+        } else if (url.pathname === "/hubs/promoted" || url.pathname === "/hubs/continueWatching") {
+            homeReads.push(url.pathname);
+            container = { Hub: [] };
+        } else if (url.pathname === "/library/sections/4/all") {
             var libraryStart = Number(url.searchParams.get("X-Plex-Container-Start"));
             libraryPages.push(libraryStart);
             container = { offset: libraryStart, totalSize: directPhotos ? 1001 : 1,
@@ -146,6 +153,8 @@ async function run() {
         key(10009); await settle();
         key(10009); await settle();
         key(10009); await settle();
+        assert.deepStrictEqual(homeReads.slice().sort(), ["/hubs/continueWatching", "/hubs/promoted", "/library/sections"],
+            "Back to Home refreshes its read-only sections and shelves instead of relying on the injected initial render");
         directPhotos = true;
         press("Photos"); await settle();
         window.document.querySelectorAll(".media-card")[49].focus(); key(13); await settle(); decode();
