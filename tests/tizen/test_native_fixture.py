@@ -20,6 +20,27 @@ spec.loader.exec_module(native)
 
 
 class NativeFixtureTests(unittest.TestCase):
+    def test_media_generation_bounds_seek_keyframes_and_segments(self):
+        commands = []
+
+        def generated(args, check):
+            self.assertTrue(check)
+            commands.append(args)
+            Path(args[-1]).write_bytes(b"synthetic host generation contract")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "media"
+            with patch.object(native.shutil, "which", return_value="/synthetic/ffmpeg"), \
+                    patch.object(native.subprocess, "run", side_effect=generated), \
+                    patch.object(native.subprocess, "check_output", return_value="ffmpeg synthetic\n"):
+                native.media(output)
+            video, hls = commands[:2]
+            self.assertIn("-g", video, "Default encoder GOP is too large for the one-second seek criterion")
+            self.assertEqual(video[video.index("-g") + 1], "24")
+            self.assertEqual(video[video.index("-sc_threshold") + 1], "0")
+            self.assertEqual(hls[hls.index("-hls_time") + 1], "1")
+            self.assertEqual(json.loads((output / "media.json").read_text())["keyframe_interval_ms"], 1000)
+
     def test_staging_retains_source_and_privileges_without_production_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "app"

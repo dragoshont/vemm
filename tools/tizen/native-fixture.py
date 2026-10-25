@@ -149,10 +149,11 @@ def media(output):
         "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
         "-t", "30", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264",
         "-profile:v", "baseline", "-level:v", "3.1", "-pix_fmt", "yuv420p",
+        "-g", "24", "-keyint_min", "24", "-sc_threshold", "0",
         "-b:v", "1000k", "-c:a", "aac", "-b:a", "96k", "-ac", "2",
         "-af", "volume=0.1", "-movflags", "+faststart", str(output / "synthetic.mp4")
     ], check=True)
-    subprocess.run(common + ["-i", str(output / "synthetic.mp4"), "-c", "copy", "-hls_time", "5",
+    subprocess.run(common + ["-i", str(output / "synthetic.mp4"), "-c", "copy", "-hls_time", "1",
                              "-hls_list_size", "0", "-hls_segment_filename", str(output / "segment-%03d.ts"),
                              str(output / "synthetic.m3u8")], check=True)
     subprocess.run(common + ["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=1",
@@ -163,6 +164,7 @@ def media(output):
     files = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.iterdir())}
     (output / "media.json").write_text(json.dumps({
         "synthetic_only": True, "duration_ms": 30000, "width": 1280, "height": 720,
+        "keyframe_interval_ms": 1000,
         "video": "H.264 Baseline 3.1", "audio": "AAC stereo, quiet synthetic sine",
         "ffmpeg": subprocess.check_output([ffmpeg, "-version"], text=True).splitlines()[0],
         "files": files,

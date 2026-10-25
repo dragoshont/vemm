@@ -62,7 +62,11 @@ python3 tools/tizen/native-fixture.py serve \
 
 The media command uses an already-installed `ffmpeg` to generate 30 seconds of
 synthetic H.264/AAC, HLS, artwork and SRT; it installs nothing and accepts no
-household input. The server verifies media checksums, binds an explicit
+household input. Video has a one-second fixed GOP and HLS segment target, so
+the synthetic seek criterion is not undermined by the encoder's default
+ten-second keyframe gaps. Measure generated keyframe timestamps when collecting
+native seek evidence; flags alone are not an observed landing.
+The server verifies media checksums, binds an explicit
 private IPv4 interface, admits only explicitly listed client addresses, limits
 assets/ranges/request bodies and rejects unknown contracts rather than
 returning generic success. Mutations affect only its disposable RAM records.
