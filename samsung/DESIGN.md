@@ -95,6 +95,10 @@ Focus follows the moved shelf (its visibility control at an ordering boundary). 
 return to the opening Account action; remote Back discards edits. A hidden hero must not trap
 Up at the first shelf. All-hidden shelves retain navigation and an explicit recovery message.
 This follows existing app controls, not a claim that Plex Web exposes these same settings.
+After an accepted watched-state mutation, Back must not reuse stale watch badges or
+resume progress from a retained library/collection page. Reload the bounded page containing
+the opening item, preserving its filter/cursor and restoring focus by media identity.
+Discard the Home outage snapshot rather than presenting its pre-mutation viewing state.
 Original-file metadata, the PMS-reported stream and the requested transcode limit are distinct.
 Missing stream metadata is labelled unreported, never substituted with the chosen limit.
 Original/direct playback is requested when Samsung's published media specifications (or an exact

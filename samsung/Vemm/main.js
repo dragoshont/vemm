@@ -10,6 +10,7 @@
     var currentSection = null;
     var homeSections = [];
     var homeCache = null;
+    var watchRevision = 0;
     var currentItems = [];
     var currentOffset = 0;
     var viewGeneration = 0;
@@ -194,7 +195,9 @@
         pendingRestore = null;
         if (restoreView) {
             var controls = Array.prototype.slice.call(screen.querySelectorAll("button, input, select"));
-            navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop });
+            var focusedItem = document.activeElement && document.activeElement.vemmCard;
+            navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
+                mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null });
             if (navigation.length > 20) { navigation.shift(); }
         }
         action();
@@ -520,6 +523,17 @@
         if (pendingRestore) {
             var previous = pendingRestore;
             pendingRestore = null;
+            if (previous.mediaKey) {
+                var cards = Array.prototype.filter.call(controls, function (node) { return node.vemmCard; });
+                var retainedCard = cards.filter(function (node) {
+                    return String(node.vemmCard.item.ratingKey) === previous.mediaKey;
+                })[0] || cards[0];
+                if (retainedCard) {
+                    retainedCard.focus();
+                    screen.scrollTop = previous.scroll || 0;
+                    return;
+                }
+            }
             if (controls[previous.focus] && !controls[previous.focus].disabled && !insideHidden(controls[previous.focus])) {
                 controls[previous.focus].focus();
                 screen.scrollTop = previous.scroll || 0;
@@ -1549,9 +1563,20 @@
         photoLibraryTotal = saved && saved.photoTotal || 0;
         clear(screen);
         resetImages();
+        var retainedRevision = watchRevision;
         restoreView = function () {
-            openSection(section, { items: currentItems.slice(), offset: currentOffset,
+            var refresh = retainedRevision !== watchRevision;
+            var start = currentOffset - currentItems.length;
+            if (refresh && pendingRestore && pendingRestore.mediaKey) {
+                currentItems.some(function (item, index) {
+                    if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
+                    start += Math.floor(index / 50) * 50;
+                    return true;
+                });
+            }
+            openSection(section, { items: refresh ? [] : currentItems.slice(), offset: refresh ? start : currentOffset,
                 filters: JSON.parse(JSON.stringify(libraryFilters)), photoTotal: photoLibraryTotal });
+            if (refresh) { loadNextPage(); }
         };
         retryView = function () { loadNextPage(); };
         page(section.title || "Library", "library");
@@ -1583,7 +1608,8 @@
         var back = button(screen, "Back to Home", backView);
         back.id = "home-back";
         var restoringFocus = !!pendingRestore;
-        focusFirst();
+        if (saved && !saved.items.length && pendingRestore) { focusLoading(); }
+        else { focusFirst(); }
         sectionLandingFocus = null;
         if (!restoringFocus && document.activeElement === screen.querySelector(".account-control")) {
             // Hold focus on this library's tab while titles load, then hand it to the first title.
@@ -1636,6 +1662,7 @@
                 document.getElementById("home-back").focus();
             }
             setStatus(translate("{loaded} of {total} items loaded. Showing the latest {shown}.", { loaded: currentOffset, total: page.totalSize, shown: currentItems.length }));
+            if (pendingRestore) { focusFirst(); }
         }).catch(function (error) {
             if (generation !== viewGeneration) {
                 return;
@@ -1648,6 +1675,7 @@
 
     function openListing(title, loader, client, offset, retained, cached, navigation) {
         var generation = ++viewGeneration;
+        var retainedRevision = watchRevision;
         clear(screen);
         viewClients.push(client);
         resetImages();
@@ -1667,7 +1695,19 @@
             if (generation !== viewGeneration) { return; }
             var items = retained.concat(container.Metadata || []).slice(-200);
             restoreView = function () {
-                openListing(title, loader, client, offset, retained, container, navigation);
+                if (retainedRevision === watchRevision) {
+                    openListing(title, loader, client, offset, retained, container, navigation);
+                    return;
+                }
+                var start = offset;
+                if (pendingRestore && pendingRestore.mediaKey) {
+                    items.some(function (item, index) {
+                        if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
+                        start = next - items.length + Math.floor(index / 50) * 50;
+                        return true;
+                    });
+                }
+                openListing(title, loader, client, start, [], null, navigation);
             };
             var list = element("div", "item-list");
             screen.appendChild(list);
@@ -2287,6 +2327,8 @@
                     return action === "remove" ? client.removeContinueWatching(item.ratingKey) :
                         client.setWatched(item.ratingKey, action === "watched");
                 }).then(function () {
+                    watchRevision += 1;
+                    homeCache = null;
                     if (generation !== viewGeneration) { return; }
                     setStatus("Plex accepted the change. Refreshing details...");
                     return client.getMetadata(item.ratingKey).then(function (updated) {
