@@ -38,7 +38,7 @@ var item = {
     }]
 };
 
-function playerFixture(trackOptions) {
+function playerFixture(trackOptions, mediaItem) {
     var dom = new JSDOM(fs.readFileSync(path.join(root, "samsung/Vemm/index.html"), "utf8"), {
         url: "https://player.synthetic.invalid", runScripts: "outside-only"
     });
@@ -105,7 +105,7 @@ function playerFixture(trackOptions) {
     var boot = source.lastIndexOf('    addConnectForm("");');
     assert(boot !== -1, "The app boot boundary remains available to isolated UI tests");
     source = source.slice(0, boot) +
-        '    startPlayer(' + JSON.stringify(item) + ', window.__syntheticClient, 45000, 0, ' +
+        '    startPlayer(' + JSON.stringify(mediaItem || item) + ', window.__syntheticClient, 45000, 0, ' +
         JSON.stringify(trackOptions || null) + '); }());';
     window.__syntheticClient = client;
     vm.runInNewContext(source, {
@@ -338,7 +338,33 @@ async function failedPlayerRecoveryRestartsThePipeline() {
     } finally { app.dom.window.close(); }
 }
 
+async function introRemainsVisibleAndRemoteActionIsSingleShot() {
+    var episode = Object.assign({}, item, {
+        Marker: [{ id: 8, type: "intro", startTimeOffset: 10000, endTimeOffset: 30000 }]
+    });
+    var app = playerFixture(null, episode);
+    try {
+        await app.settle();
+        app.callbacks.avplay.onEvent({ type: "time", position: 10000, duration: item.duration });
+        var prompt = app.findButton("Skip Intro");
+        assert(prompt, "Metadata markers create a visible Intro action at the segment boundary");
+        assert.strictEqual(app.document.activeElement, prompt, "One remote OK is sufficient to skip");
+        app.timers.filter(function (timer) {
+            return timer.callback && !timer.interval && timer.delay === 5000;
+        }).forEach(function (timer) { timer.callback(); });
+        assert.strictEqual(app.document.querySelector(".player-hud").hidden, false,
+            "A skippable segment must not lose its prompt to the five-second transport timeout");
+        app.key(13);
+        app.key(13, true);
+        await app.settle();
+        assert.deepStrictEqual(app.seeks, [30000], "A held OK seeks to the marker end exactly once");
+        app.callbacks.avplay.onEvent({ type: "time", position: 29900, duration: item.duration });
+        assert.strictEqual(app.findButton("Skip Intro"), null, "Keyframe landing does not repeat the action");
+    } finally { app.dom.window.close(); }
+}
+
 async function run() {
+    await introRemainsVisibleAndRemoteActionIsSingleShot();
     await hudAndPanels();
     await upNextAndTracks();
     await timingStatsAndErrors();

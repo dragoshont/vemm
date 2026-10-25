@@ -619,6 +619,11 @@ async function run() {
         assert.strictEqual(position, 0, "Hidden-HUD reverse scrub remains bounded to zero");
         assert.strictEqual(seekTargets.length, seekCount + 3,
             "Hidden-HUD reverse repeats commit one bounded seek");
+        assert(window.document.querySelector(".skip-marker"),
+            "Seeking back into an unskipped intro restores its visible action");
+        assert.strictEqual(hudTimers.size, 0, "The Intro action stays visible throughout the segment");
+        listener.oncurrentplaytime(6000);
+        assert(!window.document.querySelector(".skip-marker"), "Leaving the intro removes its action");
         pauseControl.focus();
         hideHud();
         assert.strictEqual(window.document.querySelector(".player-hud").hidden, true,

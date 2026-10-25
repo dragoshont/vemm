@@ -1,4 +1,9 @@
 {
+  "See all": { "es": "Ver todo", "be": "Паказаць усё" },
+  "The requested watched state is not yet confirmed by Plex. Refresh details before retrying.": {
+    "es": "Plex aún no ha confirmado el estado de reproducción solicitado. Actualiza los detalles antes de volver a intentarlo.",
+    "be": "Plex яшчэ не пацвердзіў запытаны стан прагляду. Абнавіце звесткі перад паўторнай спробай."
+  },
   "Graphics": { "es": "Gráficos", "be": "Графіка" },
   "New graphics enhancements: {state}": {
     "es": "Nuevas mejoras gráficas: {state}",

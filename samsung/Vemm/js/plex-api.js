@@ -1020,6 +1020,24 @@
                     return rest.filter(Boolean);
                 });
             },
+            getHubItems: function (identifier, start) {
+                if (typeof identifier !== "string" || !identifier.length || identifier.length > 256 ||
+                        /[\x00-\x1f\x7f]/.test(identifier) || !isNonNegativeInteger(start)) {
+                    return Promise.reject(new Error("The requested Home shelf is invalid."));
+                }
+                return get("/hubs/items", "GET", {
+                    identifier: identifier, count: 50,
+                    "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
+                }).then(function (container) {
+                    var hub = container.Hub ? listFrom(container, "Hub")[0] : container;
+                    if (!hub) { throw new Error("This Home shelf is no longer available."); }
+                    var items = listFrom(hub, "Metadata");
+                    var total = isNonNegativeInteger(hub.totalSize) ? hub.totalSize :
+                        isNonNegativeInteger(container.totalSize) ? container.totalSize :
+                            start + items.length + (hub.more && items.length ? 1 : 0);
+                    return { Metadata: items, totalSize: total, offset: start };
+                });
+            },
             getSectionItems: function (sectionKey, start, size, filters) {
                 var key = String(sectionKey || "");
                 start = start === undefined ? 0 : start;

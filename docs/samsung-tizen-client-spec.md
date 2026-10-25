@@ -2,6 +2,14 @@
 
 **Status:** implementation in progress; Samsung runtime acceptance outstanding
 
+The 0.2.0 work adds a remote-reachable See all action to expandable Home shelves.
+It requests `/hubs/items` by the server's hub identifier in 50-item pages, reuses
+the 200-card listing bound, and restores the opening Home shelf on Back.
+Watched/unwatched confirmations now compare read-back metadata with the selected
+movie/episode or show/season scope. An accepted request whose read-back has not
+changed is explicitly unconfirmed, not reported as success. These behaviors
+have synthetic DOM regressions; named-TV and disposable-server acceptance remain open.
+
 The focused [upstream-readiness backlog](samsung-upstream-readiness.md) separates remaining
 LG movie/show parity gates from the expanded official-client/service scope. No readiness
 announcement is authorized by source completeness or installation alone.
@@ -54,7 +62,9 @@ Seasons remains the navigation path.
 The playback overlay uses a compact transport row and progress bar. Chapters, tracks, quality,
 playback information, music-queue controls and Stop live under More rather than covering the
 video in two rows of always-visible buttons. It hides after five seconds of uninterrupted play,
-while subtitles remain independent and errors remain visible.
+except while a skippable marker is active. Skip Intro/Credits remains visible for the segment,
+with focus on its action when it first appears; a held OK cannot issue repeated skips.
+Subtitles remain independent and errors remain visible.
 The owner's screen photos exposed excessive focus borders, crowded Settings, mixed episode
 artwork and technical playback copy. The host-only follow-up removes outer button/poster focus
 borders, limits detail synopses to two lines, puts Home/library/Search destinations together and

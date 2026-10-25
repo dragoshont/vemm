@@ -1237,6 +1237,19 @@
             metadata.slice(0, 12).forEach(function (item) {
                 if (item.ratingKey) { card(row, item, currentClient, null, { deck: deck, shelf: true }); }
             });
+            if (metadata.length > 12 || hub.hubIdentifier &&
+                    (metadata.length >= 12 || hub.more || Number(hub.size) > metadata.length)) {
+                button(row, "See all", function () {
+                    var client = currentClient;
+                    restoreView = function () { renderHome(sections, hubs); };
+                    visit(function () {
+                        openListing(hub.title || "Plex shelf", function (offset) {
+                            if (hub.hubIdentifier) { return client.getHubItems(hub.hubIdentifier, offset); }
+                            return Promise.resolve({ Metadata: metadata, totalSize: metadata.length });
+                        }, client);
+                    });
+                });
+            }
             hubPanel.appendChild(hubSection);
         });
         track.appendChild(hubPanel);
@@ -2040,6 +2053,17 @@
                         if (generation !== viewGeneration) { return; }
                         navigation.pop();
                         renderDetail(updated, client);
+                        if (action !== "remove") {
+                            var aggregate = item.type === "show" || item.type === "season";
+                            var count = Number(aggregate ? updated.viewedLeafCount : updated.viewCount) || 0;
+                            var matches = action === "watched" ?
+                                aggregate ? Number(updated.leafCount) > 0 && count >= Number(updated.leafCount) : count > 0 :
+                                count === 0 && (aggregate || !Number(updated.viewOffset));
+                            if (String(updated.ratingKey) !== String(item.ratingKey) || updated.type !== item.type || !matches) {
+                                setStatus("The requested watched state is not yet confirmed by Plex. Refresh details before retrying.", true);
+                                return;
+                            }
+                        }
                         setStatus("Plex accepted the change; details were refreshed.");
                     }).catch(function () {
                         if (generation === viewGeneration) {
@@ -2737,6 +2761,7 @@
         if (shell) { shell.classList.remove("hud-hidden"); }
         if (!player || playerClosing || hudBuffering ||
                 player.snapshot().state !== "playing" ||
+                screen.querySelector(".skip-marker") ||
                 document.getElementById("player-menu") || document.getElementById("player-info") ||
                 document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
                 document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
@@ -2746,6 +2771,7 @@
             hudTimer = null;
             if (player !== owner || playerClosing || hudBuffering ||
                     owner.snapshot().state !== "playing" ||
+                    screen.querySelector(".skip-marker") ||
                     document.getElementById("player-menu") || document.getElementById("player-info") ||
                     document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
                     document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
@@ -3014,6 +3040,7 @@
             skip.key = nextKey;
             if (!next) {
                 if (hadFocus) { pauseControl.focus(); }
+                showHud();
                 return;
             }
             // Raised once as the segment starts, with focus on the button, so one OK skips.
