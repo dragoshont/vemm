@@ -522,6 +522,7 @@
   "Record / {title}": { "es": "Grabar / {title}", "be": "Запісаць / {title}" },
   "Auto-play next episode: {state}": { "es": "Reproducir siguiente episodio: {state}", "be": "Аўтапрайграванне наступнага эпізоду: {state}" },
   "The change was not confirmed. Check Plex before retrying.": { "es": "No se confirmó el cambio. Comprueba Plex antes de reintentar.", "be": "Змена не пацверджаная. Праверце Plex перад паўторнай спробай." },
+  "Plex did not confirm the Watchlist change. Reload your Watchlist before retrying.": { "es": "Plex no confirmó el cambio en la lista de seguimiento. Recarga la lista antes de reintentar.", "be": "Plex не пацвердзіў змену спіса для прагляду. Перазагрузіце спіс перад паўторнай спробай." },
   "Watchlist": { "es": "Lista de seguimiento", "be": "Спіс для прагляду" },
   "Watchlist filter / {filter}": { "es": "Filtro de lista / {filter}", "be": "Фільтр спіса / {filter}" },
   "all": { "es": "todo", "be": "усё" },

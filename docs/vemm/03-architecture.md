@@ -116,6 +116,21 @@ global page state. The existing 200-item live window and 20-entry navigation
 limit remain; Back restores the owning snapshot, while accepted watched-state
 changes refresh the page containing the opening item instead of stale badges.
 
+### Watchlist mutation read-back
+
+Both catalogue and local-detail Watchlist actions use the account client's
+single explicit PUT followed by independent `all`-Watchlist reads with that
+same identity's token. Addition requires observing the exact catalogue GUID;
+removal requires observing absence through the complete bounded result.
+Read-back retains one 50-row page at a time and stops at 200 examined rows.
+If a larger result is needed to establish membership, or a page is malformed,
+unchanged, denied or incomplete, the outcome is explicitly unconfirmed; it is
+not a failed-write claim or permission to replay the PUT. Browse paging itself
+is not limited by this verification bound. Leaving the originating request
+scope prevents a late write response from starting new read-back requests.
+Synthetic membership fixtures do not establish actual cloud persistence or an
+atomic snapshot across concurrent external Watchlist edits.
+
 ### Optional Home layouts
 
 `js/home-layout.js` validates TV-local layout records; `main.js` uses the existing

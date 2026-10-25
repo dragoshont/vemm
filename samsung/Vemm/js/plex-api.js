@@ -341,6 +341,50 @@
             if (!match) { throw new Error("This item has no valid Plex catalogue identifier."); }
             return match[1];
         }
+        function watchlistPage(filter, start) {
+            return cloud("discover.provider.plex.tv", "/library/sections/watchlist/" + filter, "GET", {
+                "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
+            });
+        }
+        function confirmWatchlist(guid, add, revision) {
+            var start = 0;
+            function uncertain() {
+                return new Error("Plex did not confirm the Watchlist change. Reload your Watchlist before retrying.");
+            }
+            function read() {
+                if (scope.revision !== revision) { throw requestCancelled(); }
+                return watchlistPage("all", start).then(function (container) {
+                    if (scope.revision !== revision) { throw requestCancelled(); }
+                    var rows = container.Metadata;
+                    if (!Array.isArray(rows)) {
+                        if (container.size !== 0 && container.size !== "0") { throw uncertain(); }
+                        rows = [];
+                    }
+                    var total = container.totalSize === undefined ? null : Number(container.totalSize);
+                    if (rows.length > 50 || container.totalSize === null || container.totalSize === "" ||
+                            total !== null && (!isNonNegativeInteger(total) || total < start + rows.length) ||
+                            container.offset !== undefined && Number(container.offset) !== start ||
+                            rows.some(function (row) { return !row || typeof row.guid !== "string" ||
+                                !/^plex:\/\/(?:movie|show)\/[0-9a-f]{24}$/i.test(row.guid); })) {
+                        throw uncertain();
+                    }
+                    var found = rows.some(function (row) { return row.guid.toLowerCase() === guid.toLowerCase(); });
+                    if (found) {
+                        if (!add) { throw uncertain(); }
+                        return {};
+                    }
+                    var end = start + rows.length;
+                    if (total !== null ? end >= total : rows.length < 50) {
+                        if (add) { throw uncertain(); }
+                        return {};
+                    }
+                    if (!rows.length || end >= 200) { throw uncertain(); }
+                    start = end;
+                    return read();
+                });
+            }
+            return read();
+        }
         return {
             cancelRequests: function () { scope.cancel(); },
             image: function (path) {
@@ -369,14 +413,15 @@
                 if (["all", "available", "released"].indexOf(filter) === -1 || !isNonNegativeInteger(start || 0)) {
                     return Promise.reject(new Error("Invalid Watchlist filter or page."));
                 }
-                return cloud("discover.provider.plex.tv", "/library/sections/watchlist/" + filter, "GET", {
-                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
-                });
+                return watchlistPage(filter, start || 0);
             },
             setWatchlist: function (guid, add) {
                 if (typeof add !== "boolean") { return Promise.reject(new Error("Choose add or remove Watchlist.")); }
+                var revision = scope.revision;
                 return cloud("discover.provider.plex.tv", "/actions/" + (add ? "addToWatchlist" : "removeFromWatchlist"),
-                    "PUT", { ratingKey: catalogueId(guid) }, true);
+                    "PUT", { ratingKey: catalogueId(guid) }, true).then(function () {
+                        return confirmWatchlist(guid, add, revision);
+                    });
             },
             catalogueState: function (guid) {
                 return cloud("metadata.provider.plex.tv", "/library/metadata/" + catalogueId(guid) + "/userState");

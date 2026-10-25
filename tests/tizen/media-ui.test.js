@@ -26,6 +26,7 @@ async function run() {
     var revoked = [];
     var state = "NONE";
     var watchlisted = true;
+    var ignoreWatchlistWrite = false;
     var listener;
     var time = 0;
     var queueVersion = 1;
@@ -76,7 +77,8 @@ async function run() {
         else if (url.pathname === "/actions/addToWatchlist") { watchlisted = true; container = {}; }
         else if (url.pathname === "/actions/removeFromWatchlist") {
             assert.strictEqual(options.headers["X-Plex-Token"], "synthetic-account-token");
-            watchlisted = false; container = {};
+            if (!ignoreWatchlistWrite) { watchlisted = false; }
+            container = {};
         } else if (url.pathname === "/library/sections") {
             container = { Directory: [{ key: "3", type: "artist", title: "Music" }, { key: "4", type: "photo", title: "Photos" },
                 { key: "2", type: "show", title: "TV library" }, { key: "1", type: "movie", title: "Movies" }] };
@@ -167,9 +169,18 @@ async function run() {
         click("Remove from Watchlist"); await settle();
         click("Cancel"); await settle();
         assert(watchlisted, "Cancelled Watchlist changes must not write");
+        ignoreWatchlistWrite = true;
         click("Remove from Watchlist"); await settle();
         click("Confirm"); click("Confirm"); await settle();
-        assert.strictEqual(calls.filter(function (call) { return call.path === "/actions/removeFromWatchlist"; }).length, 1);
+        assert(/not confirmed/i.test(window.document.getElementById("status").textContent),
+            "HTTP success with unchanged Watchlist membership cannot report acceptance");
+        assert(watchlisted);
+        click("Cancel"); await settle();
+        ignoreWatchlistWrite = false;
+        click("Remove from Watchlist"); await settle();
+        click("Confirm"); click("Confirm"); await settle();
+        assert.strictEqual(calls.filter(function (call) { return call.path === "/actions/removeFromWatchlist"; }).length, 2,
+            "Only the two explicitly confirmed actions write; repeated OK or failed read-back cannot replay writes");
         click("Refresh"); await settle();
         assert(window.document.body.textContent.includes("Your Watchlist is empty."));
         click("Back"); await settle();

@@ -3,14 +3,18 @@ var assert = require("assert");
 var plex = require("../../samsung/Vemm/js/plex-api");
 async function run() {
     var calls = [];
+    var listed = false;
     var api = plex.createAccountClient({
         token: "synthetic-account-token", clientIdentifier: "synthetic-client",
         fetch: function (target, options) {
             var url = new URL(target);
             calls.push({ url: url, options: options });
+            if (url.pathname === "/actions/addToWatchlist") { listed = true; }
+            if (url.pathname === "/actions/removeFromWatchlist") { listed = false; }
             var item = { type: "movie", guid: "plex://movie/5d776b59ad5437001f79c6f8",
                 key: "/library/metadata/5d776b59ad5437001f79c6f8" };
-            var container = url.pathname === "/library/search" ? { SearchResults: [
+            var container = url.pathname === "/library/sections/watchlist/all" ?
+                { Metadata: listed ? [item] : [], size: listed ? 1 : 0 } : url.pathname === "/library/search" ? { SearchResults: [
                 { id: "local", SearchResult: [{ Metadata: item }] },
                 { id: "external", SearchResult: [{ Metadata: item }] }
             ] } : url.hostname === "metadata.provider.plex.tv" ? { Metadata: [item] } : { Metadata: [], size: 0 };
@@ -29,12 +33,14 @@ async function run() {
     assert(!call.url.searchParams.has("X-Plex-Token"));
     var guid = "plex://movie/5d776b59ad5437001f79c6f8";
     await api.setWatchlist(guid, true);
-    call = calls.pop();
+    call = calls.shift();
     assert.strictEqual(call.url.pathname, "/actions/addToWatchlist");
     assert.strictEqual(call.url.searchParams.get("ratingKey"), guid.split("/").pop());
     assert.strictEqual(call.options.method, "PUT");
+    assert.strictEqual(calls.pop().url.pathname, "/library/sections/watchlist/all", "Mutation has independent read-back");
     await api.setWatchlist(guid, false);
-    assert.strictEqual(calls.pop().url.pathname, "/actions/removeFromWatchlist");
+    assert.strictEqual(calls.shift().url.pathname, "/actions/removeFromWatchlist");
+    assert.strictEqual(calls.pop().url.pathname, "/library/sections/watchlist/all");
     assert.throws(function () { api.setWatchlist("123", true); }, /catalogue identifier/);
     await assert.rejects(api.watchlist("evil", 0), /filter/);
     assert.strictEqual(calls.length, 0, "Invalid identifiers must never reach the network");
