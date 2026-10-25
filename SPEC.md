@@ -86,6 +86,8 @@ negative findings require evidence, not speculation.
 | REQ-TV-STORAGE-01 | Choose DVR storage within the selected destination library. | After a compatible library is selected, show freshly advertised Location IDs/paths, validate bounds/identity and explicitly confirm the selected location. Encode targetSectionLocationID exactly; no guessed path, library change or automatic scheduling. If no locations are advertised, offer only an explicitly labelled Plex-default choice. Cancel/Back and stale responses cannot schedule. | Vemm | in_progress | Observed red television API: missing targetSectionLocationID; actual-main.js media-ui: missing physical-location action. Repaired both. television/media-ui verify exact selected library/location and confirmation/Cancel focus; recording-storage-ui verifies explicit default omission, invalid/duplicate/>50 locations and late response after remote Back. Exact clean 937ca455 full host/source gates and independent frozen scoped review passed, including extra malformed/removed-library probes. No account/tuner operation; real service/native acceptance remains open. |
 | REQ-TV-PRIORITY-01 | Provide explicit recording-priority management for conflicts. | Scheduled recordings link to priorities; a non-first subscription can be explicitly promoted. Validate complete bounded preflight identity/order and selected title, issue one documented move, then verify exact new order. Denied/unchanged/concurrent/stale/cancelled outcomes remain explicit and never replay. State priority acceptance separately from whether Plex resolves tuner conflicts. | Vemm | in_progress | Observed red API missing prioritize; actual UI missing Recording priorities; partial total-size regression also failed before its repair. recording-priority/media-ui pass complete <=200 identity order, named preflight, denied/unchanged/concurrent/duplicate/partial data, deadline, pending-client lock and cancellation. Exact clean 937ca455 full host/source gates and independent frozen scoped review passed, including ten additional priority probes. UI retains unresolved server conflict status after verified priority change. No invented tuner lifecycle or automatic cancellation; real service/native acceptance remains open. |
 
+| REQ-SEARCH-01 | Complete supported search kinds and retire superseded query ownership. | Server search retains the supplied hub/item order and source-client identity for supported clips and video playlists as well as existing movie/show/music/photo kinds. Playlist details use the playlist endpoint, never a library-ID substitute; no search result implicitly starts playback. Editing/clearing the query cancels outstanding reads, clears stale results and keeps the edited query in Back/Retry state. Empty queries issue no requests, denied servers remain explicit, 50-per-hub/200-global bounds and remote Back/focus behavior remain intact. | Vemm | in_progress | Binding BROWSE-3. Observed failing actual-main.js regressions for omitted clip/playlist kinds, late cleared-query results, 1000 retained empty headings, lost Back focus and wrong-source focus for duplicate key 7; repaired through existing card/client/generation/focus seams. search-completeness-ui now exercises correct playlist endpoint, pending query edits, shared bounds and two-client identity. Awaiting committed full gates/scoped review; older-PMS/native acceptance remains unverified. |
+
 ## Interaction-level reconciliation
 
 This extends the same ledger. `implemented` means a source behavior with the
@@ -242,7 +244,17 @@ server-advertised structured editor. API and actual-main.js regressions
 observed missing inspection/action before implementation and now pass nested
 all/any, typed values, ordered sorts/limit, named confirmation, stale/
 unchanged/denied read-back, cancellation and draft/focus restoration.
-Finish its exact committed full gates/scoped review; then continue all other
+Exact clean `cffc986b` passed the full host/28-file ES5/M47 gate and temporary
+unsigned source build. Independent frozen smart review returned REVISE:
+advertised compound sort expressions/descKey are not preserved. Repair that
+finding before any source acceptance; the initial six focused green suites
+did not cover it.
+Current `SEARCH-01` observed and repaired missing clip/video-playlist results,
+stale results after query clearing, 1000 empty headings despite a 200-card cap,
+premature consumption of Back focus and duplicate-key wrong-server focus.
+`search-completeness-ui` exercises the actual source, existing playlist route,
+typed/cleared pending queries, bounds and two distinct clients with key 7.
+Finish its committed gates and the smart-review repair; then continue all other
 original source/feasibility gaps, not a full-spec readiness claim after smart
 rules. Styled/image subtitle equivalence, Live TV consumer ownership, broader
 offline auth/grants, audio sync/dialog/normalization, co-viewing, installer and

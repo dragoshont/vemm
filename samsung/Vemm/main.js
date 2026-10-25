@@ -202,6 +202,7 @@
             var detailMore = document.querySelector("#screen .detail-more");
             navigation.push({ restore: restoreView, focus: controls.indexOf(document.activeElement), scroll: screen.scrollTop,
                 mediaKey: focusedItem ? String(focusedItem.item.ratingKey) : null, view: screen.className,
+                mediaServer: focusedItem && focusedItem.options.serverId || null,
                 detailMore: !!detailMore && !detailMore.hidden });
             if (navigation.length > 20) { navigation.shift(); }
         }
@@ -532,7 +533,8 @@
             if (previous.mediaKey) {
                 var cards = Array.prototype.filter.call(controls, function (node) { return node.vemmCard; });
                 var retainedCard = cards.filter(function (node) {
-                    return String(node.vemmCard.item.ratingKey) === previous.mediaKey;
+                    return String(node.vemmCard.item.ratingKey) === previous.mediaKey &&
+                        (!previous.mediaServer || node.vemmCard.options.serverId === previous.mediaServer);
                 })[0] || cards[0];
                 if (retainedCard) {
                     retainedCard.focus();
@@ -1882,7 +1884,7 @@
         input.maxLength = 200;
         input.value = typeof savedQuery === "string" ? savedQuery : "";
         retryView = function () { openSearch(input.value); };
-        input.setAttribute("aria-label", "Search movies and television");
+        input.setAttribute("aria-label", translate("Search your servers"));
         screen.appendChild(input);
         var recents = element("section", "search-recents");
         var results = element("div", "search-results");
@@ -1938,10 +1940,13 @@
                             return client.search(query).then(function (container) {
                                 if (searchGeneration !== viewGeneration) { return; }
                                 (container.Hub || []).forEach(function (hub) {
+                                    if (shown >= 200) { return; }
                                     if (hub.type === "actor" || hub.type === "director") {
+                                        var matches = (hub.Directory || []).slice(0, Math.max(0, Math.min(50, 200 - shown)));
+                                        if (!matches.length) { return; }
                                         var people = element("section", "people-results");
                                         people.appendChild(element("h3", "", hub.title || "Cast and crew"));
-                                        (hub.Directory || []).slice(0, Math.max(0, Math.min(50, 200 - shown))).forEach(function (person) {
+                                        matches.forEach(function (person) {
                                             button(people, person.tag || "Person", function () {
                                                 visit(function () { openPerson(person, client); });
                                             }, true);
@@ -1951,7 +1956,8 @@
                                         return;
                                     }
                                     var items = (hub.Metadata || []).filter(function (item) {
-                                        return ["movie", "show", "season", "episode", "collection", "artist", "album", "track", "photo", "photoalbum"].indexOf(item.type) !== -1;
+                                       return ["movie", "show", "season", "episode", "clip", "collection", "artist", "album", "track", "photo", "photoalbum"].indexOf(item.type) !== -1 ||
+                                           item.type === "playlist" && item.playlistType === "video";
                                     });
                                     if (!items.length) { return; }
                                     var shelf = element("section", "shelf");
@@ -1959,7 +1965,7 @@
                                     var row = element("div", "shelf-row");
                                     shelf.appendChild(row);
                                     items.slice(0, Math.max(0, Math.min(50, 200 - shown))).forEach(function (item) {
-                                        card(row, item, client); shown += 1;
+                                        card(row, item, client, null, { serverId: server ? server.id : currentServerId }); shown += 1;
                                     });
                                     results.appendChild(shelf);
                                 });
@@ -1978,6 +1984,7 @@
                                 setStatus(failures ? "Some servers could not be searched. Retry or change server." :
                                     shown >= 200 ? "Showing 200 results. Refine your search for more." :
                                         results.firstChild ? "Search complete." : "No matching media found.", failures > 0);
+                                if (pendingRestore) { focusFirst(); }
                             } else { pump(); }
                         });
                     }(targets[index++]));
@@ -1992,12 +1999,22 @@
         input.addEventListener("keydown", function (event) {
             if (event.keyCode === 13) { event.preventDefault(); search(); }
         });
-        input.addEventListener("input", function () { if (!input.value.trim()) { clear(results); } renderRecents(); });
+        input.addEventListener("input", function () {
+            viewGeneration += 1;
+            pendingRestore = null;
+            cancelViewRequests();
+            clear(results);
+            resetImages();
+            restoreView = function () { openSearch(input.value); };
+            retryView = restoreView;
+            renderRecents();
+            setStatus("");
+        });
         restoreView = function () { openSearch(input.value); };
         renderRecents();
         setStatus("");
-        focusFirst();
-        if (typeof savedQuery === "string" && savedQuery) { search(); }
+        if (typeof savedQuery === "string" && savedQuery) { focusLoading(); search(); }
+        else { focusFirst(); }
     }
 
     function openDetail(id, client, videoPlaylist) {

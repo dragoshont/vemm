@@ -56,6 +56,12 @@ unknown or over-limit rules stop editing rather than being silently removed.
 No arbitrary network/filter URI can be pasted, and artwork is not rule data.
 Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
 
+Server search includes supported clip and video-playlist results. Playlist
+details retain their source server and playlist-specific identity; opening a
+result does not start playback. Editing or clearing a query retires its old
+requests/results. Back waits for results before restoring the exact server/item
+focus; retained results and headings share the 200-result bound.
+
 DVR scheduling offers fresh storage locations within the chosen library, or an
 explicit Plex-default choice when none are advertised; it never picks a hidden
 default or creates a recording while browsing. Scheduled recordings link to
