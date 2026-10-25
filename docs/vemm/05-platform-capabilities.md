@@ -169,6 +169,59 @@ systems lack such controls. Audible converted-volume behavior, entitlement
 and exact-model output/timing acceptance remain open. No private audio API,
 additional privilege or persistent TV audio-setting change is introduced.
 
+## Live tuner ownership gate
+
+The bundled [PMS OpenAPI](../plex-openapi.json) documents
+`POST /livetv/dvrs/{dvrId}/channels/{channel}/tune`, read-only session
+enumeration/metadata, and consumer-specific HLS index/segment reads.
+It does not establish consumer allocation, keepalive or release semantics.
+A session ID or playable-looking HLS path does not prove that a client can
+own, cancel or release the tuner safely. Guide/DVR UI and subscription
+requests therefore remain separate from live tuner acceptance.
+
+No explicitly disposable, entitled account/server/tuner context has been
+established. Do not experimentally allocate household tuners, infer a release
+request from an endpoint name, or turn a synthetic HTTP success into a real
+ownership contract. Live output, conflicts, interruption/cancellation,
+release read-back and DVR mutations remain blocked on that context and the
+missing ownership contract; the retained guide is not presented as live tuning.
+
+## Community distribution pilot
+
+The current [TizenBrew installation guide](https://github.com/reisxd/TizenBrew/blob/main/docs/README.md)
+distinguishes its installer from the installed TizenBrew container. Its
+[module guide](https://github.com/reisxd/TizenBrew/blob/main/docs/MODULES.md)
+defines application modules as served pages, with separate key/service
+configuration. Neither is proof that a standalone WGT can become a module
+without adapting public APIs, storage, privileges and lifecycle.
+
+The least-change pilot candidate is the documented desktop standalone-WGT importer,
+not moving real Plex credentials into a shared container. However, the guide
+describes Samsung account/certificate setup for newer TVs. Inspection of the
+installer at
+[`579e2d2a`](https://github.com/reisxd/TizenBrewInstaller/tree/579e2d2a7826709a5f9bea93bdeacbcea21a607b)
+establishes a more specific gate: its
+[`resignOrInstall`](https://github.com/reisxd/TizenBrewInstaller/blob/579e2d2a7826709a5f9bea93bdeacbcea21a607b/client/services/tizenbrew-installer-service/index.js#L197-L219)
+path requires configured author/distributor certificates for Tizen 7+ and
+resigns imported files. The
+[`resignPackage`](https://github.com/reisxd/TizenBrewInstaller/blob/579e2d2a7826709a5f9bea93bdeacbcea21a607b/client/services/tizenbrew-installer-service/utils/SamsungCertificateCreation.js#L23-L51)
+helper removes existing signature XML before signing with those configured
+certificates. Importing an already signed Vemm WGT is therefore not proof of
+retaining its approved author on the known Tizen 9 targets. Existing Vemm
+certificates are not exported into this third-party configuration.
+No account sign-in, new certificate, module publication,
+container install or TV Host PC setting change is authorized by reading it.
+Its instructions to reboot or change Developer Mode are not executed here.
+
+The isolated Vemm QA widget and generated media can supply a synthetic
+workload, but its SDK installation is **not** the community-adapter pilot.
+Exact installer/source and author behavior must be pinned/verified, followed
+by model-specific API, storage-isolation, lifecycle, update and rollback
+checks. The current five-TV developer-transport outage also blocks the ordinary
+native lane. Neither a community pilot nor alternate-channel support or an
+install shortcut is advertised.
+These two community guides were read on 2026-10-25.
+
 ## Future platforms
 
 Future clients may supply native capability providers and playback backends,
