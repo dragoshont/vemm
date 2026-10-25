@@ -262,6 +262,23 @@ and version0.2.0; bind source, exact signed package and raw installed-version
 read-back per target. Do not represent version read-back as loaded-source or
 sign-in continuity measurement. No fake/QA backend substitutes for delivery.
 
+Executed against clean source7790de3e (product bytes identical to independently
+reviewed dc82768c). Exact production unsigned payload SHA256
+`d79262cf3a5a7fa252f1eab2a8ef906f440beb8fb5ca432e030cd620ed3c768a`;
+existing-profile signed WGT SHA256
+`71c3894c7aa6f0b5c2e3d486b013d28dacc3cccbd908331d46736dcea61a275b`.
+Complete-source/inventory checks and unsigned SDK build passed; retained
+previously installed production author chain matched and profile stayed unchanged.
+Fresh Ethernet/original-DUID matched normal updates succeeded on Q80C
+(`tv-7f3a87`) and QN70F (`tv-9efa36`), with SDK success and raw installed0.2.0
+read-back. MU6172 (`tv-edcfc1`) and the two distinct RU7092 units
+(`tv-272d7b`, `tv-351f2b`) were not freshly discovered, so no mutation attempted.
+No uninstall, data clear, relink, app launch, playback, household API write,
+QA replacement or publication occurred; owned connections/lane were released.
+This is in-place installation evidence, not inspected sign-in/data continuity,
+loaded-source proof, independent signature trust validation or full acceptance.
+The same0.2.0 version is distinguished by exact submitted source/package receipts.
+
 7c234c65 source review returned REVISE: making open await startup resume exposed
 the controller's generic Direct Play decoder fallback to a terminal seek
 timeout. It negotiated a second source and tried native close while the
@@ -411,6 +428,9 @@ blanket SDK blocker or silently accept unmeasured behavior.
 ## Handoff
 
 Next: preserve the independently reviewed dc82768c product-source freeze.
+Authorized production in-place updates from source7790de3e are now confirmed
+on the two reachable identity-matched Q80C/QN70F targets; the other three known
+TVs were undiscovered. Do not imply all five updated or all acceptance passed.
 The7c startup finding is source-closed; exact clean full host and unsigned
 source gates passed. No new source defect is named by that scoped review.
 Do not manufacture optional work or turn scoped closure into final delivery.
