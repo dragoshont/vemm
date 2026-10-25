@@ -110,6 +110,26 @@ before clear. Clear failure is visible and explicitly retryable. A lost creation
 response without a usable queue ID cannot be reconciled by inventing an ID or
 replaying a write automatically.
 
+Initial and next-track metadata must match the selected queue entry's
+`ratingKey`, have type `track`, and pass the existing playback plan's selected
+media Part/key and audio Stream checks before ownership is committed or current
+audio is stopped. Invalid next metadata leaves the current session and queue
+selection intact, including pause intent, with explicit Retry/Cancel. Invalid
+initial metadata retires the newly created queue before another create is
+allowed.
+
+Creation and retirement have separate interlocks: cancelling a create does not
+permit a second POST while the first response is outstanding, and neither a
+late cancelled queue nor a stopped queue can be replaced until its clear
+response drains. Malformed projections still require their revision, selected
+offset and shuffle fields; they are not repaired with defaults. If a malformed
+projection has a valid queue ID but its cleanup fails, the API error retains
+that ID as a cleanup-only owner. The UI keeps the owner behind the retirement
+interlock and offers explicit cleanup retry, never replaying creation to recover
+it. Repeated cleanup controls join the outstanding clear request instead of
+starting concurrent writes. These are music-only ownership changes; the video
+queue contract is unchanged.
+
 `music-queue.test.js` traverses 321 entries with duplicate library keys, string
 queue IDs, versions, repeat boundaries, shuffle, cancellation and retryable
 cleanup. `music-queue-ui.test.js` uses the actual app's music screens and remote
@@ -118,6 +138,11 @@ metadata interruption/retry, cancelled paging, shuffle, previous/next,
 repeat-one, pause intent and cleanup failure/retry. `media-ui.test.js` also
 binds music timelines and stop to the server queue. These are host contracts,
 **not live PMS, named-TV native audio or Plexamp/native-output parity evidence**.
+The ownership regressions additionally cover wrong initial/next identity/type,
+missing Part/key/audio Stream facts, malformed projection cleanup failures,
+cancel/restart before late creation/retirement drains and coalesced explicit
+cleanup retry. No disposable backend is available; these tests do not authorize
+household-profile or live-PMS writes.
 
 ---
 

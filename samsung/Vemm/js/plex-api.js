@@ -1137,7 +1137,12 @@
                     }
                     catch (error) {
                         var id = queueId(container.playQueueID);
-                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () { throw error; });
+                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                            throw error;
+                        }, function (cleanupError) {
+                            cleanupError.musicQueueCleanupId = id;
+                            throw cleanupError;
+                        });
                     }
                 });
             },

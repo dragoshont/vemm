@@ -56,6 +56,33 @@ var client = api.createClient({ baseUrl: "https://pms.synthetic.invalid", token:
     }
 });
 async function run() {
+    var malformedCalls = [];
+    var malformedContainer = { playQueueID: "77" };
+    var malformedClient = api.createClient({ baseUrl: "https://pms.synthetic.invalid",
+        fetch: function (target, options) {
+            malformedCalls.push({ path: new URL(target).pathname, method: options.method });
+            return Promise.resolve(options.method === "POST" ? {
+                ok: true, status: 200, json: function () {
+                    return Promise.resolve({ MediaContainer: malformedContainer });
+                }
+            } : { ok: false, status: 503 });
+        }
+    });
+    await assert.rejects(malformedClient.createMusicPlayQueue("synthetic-server", "30", false), function (error) {
+        assert.strictEqual(error.musicQueueCleanupId, "77", "Malformed projection cleanup failure must retain the known owner");
+        return /503/.test(error.message);
+    });
+    assert.deepStrictEqual(malformedCalls, [
+        { path: "/playQueues", method: "POST" }, { path: "/playQueues/77/items", method: "DELETE" }
+    ], "A malformed creation is not automatically replayed");
+    for (var field of ["playQueueVersion", "playQueueSelectedItemOffset", "playQueueShuffled"]) {
+        malformedContainer = projection();
+        malformedContainer.playQueueID = "77";
+        delete malformedContainer[field];
+        await assert.rejects(malformedClient.createMusicPlayQueue("synthetic-server", "30", false), function (error) {
+            return error.musicQueueCleanupId === "77" && /503/.test(error.message);
+        }, "Required revision/offset/shuffle fields must remain strict when preserving cleanup ownership");
+    }
     var queue = queues.createServer(client, await client.createMusicPlayQueue("synthetic-server", "30", false));
     for (var i = 1; i <= 320; i += 1) {
         var next = await queue.peek(1, false);

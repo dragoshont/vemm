@@ -70,6 +70,9 @@
     var videoCreating = false;
     var videoRetiring = null;
     var musicLoading = false;
+    var musicCreating = false;
+    var musicRetiring = null;
+    var musicRetirement = null;
     var musicGeneration = 0;
     var queueShuffle = false;
     var queueRepeat = "off";
@@ -3091,30 +3094,44 @@
         focusFirst();
     }
 
+    function validateMusicItem(item, expected, mediaIndex) {
+        if (!item || String(item.ratingKey) !== String(expected) || item.type !== "track") {
+            throw new Error("Plex returned metadata for a different queue item. Reload before playing.");
+        }
+        window.VemmPlayback.plan(item, { mediaIndex: mediaIndex || 0, quality: preferences.quality,
+            profile: directPlayProfile(), directPlay: preferences.directPlay });
+    }
+
     function startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions) {
-        if (musicLoading || player || playerClosing) { return; }
+        if (musicLoading || player || playerClosing || document.hidden) { return; }
+        if (musicRetiring) {
+            musicQueuePanel(new Error("The previous music queue still needs cleanup. Retry cleanup before playing again."),
+                function () { releaseMusicQueue(musicRetiring); });
+            return;
+        }
+        if (musicCreating) { setStatus("Wait for the cancelled music queue request to finish.", true); return; }
         musicLoading = true;
+        musicCreating = true;
         var request = ++musicGeneration;
         var generation = viewGeneration;
         var cancelled = false;
         var owned = null;
         var cleanup = function () {
             cancelled = true;
-            musicGeneration += 1;
-            musicLoading = false;
-            if (owned) { releaseMusicQueue(owned); }
+            if (request === musicGeneration) { musicGeneration += 1; musicLoading = false; }
+            if (owned) { releaseMusicQueue(owned); owned = null; }
         };
         viewCleanup = cleanup;
         musicQueuePanel(null, null, cleanup);
         setStatus(translate("Loading music queue..."));
         client.createMusicPlayQueue(currentServerId, item.ratingKey, shuffle).then(function (projection) {
             owned = window.VemmQueue.createServer(client, projection);
-            if (cancelled || generation !== viewGeneration || player) { releaseMusicQueue(owned); owned = null; return; }
+            if (cancelled || generation !== viewGeneration || player || document.hidden) { cleanup(); return; }
             return client.getMetadata(owned.current().ratingKey).then(function (track) {
-                if (cancelled || generation !== viewGeneration || player) {
-                    releaseMusicQueue(owned); owned = null; return;
+                if (cancelled || generation !== viewGeneration || player || document.hidden) {
+                    cleanup(); return;
                 }
-
+                validateMusicItem(track, owned.current().ratingKey, mediaIndex);
                 musicQueue = owned;
                 owned = null;
                 viewCleanup = null;
@@ -3123,12 +3140,23 @@
                 startPlayer(track, client, offset || 0, mediaIndex, trackOptions);
             });
         }).catch(function (error) {
-            if (owned) { releaseMusicQueue(owned); owned = null; }
-            if (!cancelled && generation === viewGeneration) {
-                viewCleanup = null;
-                musicQueuePanel(error, function () { startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions); });
+            if (error.musicQueueCleanupId) {
+                var id = error.musicQueueCleanupId;
+                musicRetiring = { close: function () { return client.clearMusicPlayQueue(id); } };
+                var retiring = musicRetiring;
+                musicQueuePanel(error, function () { releaseMusicQueue(retiring); });
+                return;
             }
+            var retirement = owned ? releaseMusicQueue(owned) : Promise.resolve(true);
+            owned = null;
+            return retirement.then(function (released) {
+                if (released && !cancelled && generation === viewGeneration) {
+                    if (viewCleanup === cleanup) { viewCleanup = null; }
+                    musicQueuePanel(error, function () { startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions); });
+                }
+            });
         }).then(function () {
+            musicCreating = false;
             if (viewCleanup === cleanup) { viewCleanup = null; }
             if (request === musicGeneration) { musicLoading = false; }
         });
@@ -3392,15 +3420,23 @@
     }
 
     function releaseMusicQueue(queue) {
-        if (!queue || !queue.close) { return; }
+        if (!queue || !queue.close) { return Promise.resolve(true); }
+        if (musicRetiring === queue && musicRetirement) { return musicRetirement; }
         if (musicQueue === queue) {
             musicQueue = null;
             musicGeneration += 1;
             musicLoading = false;
         }
-        queue.close().catch(function (error) {
+        musicRetiring = queue;
+        musicRetirement = queue.close().then(function () {
+            if (musicRetiring === queue) { musicRetiring = null; musicRetirement = null; }
+            return true;
+        }).catch(function (error) {
+            musicRetirement = null;
             musicQueuePanel(error, function () { releaseMusicQueue(queue); });
+            return false;
         });
+        return musicRetirement;
     }
 
     function musicQueuePanel(error, retry, cancel) {
@@ -3489,6 +3525,7 @@
             }
             return client.getMetadata(candidate.item.ratingKey).then(function (track) {
                 if (!current()) { return; }
+                validateMusicItem(track, candidate.item.ratingKey, 0);
                 var paused = owner.snapshot().state === "paused";
                 return stopPlayer(function () {
                     if (request !== musicGeneration) { releaseMusicQueue(queue); return; }

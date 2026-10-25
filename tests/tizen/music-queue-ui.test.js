@@ -24,11 +24,15 @@ async function run() {
     var queueNumber = 0;
     var failCreate = true;
     var failMetadata = false;
+    var metadataFault = null;
     var failClear = false;
     var delayCreate = false;
     var delayPage = false;
+    var delayClear = false;
+    var malformedProjection = false;
     var completeCreate;
     var completePage;
+    var completeClear;
     function response(container) {
         return { ok: true, status: 200, json: function () { return Promise.resolve({ MediaContainer: container }); } };
     }
@@ -67,7 +71,12 @@ async function run() {
         else if (url.pathname === "/library/metadata/3000") { container = { Metadata: [album] }; }
         else if (/^\/library\/metadata\/\d+$/.test(url.pathname)) {
             if (failMetadata) { failMetadata = false; return Promise.resolve({ ok: false, status: 503 }); }
-            container = { Metadata: [tracks[Number(url.pathname.split("/").pop()) - 1]] };
+            var metadata = tracks[Number(url.pathname.split("/").pop()) - 1];
+            if (metadataFault) {
+                metadata = metadataFault(JSON.parse(JSON.stringify(metadata)));
+                metadataFault = null;
+            }
+            container = { Metadata: [metadata] };
         } else if (url.pathname === "/playQueues") {
             assert.strictEqual(url.searchParams.get("type"), "audio");
             if (failCreate) { failCreate = false; return Promise.resolve({ ok: false, status: 503 }); }
@@ -75,6 +84,7 @@ async function run() {
             var queue = { id: id, order: tracks.slice(), selected: 0, version: 1, shuffled: false };
             queues[id] = queue;
             container = projection(queue);
+            if (malformedProjection) { delete container.playQueueVersion; malformedProjection = false; }
             if (delayCreate) {
                 delayCreate = false;
                 return new Promise(function (resolve) { completeCreate = function () { resolve(response(container)); }; });
@@ -85,6 +95,12 @@ async function run() {
             assert(active);
             if (parts[3] === "items") {
                 if (failClear) { failClear = false; return Promise.resolve({ ok: false, status: 503 }); }
+                if (delayClear) {
+                    delayClear = false;
+                    return new Promise(function (resolve) {
+                        completeClear = function () { active.cleared = true; resolve({ ok: true, status: 204 }); };
+                    });
+                }
                 active.cleared = true;
                 return Promise.resolve({ ok: true, status: 204 });
             }
@@ -155,11 +171,51 @@ async function run() {
         delayCreate = true;
         press("Retry playback"); await settle();
         press("Cancel", window.document.getElementById("music-queue-panel"));
+        var beforeCancelledCreate = queueNumber;
+        press("Play album"); await settle();
+        assert.strictEqual(queueNumber, beforeCancelledCreate, "Cancel must not permit a second create before the first response arrives");
+        delayClear = true;
         completeCreate(); await settle();
+        press("Play album"); await settle();
+        assert.strictEqual(queueNumber, beforeCancelledCreate, "Late cancelled creation must retire before a replacement is created");
+        completeClear(); await settle();
         assert(queues["9007199254740991"].cleared, "Cancelled creation clears its eventual owned queue");
         assert.strictEqual(opens, 0, "Late queue creation cannot start playback");
+        press("Cancel", window.document.getElementById("music-queue-panel"));
         press("Play album"); await settle();
         assert.strictEqual(title(), tracks[0].title);
+        var badMetadata = [
+            function (track) { track.ratingKey = "9000"; return track; },
+            function (track) { track.type = "movie"; return track; },
+            function (track) { delete track.Media; return track; },
+            function (track) { track.Media[0].Part = []; return track; },
+            function (track) { delete track.Media[0].Part[0].key; return track; },
+            function (track) { track.Media[0].Part[0].Stream = [{ streamType: 1, codec: "h264" }]; return track; }
+        ];
+        press("Pause / Play"); await settle();
+        for (var fault of badMetadata) {
+            var beforeInvalid = calls.length;
+            var beforeOpens = opens;
+            metadataFault = fault;
+            await next();
+            assert.strictEqual(title(), tracks[0].title, "Invalid next metadata must preserve current item and queue selection");
+            assert.strictEqual(state, "PAUSED", "Validation failure cannot discard pause intent");
+            assert.strictEqual(opens, beforeOpens);
+            assert(!calls.slice(beforeInvalid).some(function (call) {
+                return call.path === "/music/:/transcode/universal/stop" ||
+                    call.path === "/:/timeline" && call.query.get("state") === "stopped";
+            }), "Reject wrong identity/type/unplayable metadata before stopping current audio");
+            assert(window.document.querySelector('#music-queue-panel[role="alertdialog"]'));
+            press("Cancel", window.document.getElementById("music-queue-panel"));
+        }
+        metadataFault = badMetadata[0];
+        await next();
+        press("Retry playback"); await settle();
+        assert.strictEqual(title(), tracks[1].title, "Identity validation Retry must retry the same uncommitted next entry");
+        assert.strictEqual(state, "PAUSED", "Successful validation Retry preserves the original pause intent");
+        press("More"); press("Previous track"); await settle();
+        assert.strictEqual(title(), tracks[0].title);
+        press("Pause / Play"); await settle();
         failMetadata = true;
         await next();
         assert.strictEqual(title(), tracks[0].title, "Metadata outage preserves the current queue entry");
@@ -214,6 +270,50 @@ async function run() {
         Object.defineProperty(window.document, "hidden", { configurable: true, value: false });
         window.document.dispatchEvent(new window.Event("visibilitychange")); await settle();
         assert.strictEqual(opens, beforeHide, "Foreground recovery must not autoplay music");
+        for (fault of badMetadata) {
+            beforeOpens = opens;
+            metadataFault = fault;
+            press("Play"); await settle();
+            assert.strictEqual(opens, beforeOpens, "Invalid initial metadata cannot open an AVPlay session");
+            assert(queues["900719925474099" + queueNumber].cleared, "Invalid initial metadata retires its created queue");
+            assert(window.document.querySelector('#music-queue-panel[role="alertdialog"]'));
+            press("Cancel", window.document.getElementById("music-queue-panel"));
+        }
+        malformedProjection = true; failClear = true;
+        press("Play"); await settle();
+        var malformedId = "900719925474099" + queueNumber;
+        assert(!queues[malformedId].cleared);
+        assert(window.document.querySelector('#music-queue-panel[role="alertdialog"]'));
+        var beforeRetirement = queueNumber;
+        press("Cancel", window.document.getElementById("music-queue-panel"));
+        press("Play"); await settle();
+        assert.strictEqual(queueNumber, beforeRetirement, "Known malformed queue cleanup blocks replacement creation");
+        assert(!queues[malformedId].cleared, "Blocked create must not silently retry the failed cleanup write");
+        delayClear = true;
+        press("Retry playback"); await settle();
+        assert(completeClear, "Cleanup retry retains the original malformed queue owner");
+        press("Play"); await settle();
+        assert.strictEqual(queueNumber, beforeRetirement, "Pending retirement blocks new creates until the response drains");
+        var beforeCleanupRetry = calls.filter(function (call) { return call.method === "DELETE"; }).length;
+        press("Retry playback"); await settle();
+        assert.strictEqual(calls.filter(function (call) { return call.method === "DELETE"; }).length, beforeCleanupRetry,
+            "Repeated explicit cleanup controls join the existing retirement instead of replaying its write");
+        press("Play"); await settle();
+        completeClear(); await settle();
+        assert(queues[malformedId].cleared);
+        press("Cancel", window.document.getElementById("music-queue-panel"));
+        press("Play"); await settle();
+        assert.strictEqual(state, "PLAYING", "Music restarts after known retirement has actually completed");
+        delayClear = true;
+        press("More"); press("Stop and return to details"); await settle();
+        beforeRetirement = queueNumber;
+        press("Play"); await settle();
+        assert.strictEqual(queueNumber, beforeRetirement, "Normal stop retirement also interlocks replacement creation");
+        completeClear(); await settle();
+        press("Cancel", window.document.getElementById("music-queue-panel"));
+        press("Play"); await settle();
+        assert.strictEqual(state, "PLAYING");
+        press("More"); press("Stop and return to details"); await settle();
         console.log("Tizen actual music UI: >200 tracks, server order/shuffle, repeat/manual skip, pause, failure/retry, cancellation and cleanup passed");
     } finally { dom.window.close(); }
 }

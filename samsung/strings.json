@@ -59,6 +59,14 @@
     "es": "Espera a que termine la solicitud cancelada de la cola de vídeo.",
     "be": "Дачакайцеся завяршэння скасаванага запыту чаргі відэа."
   },
+  "Wait for the cancelled music queue request to finish.": {
+    "es": "Espera a que termine la solicitud cancelada de la cola de música.",
+    "be": "Дачакайцеся завяршэння скасаванага запыту чаргі музыкі."
+  },
+  "The previous music queue still needs cleanup. Retry cleanup before playing again.": {
+    "es": "La cola de música anterior aún debe vaciarse. Reintenta la limpieza antes de reproducir de nuevo.",
+    "be": "Папярэднюю чаргу музыкі яшчэ трэба ачысціць. Паўтарыце ачыстку перад новым прайграваннем."
+  },
   "The previous video queue still needs cleanup. Retry cleanup before playing again.": {
     "es": "La cola de vídeo anterior aún debe vaciarse. Reintenta la limpieza antes de reproducir de nuevo.",
     "be": "Папярэднюю чаргу відэа яшчэ трэба ачысціць. Паўтарыце ачыстку перад новым прайграваннем."

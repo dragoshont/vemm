@@ -19,7 +19,7 @@ var photos = [1, 2].map(function (id) {
 });
 async function run() {
     var dom = new JSDOM(fs.readFileSync(path.join(app, "index.html"), "utf8"), {
-        url: "https://app.synthetic.invalid", runScripts: "outside-only"
+        url: "https://app.synthetic.invalid", runScripts: "outside-only", pretendToBeVisual: true
     });
     var window = dom.window;
     var calls = [];
