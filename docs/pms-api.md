@@ -28,10 +28,22 @@ Replacement planning precedes stopping the existing player. Retry retains
 owned pause intent across native errors; Up Next freezes while buffering.
 The actual-main/controller/adapter regressions live in
 `tests/tizen/core-playback-ui.test.js`; hardware/service acceptance is separate.
-The native seek adapter now verifies/restores actual decoder state against the
-latest owned play/pause intent on success and failure/timeout, including pending
-user controls and a late callback only for the latest still-owned operation.
-It reports a restoration refusal instead of trusting a stale paused enum.
+The native seek adapter verifies/restores actual decoder state against latest
+owned play/pause intent after a native success/error callback. Samsung's
+[seekTo constraint](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-seekTo)
+requires waiting for that callback before other playback APIs. Pending user
+controls queue intent. A missing-callback timeout becomes terminal error,
+without claiming verified native pause or admitting another seek; a late owned
+callback can restore intent but cannot turn the failure into success.
+After post-callback buffering, a fresh
+[getCurrentTime](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-getCurrentTime)
+updates the cached clock/UI. QN70F tracing observed a second buffering cycle
+after success that moved the native clock from provisional18021 to19029ms;
+callback time alone is not final landed-position acceptance.
+Restoration refusal/unreadable or invalid native clocks are explicit failures.
+Startup offsets use that same owned operation after starting native playback,
+not an unanswered READY-state HLS seek followed by a competing fallback.
+Open waits for resume completion; a timeout does not claim playback from zero.
 `avplay-seek-intent.test.js` models those native-state transitions and retired
 callbacks; it does not substitute for re-observing the failed QN70F criterion.
 

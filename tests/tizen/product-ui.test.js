@@ -53,7 +53,11 @@ async function run() {
         close: function () { nativeCalls.push("close"); state = "NONE"; },
         stop: function () { nativeCalls.push("stop"); state = "IDLE"; },
         setDisplayRect: function () {}, setDisplayMethod: function () {},
-        setListener: function (value) { listener = value; },
+        setListener: function (value) {
+            var onTime = value.oncurrentplaytime;
+            value.oncurrentplaytime = function (time) { position = time; onTime(time); };
+            listener = value;
+        },
         prepareAsync: function (success) { state = "READY"; success(); },
         getDuration: function () { return movie.duration; },
         getCurrentTime: function () { return position; },

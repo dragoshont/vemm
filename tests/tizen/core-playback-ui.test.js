@@ -114,7 +114,10 @@ function fixture(options) {
     async function settle() { for (var i = 0; i < 15; i += 1) { await new Promise(function (resolve) { setImmediate(resolve); }); } }
     return { w: w, d: d, item: item, opens: opens, selections: selections, timelines: timelines, timers: timers,
         click: click, settle: settle, state: function () { return state; }, audio: function () { return audio; },
-        stops: function () { return stops; }, event: function (name, value) { listener[name](value); },
+        stops: function () { return stops; }, event: function (name, value) {
+            if (name === "oncurrentplaytime") { position = value; }
+            listener[name](value);
+        },
         close: async function () { w.__stop(); await settle(); dom.window.close(); } };
 }
 

@@ -51,12 +51,20 @@ IDs from the destination Part using matching language/variant metadata or its
 advertised/default tracks, preserve Subtitles off, and discard external cues
 timed for another cut. Invalid replacement plans leave the working player intact.
 These are host contracts, not acceptance of real-PMS output or native audio.
-Seek completion and failure/timeout paths verify actual decoder state against
-the latest owned Play/Pause intent; pending user controls supersede the initial
-seek state. A late callback for the latest still-owned seek may reassert intent
-without rewriting its failed landing. Closed/new sources and superseded seeks
-cannot inherit that callback. Failed native restoration is an explicit player
-error, never a paused-enum success. Exact-source native acceptance is required.
+Seek success/error callbacks verify actual decoder state against the latest
+owned Play/Pause intent. Pending user controls queue intent without calling
+native playback APIs before the callback. An unanswered timeout is an explicit
+terminal error, not verified pause; another seek is refused until the operation
+answers or the source is explicitly retired. A still-owned late callback may
+restore intent but cannot erase that failure or rewrite its landing. Closed/new
+sources cannot inherit it. Post-callback buffering completion refreshes the
+actual native clock, including a second buffer phase that snaps to a keyframe.
+Failed restoration/clock reads are explicit player errors, never enum-only
+success. Exact-source native acceptance remains required.
+Startup resume uses the same owned PLAYING-state seek, avoiding unreliable
+READY-state HLS seeks on older engines. Opening completes only after resume
+answers and the latest intent/native clock are verified. Missing callbacks
+fail explicitly instead of claiming that playback resumed or started over.
 
 Video playlists are server-backed: browse existing playlists, play/shuffle them,
 page their items, and explicitly confirm moving an entry to the beginning.

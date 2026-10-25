@@ -234,6 +234,9 @@ summaries.
 | 2026-10-25 | revise | REVIEW-01, QA-01 | Parent's retained c8 reconstruction scripts are not the original reviewer probes. Reconstructed 02 mocks the controller/adapter and 04 models initial failure rather than actual Pause then native error; neither proves the original real-controller finding. Independently authored core-playback-ui regressions now exercise actual main/controller/adapter with synthetic transport/native decoder, including actual Pause then native onerror. Their observed red/green is host evidence, never hardware output. |
 | 2026-10-25 | revise | PB-01, MARK-01, UI-TRANSPORT-01, QA-01 | Exact 09c85be8 separate QA updated and loaded on original-identity-matched QN70F/Tizen9: native PLAYING1535ms, explicit pause PAUSED1582ms, focused Intro action, then native PLAYING11199ms at paused-seek timeout without UI error. This is a concrete failed pause/seek criterion, not a seek PASS or proven API-versus-input root cause. Verify native state/intent across seek completion, user play/pause while pending, failures/timeouts and retired callbacks. A subsequent observation-only trace could not start: SDK debug timed out before inspector attachment; owned resources/lane were released, without production/household operations. |
 | 2026-10-25 | revise | QA-01, MARK-01, UI-TRANSPORT-01 | Independent 0b888fc1 seek-intent review returned scoped source PASS, not hardware cause/repair acceptance. Fresh exact-source QN70F QA remained PAUSED at10453ms after Intro target8000; call/input trace showed one owned seek, native PAUSED through success, no extra Play. ffprobe independently measured fixture keyframes at0/10.416667/20.833333s, explaining an out-of-window landing under the unchanged7-9s criterion. Fix the synthetic media's keyframe/segment density and verify actual output, not relax the criterion or claim the earlier09 unintended Play explained. |
+| 2026-10-25 | revise | PB-01, UI-TRANSPORT-01, MARK-01, QA-01 | Exact193440c8 native trace separates pause and landing: stable post-buffer Intro8000->8021, slider18000->18026 and8000->8021 all PAUSED. A dedicated forward request18021 returned success at provisional18021, then a second buffering cycle ended at native19029 while UI/cache remained18021. Refresh owned native position after buffering completes; do not accept the earlier callback clock as final landing. Original fixed return windows are not a substitute for testing exact requested targets, stable post-buffer clocks and measured media bounds. |
+| 2026-10-25 | revise | PB-01, UI-TRANSPORT-01, QA-01 | Samsung's public AVPlay seekTo constraint requires waiting for a native success/error callback before other playback APIs. A stricter host native reproduced pending Pause refusal and timeout incorrectly attempting native restoration. Queue latest play/pause intent until the callback, do not read a final clock during an outstanding native seek, and expose an unanswered timeout as terminal failure rather than verified pause; only the still-owned late callback can safely reassert retained intent. Preserve generation/new-source retirement and explicit cleanup errors. |
+| 2026-10-25 | revise | PB-01, QA-01, REVIEW-01 | The older-engine READY-seek fallback also had separate raw seek ownership and assigned the requested offset instead of observing getCurrentTime. A temporary exact assertion observed6690000 versus native0. Subsequent strict-native fixtures observed the extra READY operation and absent shared pending ownership. Replace that path with one PLAYING-state resume using the same bounded owned seek, queued intent, cancellation and observed clock as remote actions; open waits for it and an unanswered operation explicitly fails instead of claiming playback from the start. Older-engine hardware acceptance remains separate. |
 
 ## Execution and acceptance
 
@@ -300,7 +303,7 @@ paused1582ms were observed, but Intro then ended at native PLAYING11199ms
 instead of remaining paused. No UI error appeared. An observation-only trace
 attempt then timed out at SDK debug before inspector attachment; no blanket
 transport failure or successful API trace is inferred.
-The new adapter repair verifies/restores native state against current owned
+The 0b888fc1 adapter repair verifies/restores native state against current owned
 intent on success/failure/timeout, handles pending user controls, and refuses
 an unverified restoration explicitly. Only the latest still-owned timed-out
 seek may reassert intent on its late callback, without rewriting its failed
@@ -308,7 +311,8 @@ landing; source/generation retirement prevents cross-player actions.
 `avplay-seek-intent` observed seven failures before repair, then a separate
 late-timeout-callback failure before its repair. The real main/controller/
 adapter Intro regression also models a native completion resuming output.
-Source checks are not proof of the native cause or successful hardware repair.
+Its timeout/API behavior is superseded by the documented async correction in
+Handoff below. Source checks are not proof of native cause or hardware repair.
 Exact clean 0b888fc1 passed full host/28-file ES5/M47 and unsigned source build,
 and independent immutable seek-delta review returned scoped source PASS,
 including ten additional concurrency/error/retirement probes.
@@ -364,12 +368,25 @@ blanket SDK blocker or silently accept unmeasured behavior.
 
 ## Handoff
 
-Next: freeze the corrected one-second-GOP synthetic fixture, run exact clean
-committed host/source gates, rebind artifacts and rerun native acceptance.
+Next: freeze the post-buffer clock and documented async-seek corrections,
+run exact clean committed host/source gates, independently review the delta,
+rebind artifacts and rerun native acceptance. New host regressions observed
+stale post-buffer position, forbidden pending Pause and timeout restoration;
+repairs publish a fresh clock after post-callback buffering, queue pending
+intent, and treat a missing-callback timeout as terminal failure. The latest
+owned late callback may restore intent without erasing that failure.
+Native observer acceptance must wait for callback completion, clear buffering
+and stable actual clock, then compare the exact requested target and measured
+media boundaries. Do not use a transient callback value as a landed PASS or
+merely widen an old fixed return window.
+Startup resume now shares those guarantees through one owned PLAYING-state
+seek, without first issuing an unreliable READY operation. Verify its
+observed clock, queued controls, timeout and retirement alongside remote seeks.
 The five c8aee1ea findings are source-closed by independently reviewed
 09c85be8, and the seek delta source-closed by independent 0b888fc1 review,
-not overall release acceptance. The installed QN70F QA is now0b888fc1:
-native pause held after Intro but the old sparse-GOP media landed10453ms.
+not overall release acceptance. The installed QN70F QA is now193440c8:
+stable paused Intro and slider-forward/back were observed; dedicated forward
+exposed the provisional-versus-post-buffer clock defect described above.
 Rebind QA staging/signing/observer helpers before the next source-bound run.
 The timed-out09 debug attempt was followed by read-only known-inspector
 discovery (connection reset; no app mutation), then the authorized normal

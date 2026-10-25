@@ -16,24 +16,28 @@ function fake() {
     return native;
 }
 async function run() {
-    // A terminal native event must retire the still-pending READY resume callback.
+    // A terminal native event must retire the still-pending resume callback.
     var native = fake(), events = [];
     var player = av.create({ avplay: native, onEvent: function (event) { events.push(event); } });
     var opening = player.open("https://synthetic.invalid/a", 5000);
     var cancelled = assert.rejects(opening, /cancelled/);
     native.prepares[0].ok();
+    var playsBeforeCompletion = native.plays;
     native.listeners[0].onstreamcompleted();
     native.seeks[0].ok();
-    assert.strictEqual(native.plays, 0, "Completion must invalidate the pending resume: a late callback must not restart playback");
+    assert.strictEqual(native.plays, playsBeforeCompletion, "Completion must invalidate the pending resume: a late callback must not restart playback");
     await cancelled;
     player.close();
     for (var change of ["subtitle", "audio", "version"]) {
-        for (var phase of ["preparing", "paused", "seeking", "completing"]) {
+        for (var phase of ["preparing", "paused", "seeking", "completing", "resuming"]) {
             native = fake(); events = [];
             player = av.create({ avplay: native, onEvent: function (event) { events.push(event); } });
-            opening = player.open("https://synthetic.invalid/old", 0);
+            opening = player.open("https://synthetic.invalid/old", phase === "resuming" ? 5000 : 0);
             var oldFailure = opening.catch(function () {});
-            if (phase !== "preparing") { native.prepares[0].ok(); await opening; }
+            if (phase !== "preparing") {
+                native.prepares[0].ok();
+                if (phase !== "resuming") { await opening; }
+            }
             if (phase === "paused") { player.pause(); }
             var seekFailure;
             if (phase === "seeking") { seekFailure = player.seek(70000).catch(function () {}); }
@@ -52,6 +56,6 @@ async function run() {
             await oldFailure; if (seekFailure) { await seekFailure; } player.close();
         }
     }
-    console.log("Tizen subtitle/audio/version transition matrix: passed (12 stale-callback journeys)");
+    console.log("Tizen subtitle/audio/version transition matrix: passed (15 stale-callback journeys)");
 }
 run().catch(function (error) { console.error(error); process.exitCode = 1; });
