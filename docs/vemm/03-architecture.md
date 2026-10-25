@@ -99,6 +99,45 @@ cached fallback. Cached cards are not offline media: playback, mutations,
 detail reads and grant checks still need their normal reachable endpoints.
 No offline write queue, saved grant extension or media download is added.
 
+### Optional Home layouts
+
+`js/home-layout.js` validates TV-local layout records; `main.js` uses the existing
+Account menu, value rows, selection indicators, D-pad and Back ownership.
+Customization is never an onboarding requirement. Server shelf order, visibility
+and the existing manual featured-title controls are unchanged without a saved
+layout. Hiding a shelf also excludes its preview items from the hero pool.
+
+Persistence requires both the selected server machine identifier and the active
+Plex profile UUID/ID. A manually entered server without verified identities
+can still browse but cannot save a layout. These records grant no access and
+are only applied to metadata already returned through the current client's
+normal authentication, PIN/profile and favourite-library boundaries.
+The separate `vemm-tizen-home-layouts` record stores only server/profile IDs,
+the hero boolean and ordered/hidden shelf IDs, never tokens, origins, titles,
+artwork or media IDs. It holds at most 20 scopes, evicting the oldest saved
+scope, and at most 100 unique shelf choices per scope. Reads reject malformed,
+extra-field, duplicate-scope and oversized (over 1 Mi UTF-16 code units) records.
+
+A shelf identity combines its numeric library section, when supplied, with its
+validated server hub identifier. Saved surviving shelves keep their order;
+new shelves follow in server order; missing shelves are ignored and dropped on
+the next save. Missing/unsafe/duplicate identifiers are not replaced with
+translated labels or array positions: those shelves remain visible and are
+not editable. Shelves beyond the 100-choice customization bound stay visible.
+An intentionally all-hidden Home still exposes Account and recovery copy.
+
+Edits are a draft until Save Home succeeds. Remote Back discards them and returns
+to the opening Account control; a failed save preserves the draft and Retry
+repeats that save. Reset this Home removes only the selected scope. Invalid or
+unreadable saved data produces an explicit error rather than silently appearing
+saved; Retry reads it again and Reset all Home layouts removes only this layout
+record, with reset failures remaining visible. Settings' existing Reset
+preferences also removes layouts. Home-only resets leave interface text,
+reduced motion, converted audio volume and other playback preferences intact.
+Synthetic helper and actual-main.js remote journeys cover these contracts;
+named-TV layout, held keys, restart/PIN switching and standby remain acceptance
+gaps for the exclusive device owner.
+
 ## Historical identity-transition plan and acceptance
 
 The sequence below describes the earlier identity-only transition, not the

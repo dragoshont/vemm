@@ -29,7 +29,7 @@ async function run() {
             return Promise.resolve({ MediaContainer: { totalSize: 75, offset: start, Metadata: items(start, 50) } });
         } });
     };
-    ["js/plex-api.js", "js/home-hero.js", "js/item-menu.js", "js/preferences.js", "js/i18n.js"].forEach(function (file) {
+    ["js/plex-api.js", "js/home-hero.js", "js/home-layout.js", "js/item-menu.js", "js/preferences.js", "js/i18n.js"].forEach(function (file) {
         window.eval(fs.readFileSync(path.join(app, file), "utf8"));
     });
     window.__client = window.PlexApi.createClient({ baseUrl: "https://pms.synthetic.invalid", fetch: window.fetch });
@@ -37,7 +37,8 @@ async function run() {
     var boot = source.lastIndexOf('    addConnectForm("");');
     assert(boot > 0);
     source = source.slice(0, boot) +
-        '    currentClient = window.__client; renderHome([], [{title: "Recent", ' +
+        '    currentClient = window.__client; currentServerId = "synthetic-server"; activeProfile = {id:"synthetic-profile"};' +
+        'renderHome([], [{title: "Recent", ' +
         'hubIdentifier: "home.movies.recent", size: 75, Metadata: ' + JSON.stringify(items(0, 12)) + '}]); }());';
     window.eval(source);
     async function settle() { for (var i = 0; i < 40; i += 1) { await Promise.resolve(); } }
@@ -68,7 +69,7 @@ async function run() {
         assert.deepStrictEqual(pages, [0, 50], "Expanded shelves use bounded PMS pages");
         var finalCard = window.document.querySelectorAll(".item-list .media-card")[74];
         finalCard.focus();
-        button("Back").click();
+        key(10009);
         await settle();
         assert.strictEqual(window.document.activeElement.textContent, "See all",
             "Back restores the exact Home shelf control without reloading Home");

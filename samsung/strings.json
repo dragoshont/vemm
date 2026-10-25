@@ -1,5 +1,42 @@
 {
   "Version {version}": { "es": "Versión {version}", "be": "Версія {version}" },
+  "Customize Home": { "es": "Personalizar Inicio", "be": "Наладзіць галоўны экран" },
+  "Featured title: {state}": { "es": "Título destacado: {state}", "be": "Рэкамендаваны твор: {state}" },
+  "Optional, on this TV only, for this server and profile. Back discards unsaved changes. New shelves follow your saved order. Reset restores server defaults.": {
+    "es": "Opcional, solo en este TV, para este servidor y perfil. Atrás descarta los cambios sin guardar. Las filas nuevas siguen el orden guardado. Restablecer recupera los valores del servidor.",
+    "be": "Неабавязкова, толькі на гэтым тэлевізары, для гэтага сервера і профілю. Назад скасоўвае незахаваныя змены. Новыя паліцы ідуць пасля захаванага парадку. Скід вяртае налады сервера."
+  },
+  "Home customization requires a verified server and profile.": {
+    "es": "Para personalizar Inicio se necesitan un servidor y un perfil verificados.",
+    "be": "Для наладжвання галоўнага экрана патрэбны правераныя сервер і профіль."
+  },
+  "Home customization could not be loaded. Retry or reset all Home layouts.": {
+    "es": "No se pudo cargar la personalización de Inicio. Reintenta o restablece todos los diseños de Inicio.",
+    "be": "Не ўдалося загрузіць налады галоўнага экрана. Паўтарыце спробу або скіньце ўсе макеты галоўнага экрана."
+  },
+  "Reset all Home layouts": { "es": "Restablecer todos los diseños de Inicio", "be": "Скінуць усе макеты галоўнага экрана" },
+  "Could not reset Home layouts. Check app storage permissions.": {
+    "es": "No se pudieron restablecer los diseños de Inicio. Comprueba los permisos de almacenamiento.",
+    "be": "Не ўдалося скінуць макеты галоўнага экрана. Праверце дазволы на сховішча праграмы."
+  },
+  "This shelf has no unique stable identifier and stays visible.": {
+    "es": "Esta fila no tiene un identificador único estable y permanece visible.",
+    "be": "Гэтая паліца не мае ўнікальнага сталага ідэнтыфікатара і застаецца бачнай."
+  },
+  "Show {shelf}": { "es": "Mostrar {shelf}", "be": "Паказаць {shelf}" },
+  "Hide {shelf}": { "es": "Ocultar {shelf}", "be": "Схаваць {shelf}" },
+  "Move {shelf} up": { "es": "Subir {shelf}", "be": "Перамясціць {shelf} вышэй" },
+  "Move {shelf} down": { "es": "Bajar {shelf}", "be": "Перамясціць {shelf} ніжэй" },
+  "Save Home": { "es": "Guardar Inicio", "be": "Захаваць галоўны экран" },
+  "Could not save Home. Check app storage permissions and retry.": {
+    "es": "No se pudo guardar Inicio. Comprueba los permisos de almacenamiento y reintenta.",
+    "be": "Не ўдалося захаваць галоўны экран. Праверце дазволы на сховішча праграмы і паўтарыце спробу."
+  },
+  "Reset this Home": { "es": "Restablecer este Inicio", "be": "Скінуць гэты галоўны экран" },
+  "No visible Home shelves. Use Account, then Customize Home or Settings to restore shelves.": {
+    "es": "No hay filas visibles en Inicio. Ve a Cuenta y luego a Personalizar Inicio o Ajustes para restaurarlas.",
+    "be": "Няма бачных паліц галоўнага экрана. Адкрыйце ўліковы запіс, затым налады галоўнага экрана або налады, каб аднавіць паліцы."
+  },
   "Accessibility": { "es": "Accesibilidad", "be": "Даступнасць" },
   "Reduced motion": { "es": "Movimiento reducido", "be": "Менш анімацыі" },
   "Interface text": { "es": "Texto de la interfaz", "be": "Тэкст інтэрфейсу" },

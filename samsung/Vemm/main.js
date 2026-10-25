@@ -1118,6 +1118,113 @@
         return String(profile && (profile.uuid || profile.id) || "");
     }
 
+    function openHomeLayout(sections, hubs) {
+        var api = window.VemmHomeLayout;
+        var client = currentClient;
+        var server = currentServerId;
+        var profile = homeProfileKey();
+        var layout;
+        function owned() {
+            return currentClient === client && currentServerId === server && homeProfileKey() === profile;
+        }
+        function draw(focusIndex) {
+            viewGeneration += 1;
+            clear(screen);
+            resetImages();
+            page(translate("Customize Home"), "personalization");
+            restoreView = function () { draw(focusIndex); };
+            retryView = restoreView;
+            screen.appendChild(element("p", "help-text",
+                translate("Optional, on this TV only, for this server and profile. Back discards unsaved changes. New shelves follow your saved order. Reset restores server defaults.")));
+            if (!owned() || !api.scoped(server, profile)) {
+                retryView = null;
+                setStatus("Home customization requires a verified server and profile.", true);
+                button(screen, "Back", backView);
+                focusFirst();
+                return;
+            }
+            if (!layout) {
+                try { layout = api.arrange(hubs, api.load(window.localStorage, server, profile)); }
+                catch (error) {
+                    setStatus("Home customization could not be loaded. Retry or reset all Home layouts.", true);
+                    button(screen, "Reset all Home layouts", function () {
+                        try { api.resetAll(window.localStorage); }
+                        catch (resetError) { setStatus("Could not reset Home layouts. Check app storage permissions.", true); return; }
+                        openHomeLayout(sections, hubs);
+                    });
+                    button(screen, "Back", backView);
+                    focusFirst();
+                    return;
+                }
+            }
+            function repaint() {
+                var controls = Array.prototype.slice.call(screen.querySelectorAll("button"));
+                draw(controls.indexOf(document.activeElement));
+            }
+            var hero = button(screen, translate("Featured title: {state}", { state: translate(layout.hero ? "On" : "Off") }), function () {
+                layout.hero = !layout.hero;
+                repaint();
+            });
+            hero.setAttribute("aria-pressed", String(layout.hero));
+            layout.entries.forEach(function (entry, index) {
+                var row = group(screen, entry.hub.title || translate("Plex shelf"));
+                if (!entry.id) {
+                    row.appendChild(element("p", "help-text", translate("This shelf has no unique stable identifier and stays visible.")));
+                    return;
+                }
+                var hidden = layout.hidden.indexOf(entry.id) !== -1;
+                var toggle = button(row, translate(hidden ? "Show {shelf}" : "Hide {shelf}",
+                    { shelf: entry.hub.title || translate("Plex shelf") }), function () {
+                    if (hidden) { layout.hidden.splice(layout.hidden.indexOf(entry.id), 1); }
+                    else { layout.hidden.push(entry.id); }
+                    repaint();
+                });
+                toggle.setAttribute("aria-pressed", String(!hidden));
+                function move(direction) {
+                    var target = index + direction;
+                    var other = layout.entries[target];
+                    layout.entries[target] = entry;
+                    layout.entries[index] = other;
+                    // Keep focus on the moved shelf's same action, not its former neighbour.
+                    draw();
+                    var rows = screen.querySelectorAll(".menu-group");
+                    var actions = rows[target].querySelectorAll("button");
+                    var action = actions[direction < 0 ? 1 : 2];
+                    (action.disabled ? actions[0] : action).focus();
+                }
+                button(row, translate("Move {shelf} up", { shelf: entry.hub.title || translate("Plex shelf") }),
+                    function () { move(-1); }).disabled = index === 0 || !layout.entries[index - 1].id;
+                button(row, translate("Move {shelf} down", { shelf: entry.hub.title || translate("Plex shelf") }),
+                    function () { move(1); }).disabled = index === layout.entries.length - 1 || !layout.entries[index + 1].id;
+            });
+            function saveHome() {
+                retryView = saveHome;
+                if (!owned()) { setStatus("Home customization requires a verified server and profile.", true); return; }
+                var order = layout.entries.filter(function (entry) { return entry.id; }).map(function (entry) { return entry.id; });
+                try {
+                    api.save(window.localStorage, server, profile, { hero: layout.hero, order: order,
+                        hidden: layout.hidden.filter(function (id) { return order.indexOf(id) !== -1; }) });
+                } catch (error) { setStatus("Could not save Home. Check app storage permissions and retry.", true); return; }
+                backView();
+            }
+            function resetHome() {
+                retryView = resetHome;
+                if (!owned()) { setStatus("Home customization requires a verified server and profile.", true); return; }
+                try { api.reset(window.localStorage, server, profile); }
+                catch (error) { setStatus("Could not reset Home layouts. Check app storage permissions.", true); return; }
+                backView();
+            }
+            button(screen, "Save Home", saveHome);
+            button(screen, "Reset this Home", resetHome);
+            button(screen, "Back", backView);
+            setStatus("");
+            focusFirst();
+            var controls = screen.querySelectorAll("button");
+            if (controls[focusIndex] && !controls[focusIndex].disabled) { controls[focusIndex].focus(); }
+        }
+        draw();
+    }
+
     function rememberHome(sections, hubs) {
         var fields = ["ratingKey", "type", "title", "summary", "thumb", "art", "grandparentTitle",
             "grandparentThumb", "grandparentArt", "parentTitle", "parentIndex", "index", "year",
@@ -1196,6 +1303,7 @@
         clear(screen);
         resetImages();
         restoreView = function () { loadHome(false); };
+        retryView = restoreView;
         currentSection = null;
         homeSections = sections;
         screen.className = "screen screen-home";
@@ -1213,7 +1321,25 @@
             return !favorites || hub.librarySectionID === undefined ||
                 favorites.indexOf(String(hub.librarySectionID)) !== -1;
         });
-        var features = window.VemmHomeHero.pick(visibleHubs, 8);
+        var homeLayout = null;
+        var layoutError = false;
+        if (window.VemmHomeLayout) {
+            try {
+                homeLayout = window.VemmHomeLayout.arrange(visibleHubs,
+                    window.VemmHomeLayout.load(window.localStorage, currentServerId, homeProfileKey()));
+            } catch (error) { layoutError = true; }
+            var customize = button(screen.querySelector(".home-utilities"), "Customize Home", function () {
+                restoreView = function () {
+                    renderHome(sections, hubs);
+                    screen.querySelector(".home-utilities").hidden = false;
+                    screen.querySelector("#customize-home").focus();
+                };
+                visit(function () { openHomeLayout(sections, hubs); });
+            });
+            customize.id = "customize-home";
+        }
+        if (homeLayout) { visibleHubs = homeLayout.hubs; }
+        var features = homeLayout && !homeLayout.hero ? [] : window.VemmHomeHero.pick(visibleHubs, 8);
         if (features.length) {
             var featuredIndex = 0;
             var featured = features[0];
@@ -1289,7 +1415,9 @@
         var hubPanel = element("section", "content-panel home-shelves");
         hubPanel.setAttribute("aria-label", translate("Plex shelves"));
         if (!visibleHubs.length) {
-            hubPanel.appendChild(element("p", "empty-state", translate("No Home shelves were returned.")));
+            hubPanel.appendChild(element("p", "empty-state", translate(hubs.length ?
+                "No visible Home shelves. Use Account, then Customize Home or Settings to restore shelves." :
+                "No Home shelves were returned.")));
         }
         visibleHubs.forEach(function (hub) {
             var deck = !!(window.VemmItemMenu && window.VemmItemMenu.isDeckHub(hub));
@@ -1317,7 +1445,8 @@
             hubPanel.appendChild(hubSection);
         });
         track.appendChild(hubPanel);
-        setStatus(usingRelay ? "Connected through Plex relay (bandwidth limited)." : "");
+        if (layoutError) { setStatus("Home customization could not be loaded. Retry or reset all Home layouts.", true); }
+        else { setStatus(usingRelay ? "Connected through Plex relay (bandwidth limited)." : ""); }
         var restoringFocus = !!pendingRestore;
         focusFirst();
         if (!restoringFocus && document.activeElement === screen.querySelector(".account-control")) {
@@ -4168,6 +4297,7 @@
                 window.VemmPreferences.reset(window.localStorage);
                 if (window.VemmFavorites) { window.VemmFavorites.reset(window.localStorage); }
                 if (window.VemmRecents) { window.VemmRecents.reset(window.localStorage); }
+                if (window.VemmHomeLayout) { window.VemmHomeLayout.resetAll(window.localStorage); }
                 preferences = window.VemmPreferences.load(window.localStorage);
                 graphicsFailure = false;
                 if (graphics) { graphics.setEnabled(false); }
@@ -4302,6 +4432,13 @@
                 if (featureAbove) {
                     screen.className = "screen screen-home";
                     featureAbove.focus();
+                    return;
+                }
+                var navigationAbove = screen.querySelector(".home-navigation button");
+                if (navigationAbove) {
+                    screen.className = "screen screen-home";
+                    moveHome(0);
+                    navigationAbove.focus();
                     return;
                 }
             }

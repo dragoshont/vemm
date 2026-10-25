@@ -5,6 +5,19 @@
 The 0.2.0 work adds a remote-reachable See all action to expandable Home shelves.
 It requests `/hubs/items` by the server's hub identifier in 50-item pages, reuses
 the 200-card listing bound, and restores the opening Home shelf on Back.
+Account > Customize Home optionally hides/shows and orders shelves and hides/shows
+the featured title, using the existing remote value-row/selection-list pattern.
+Nothing changes until Save Home; Back discards the draft and returns focus to
+Customize Home. Defaults remain server order, all shelves visible and the
+existing manually cycled hero. Hidden shelves also leave the hero candidate pool.
+First-shelf Up returns to navigation when the hero is hidden. All-hidden Home
+keeps Account and the editor available; Reset this Home restores server defaults.
+Layouts are TV-local, bounded and keyed by verified server/profile identities,
+not credentials, origins or media. Unidentified direct-server sessions cannot
+save a layout. Failed saves retain their draft and Retry repeats the save;
+load corruption/refusal is explicit, with retry and a separately labelled
+Reset all Home layouts recovery. See [the architecture contract](vemm/03-architecture.md#optional-home-layouts)
+for identity, retention and reset rules.
 Watched/unwatched confirmations now compare read-back metadata with the selected
 movie/episode or show/season scope. An accepted request whose read-back has not
 changed is explicitly unconfirmed, not reported as success. These behaviors
