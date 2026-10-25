@@ -5,7 +5,7 @@ var playback = require("../../samsung/Vemm/js/playback.js");
 
 function fixture(initial) {
     var nativeState = "NONE", time = 0, listener, completion, outstanding = false;
-    var calls = [];
+    var calls = [], events = [];
     var native = {
         getState: function () { return nativeState; },
         open: function () { nativeState = "IDLE"; },
@@ -36,8 +36,9 @@ function fixture(initial) {
             };
         }
     };
-    var adapter = av.create({ avplay: native, seekTimeout: 5, resumeSeekTimeout: 5 });
-    return { native: native, adapter: adapter, calls: calls,
+    var adapter = av.create({ avplay: native, seekTimeout: 5, resumeSeekTimeout: 5,
+        onEvent: function (event) { events.push(event); } });
+    return { native: native, adapter: adapter, calls: calls, events: events,
         start: async function (offset) { await adapter.open("https://synthetic.invalid/media", offset || 0, initial === "paused"); },
         complete: function (result, state) { completion(result, state); },
         bufferLanding: function (position) {
@@ -114,13 +115,17 @@ var cases = {
         assert.strictEqual(f.state(), "PAUSED", "Failed seeks cannot leave a paused viewer playing");
     },
     "paused-timeout": async function (f) {
-        await assert.rejects(f.adapter.seek(12555), /seek-timeout/);
-        assert.strictEqual(f.adapter.snapshot().state, "error", "A missing callback cannot be a verified paused landing");
-        await assert.rejects(f.adapter.seek(5000), /Cannot seek/, "A failed outstanding native operation cannot admit another seek");
+        var pending = f.adapter.seek(12555);
+        pending.catch(function () {});
+        await new Promise(function (done) { setTimeout(done, 15); });
+        assert.strictEqual(f.adapter.snapshot().state, "paused", "A slow scrub stays recoverable instead of terminal Retry");
+        assert(f.events.some(function (event) { return event.type === "buffering" && event.detail; }));
+        assert(!f.events.some(function (event) { return event.type === "error"; }));
+        await assert.rejects(f.adapter.seek(5000), /already/, "A slow seek still owns its callback; no overlap");
         f.complete();
+        assert.strictEqual(await pending, 12000);
         assert.strictEqual(f.state(), "PAUSED", "A late callback for the latest owned seek cannot resume paused output");
-        assert.strictEqual(f.adapter.snapshot().state, "error", "Late intent restoration cannot turn a timed-out operation into success");
-        assert.strictEqual(f.adapter.snapshot().position, 0, "A timed-out callback cannot rewrite the recorded landing");
+        assert.strictEqual(f.adapter.snapshot().state, "paused");
     },
     "user-play": async function (f) {
         var pending = f.adapter.seek(12555);

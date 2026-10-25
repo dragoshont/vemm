@@ -33,7 +33,7 @@ async function run() {
     var realSetTimeout = window.setTimeout.bind(window);
     var realClearTimeout = window.clearTimeout.bind(window);
     window.setTimeout = function (callback, delay) {
-        if (delay === 300) { scrubTimers.set(++hudTimerId, callback); return hudTimerId; }
+        if (delay === 900) { scrubTimers.set(++hudTimerId, callback); return hudTimerId; }
         if (delay === 5000) { hudTimers.set(++hudTimerId, callback); return hudTimerId; }
         return realSetTimeout(callback, delay);
     };
@@ -725,14 +725,9 @@ async function run() {
         await settle();
         assert.strictEqual(position, 42000, "The remote fast-forward key uses the saved 15-second interval");
         click("More");
-        click("Chapters");
-        assert.strictEqual(hudTimers.size, 0, "The chapter strip must suspend HUD hiding");
-        var chapter = window.document.querySelector(".chapter-card");
-        assert(chapter && chapter.textContent.indexOf("Chapter one") !== -1, "Chapter cards label their selection");
-        chapter.click();
-        await settle();
-        assert.strictEqual(position, 20000);
-        click("More");
+        assert(!Array.from(window.document.querySelectorAll("button")).some(function (button) {
+            return button.textContent === "Info" || button.textContent === "Chapters";
+        }), "Player removes Info and Chapters without changing detail File information");
         click("Markers");
         click("Close menu");
         assert(!requests.some(function (request) { return request.method === "PUT" && /^\/library\/parts\//.test(request.path); }),
@@ -766,7 +761,7 @@ async function run() {
         assert(!window.document.querySelector(".app-shell").classList.contains("hud-hidden"));
         var writes = requests.filter(function (request) { return request.path === "/:/timeline"; });
         assert(writes.every(function (request) { return request.method === "POST"; }));
-        assert(writes.some(function (request) { return request.query.get("state") === "stopped" && request.query.get("time") === "20000"; }));
+        assert(writes.some(function (request) { return request.query.get("state") === "stopped" && request.query.get("time") === "42000"; }));
         clickPlay(); await settle();
         Object.defineProperty(window.document, "hidden", { configurable: true, value: true });
         window.document.dispatchEvent(new window.Event("visibilitychange")); await settle();

@@ -47,6 +47,7 @@ function playerFixture(trackOptions, mediaItem) {
     var callbacks = {};
     var adapters = 0;
     var seeks = [];
+    var seekCompletions = [];
     var starts = 0;
     var plays = 0;
     var playerSettings = [];
@@ -91,7 +92,13 @@ function playerFixture(trackOptions, mediaItem) {
                 snapshot: function () { return { state: state, position: 45000, duration: item.duration }; },
                 pause: function () { state = "paused"; events.onEvent({ type: "state", state: state }); return Promise.resolve(); },
                 play: function () { plays += 1; state = "playing"; events.onEvent({ type: "state", state: state }); return Promise.resolve(); },
-                seek: function (position) { seeks.push(position); return Promise.resolve(position); },
+                seek: function (position) {
+                    seeks.push(position);
+                    if (trackOptions && trackOptions.deferSeek) {
+                        return new Promise(function (resolve) { seekCompletions.push(function () { resolve(position); }); });
+                    }
+                    return Promise.resolve(position);
+                },
                 stop: function () { state = "idle"; return Promise.resolve(item); },
                 selection: function () { return trackOptions && trackOptions.selectedTracks || { audioId: 11, subtitleId: 21 }; },
                 part: function () { return (mediaItem || item).Media[0].Part[0]; },
@@ -131,7 +138,7 @@ function playerFixture(trackOptions, mediaItem) {
         Date: trackOptions && trackOptions.adaptiveQuality ? { now: function () { return clock; } } : Date,
         setTimeout: function (callback, delay) {
             var id = timersNext++;
-            timers.push({ id: id, callback: callback, delay: delay, interval: false });
+            timers.push({ id: id, callback: callback, delay: delay, due: clock + delay, interval: false });
             return id;
         },
         clearTimeout: function (id) { timers.forEach(function (timer) { if (timer.id === id) { timer.callback = null; } }); },
@@ -158,6 +165,11 @@ function playerFixture(trackOptions, mediaItem) {
         Object.defineProperty(event, "keyCode", { value: code });
         window.document.dispatchEvent(event);
     }
+    function keyup(code) {
+        var event = new window.KeyboardEvent("keyup", { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "keyCode", { value: code });
+        window.document.dispatchEvent(event);
+    }
     async function settle() { for (var i = 0; i < 8; i += 1) { await Promise.resolve(); } }
     return {
         dom: dom, window: window, document: window.document, callbacks: callbacks, seeks: seeks,
@@ -165,8 +177,53 @@ function playerFixture(trackOptions, mediaItem) {
         adapters: function () { return adapters; },
         playerSettings: playerSettings, timers: timers,
         advance: function (milliseconds) { clock += milliseconds; },
-        findButton: findButton, click: click, key: key, settle: settle
+        findButton: findButton, click: click, key: key, keyup: keyup, settle: settle,
+        seekCompletions: seekCompletions,
+        elapse: function (ms) {
+            clock += ms;
+            timers.slice().forEach(function (timer) {
+                if (timer.callback && !timer.interval && timer.due <= clock) {
+                    var callback = timer.callback; timer.callback = null; callback();
+                }
+            });
+        }
     };
+}
+
+async function delayedScrub() {
+    var app = playerFixture({ deferSeek: true });
+    try {
+        await app.settle();
+        app.key(38);
+        app.key(37);
+        app.elapse(550);
+        assert.deepStrictEqual(app.seeks, [], "Remote first-repeat gaps longer than300ms must remain local previews");
+        app.key(37, true);
+        app.elapse(550);
+        assert.deepStrictEqual(app.seeks, [], "Holding through another repeat must not seek before release");
+        app.keyup(37);
+        assert.deepStrictEqual(app.seeks, [25000], "Release commits exactly the final local target");
+        app.key(39); app.keyup(39);
+        app.elapse(500);
+        app.key(39); app.keyup(39);
+        assert.deepStrictEqual(app.seeks, [25000], "Tap gaps over300ms cannot overlap the pending native seek");
+        assert.strictEqual(app.document.querySelector(".playback-progress").getAttribute("aria-valuenow"), "45000");
+        app.callbacks.avplay.onEvent({ type: "time", position: 25000, duration: item.duration });
+        assert.strictEqual(app.document.querySelector(".playback-progress").getAttribute("aria-valuenow"), "45000",
+            "Old native time cannot overwrite the latest local/queued preview");
+        app.seekCompletions.shift()(); await app.settle();
+        assert.deepStrictEqual(app.seeks, [25000, 45000], "After callback only the latest committed target is sent");
+        app.seekCompletions.shift()(); await app.settle();
+        assert(!app.document.getElementById("playback-error"), "Slow serialized scrubs never enter Retry");
+        app.key(37);
+        app.elapse(850);
+        assert.strictEqual(app.seeks.length, 2, "Idle fallback does not fire before900ms");
+        app.elapse(50);
+        assert.strictEqual(app.seeks.length, 3, "Missing keyup commits once after900ms idle");
+        app.keyup(37);
+        assert.strictEqual(app.seeks.length, 3, "Late keyup cannot double commit");
+        app.seekCompletions.shift()(); await app.settle();
+    } finally { app.dom.window.close(); }
 }
 
 async function hudAndPanels() {
@@ -199,27 +256,15 @@ async function hudAndPanels() {
         ["Subtitles", "Audio", "More"].forEach(function (name) {
             assert(controls.indexOf(name) !== -1, "The transport exposes " + name + " directly");
         });
-        assert(app.findButton("Info"), "The HUD includes an Info tab");
-        assert(app.findButton("Chapters"), "An item with chapter metadata includes a Chapters tab");
+        assert(!app.findButton("Info") && !app.findButton("Chapters"), "Player Info and Chapters are removed");
         assert(app.document.querySelector(".playback-remaining"), "The HUD shows a negative time-left clock");
         assert(app.document.querySelector(".playback-context").textContent.indexOf("Synthetic Show") !== -1,
             "The episode HUD identifies its show");
 
-        app.click("Info");
-        var info = app.document.querySelector("#player-info");
-        assert(info && info.textContent.indexOf("Synthetic Show") !== -1, "Info shows playing-item context");
-        assert(info.querySelector(".info-artwork"), "Info uses the item's artwork");
-        assert(info.textContent.indexOf("TV-PG") !== -1, "Info includes its rating");
-        app.callbacks.avplay.onEvent({ type: "time", position: 50000, duration: item.duration });
-        assert(info.querySelector(".player-info-position").textContent.indexOf("0:50") !== -1,
-            "The Info playback facts follow the live playback position");
-
-        app.click("Chapters");
-        var cards = app.document.querySelectorAll("#chapter-strip .chapter-card");
-        assert.strictEqual(cards.length, 3, "The chapter strip renders the chapter list");
-        assert.strictEqual(cards[1].querySelector("img").getAttribute("data-artwork-source"), "/chapter/discovery",
-            "Chapter cards use Plex Chapter.thumb");
-        assert(cards[2].textContent.indexOf("00:40") !== -1, "Chapter cards show their timestamps");
+        app.key(40);
+        assert.strictEqual(app.document.activeElement, app.findButton("Pause / Play"), "Down cannot enter removed tabs");
+        app.click("More");
+        assert(!app.findButton("Info", app.document.getElementById("player-menu")), "More has no Info shortcut");
     } finally { app.dom.window.close(); }
 }
 
@@ -546,6 +591,7 @@ async function adaptiveRecoveryPreservesTheSession() {
 }
 
 async function run() {
+    await delayedScrub();
     await hostileSupportRecordPreview();
     await supportRecordRemotePreview();
     await adaptiveRecoveryPreservesTheSession();

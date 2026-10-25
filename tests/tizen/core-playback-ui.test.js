@@ -25,7 +25,7 @@ function fixture(options) {
     var w = dom.window, d = w.document;
     Object.defineProperty(d, "hidden", { value: false });
     var timers = [], opens = [], selections = [], timelines = [], listener;
-    var state = "NONE", position = 0, audio = "English", stops = 0;
+    var state = "NONE", position = 0, audio = "English", stops = 0, pendingSeeks = [];
     function timer(callback, delay, interval) {
         timers.push({ callback: callback, delay: delay, interval: interval });
         return timers.length;
@@ -48,7 +48,15 @@ function fixture(options) {
         },
         getDuration: function () { return item.duration; }, getCurrentTime: function () { return position; },
         play: function () { state = "PLAYING"; }, pause: function () { state = "PAUSED"; },
-        seekTo: function (target, success) {
+        seekTo: function (target, success, failure) {
+            if (options.deferSeekNative) {
+                assert.strictEqual(pendingSeeks.length, 0, "Native seeks cannot overlap");
+                pendingSeeks.push(function (failed) {
+                    if (failed) { failure(); return; }
+                    position = target; state = "PLAYING"; success();
+                });
+                return;
+            }
             position = target;
             if (options.resumeOnSeek) { state = "PLAYING"; }
             success();
@@ -118,7 +126,45 @@ function fixture(options) {
             if (name === "oncurrentplaytime") { position = value; }
             listener[name](value);
         },
+        completeSeek: function (failed) { pendingSeeks.shift()(failed); },
+        pendingSeeks: pendingSeeks,
         close: async function () { w.__stop(); await settle(); dom.window.close(); } };
+}
+
+async function slowScrubRecovery() {
+    var options = {}, ui = fixture(options);
+    function key(type, code, repeat) {
+        ui.d.dispatchEvent(new ui.w.KeyboardEvent(type, { keyCode: code, bubbles: true, repeat: !!repeat }));
+    }
+    try {
+        await ui.settle();
+        ui.click("Pause / Play");
+        options.deferSeekNative = true;
+        key("keydown", 38);
+        key("keydown", 39); key("keyup", 39);
+        assert.strictEqual(ui.pendingSeeks.length, 1);
+        var deadline = ui.timers.find(function (timer) { return timer.callback && !timer.interval && timer.delay === 10000; });
+        assert(deadline); deadline.callback();
+        assert(!ui.d.getElementById("playback-error"), "Actual adapter timeout must show buffering, never Retry");
+        assert(ui.d.getElementById("status").textContent.includes("Buffering"),
+            "Actual status: " + ui.d.getElementById("status").textContent);
+        ui.event("onbufferingcomplete");
+        assert(ui.d.getElementById("status").textContent.includes("Buffering"),
+            "Buffer end cannot claim slow seek completion before its callback");
+        key("keydown", 39, true); key("keyup", 39);
+        key("keydown", 39, true); key("keyup", 39);
+        assert.strictEqual(ui.pendingSeeks.length, 1);
+        ui.completeSeek(); await ui.settle();
+        assert.strictEqual(ui.pendingSeeks.length, 1, "The latest queued request starts after native callback");
+        ui.completeSeek(); await ui.settle();
+        assert.strictEqual(ui.state(), "PAUSED", "Late callbacks restore latest native pause intent");
+        assert(!ui.d.getElementById("playback-error"));
+        assert.strictEqual(ui.d.querySelector(".playback-progress").getAttribute("aria-valuenow"), "35000");
+        key("keydown", 37); key("keyup", 37);
+        ui.completeSeek(true); await ui.settle();
+        assert(!ui.d.getElementById("playback-error"), "A refused native scrub reports status without replacing the working player");
+        assert.strictEqual(ui.opens.length, 1, "Slow/rejected scrub never renegotiates or reopens playback");
+    } finally { await ui.close(); }
 }
 
 async function audioSelection() {
@@ -250,7 +296,7 @@ async function pausedIntro() {
     } finally { await ui.close(); }
 }
 
-var cases = { audio: audioSelection, retry: retryPauseIntent, buffering: bufferingCountdown,
+var cases = { scrub: slowScrubRecovery, audio: audioSelection, retry: retryPauseIntent, buffering: bufferingCountdown,
     version: versionSelection, intro: pausedIntro };
 async function run() {
     for (var name of process.argv[2] ? [process.argv[2]] : Object.keys(cases)) {

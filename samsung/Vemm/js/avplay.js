@@ -105,7 +105,7 @@
                                     position = currentPosition();
                                     notify("time");
                                 }
-                                if (ownGeneration === generation) { notify("buffering", false); }
+                                if (ownGeneration === generation && (!pendingSeek || !pendingSeek.slow)) { notify("buffering", false); }
                             } catch (failure) { streamFailed("position"); }
                         },
                         oncurrentplaytime: function (time) {
@@ -175,6 +175,11 @@
                 var timedOut = false;
                 var timeout = setTimeout(function () {
                     if (settled) { return; }
+                    if (!wait) {
+                        finish.slow = true;
+                        notify("buffering", true);
+                        return;
+                    }
                     settled = true;
                     timedOut = true;
                     var failure = error("seek-timeout");
@@ -230,6 +235,7 @@
                     } else if (!failure) { failure = new Error("Seek cancelled."); }
                     if (failure) { reject(failure); }
                     else { resolve(position); notify("time"); }
+                    if (ownGeneration === generation && !wait) { notify("buffering", false); }
                 }
                 pendingSeek = finish;
                 pendingSeek.intent = function (next) { intendedState = next; };

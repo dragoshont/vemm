@@ -74,11 +74,14 @@ title obeys the same favourite-library filter as its shelves. The show primary a
 Seasons remains the navigation path.
 The playback overlay uses a compact Pause / Play, Subtitles, Audio and More row and
 a focusable progress bar, without on-screen interval backward/forward buttons.
-Info and available Chapters remain tabs; quality, queue controls, Stop and the
-remaining playback options live under More. Left/Right traverses the visible
+Player Info and Chapters entries are removed, including their focus/Back paths;
+detail-page File information remains separate and unchanged. Quality, queue
+controls, Stop and the remaining playback options live under More. Left/Right traverses the visible
 transport row; Up reaches the scrub slider. Slider/hidden-HUD Left/Right and
 dedicated media Rewind/Fast Forward retain seeking; removing redundant buttons
-does not establish a fix for an unidentified native seek failure.
+previews only a local target. Key-up or900ms idle commits one serialized native
+seek; further commits retain only the latest target until the callback.
+A slow scrub callback shows buffering without replacing playback with Retry.
 The overlay hides after five seconds of uninterrupted play,
 except while a skippable marker is active. Skip Intro/Credits remains visible for the segment,
 with focus on its action when it first appears; a held OK cannot issue repeated skips.
@@ -174,7 +177,7 @@ contract. This does not repair an incomplete or corrupt source file.
    alphabet rail, search across reachable servers, and open details for a film, show, season,
    episode, collection or person.
 3. **Watch:** start or resume playback, see the actual selected version/source, control transport,
-   seek and scrub, choose audio/subtitle tracks, use chapter and marker actions, and return to a
+   seek and scrub, choose audio/subtitle tracks, use marker actions, and return to a
    useful screen. PMS receives normal playback timeline/progress updates.
 4. **Continue later:** Home and library views reflect PMS watch state and continue-watching
    position. Progress is not synthesized locally as the source of truth.
@@ -673,7 +676,7 @@ after-fix acceptance remains separate from host checks and installation.
 - [ ] Verify audio track defaults, selection and failures on device, including model-specific DTS limitations.
 - [ ] Verify embedded/external SRT/WebVTT and server-rendered ASS/SSA/PGS/VobSub individually.
 - [ ] Test subtitle/audio/version changes while preparing, paused, seeking and completing on device. Host: a 12-journey generation matrix rejects superseded prepare/seek/listener callbacks; terminal events retire pending resumes, replacement preserves pause intent, and view-owned subtitle/seek results are guarded. Native AVPlay timing/output remains unobserved.
-- [ ] Verify held-key scrub/repeat on device. Host journeys prove accelerated Left/Right targets bounded to zero/duration, one seek on keyup or 300 ms idle, no double commit, and hidden-HUD reveal without activation. The player HUD hides after five seconds of
+- [ ] Verify held-key scrub/repeat on device. Host journeys prove accelerated Left/Right targets bounded to zero/duration, one seek on keyup or900ms idle, gaps over300ms without premature commit, latest-only serialized callbacks, recoverable slow-callback buffering, no double commit, and hidden-HUD reveal without activation. The player HUD hides after five seconds of
   uninterrupted playing; navigation/OK first reveals controls without activating them. Media
   keys still act while hidden. Pausing, buffering, errors and open menus retain visible controls;
   menu closure and resume restart the timer, and teardown cancels it. Synthetic host journeys

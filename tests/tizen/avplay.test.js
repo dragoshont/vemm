@@ -94,11 +94,12 @@ async function run() {
     await adapter.open("https://synthetic.invalid", 0);
     native.seekTo = function (target, success) { completeSeek = success; };
     seeking = adapter.seek(50000);
-    var timeoutFailure = assert.rejects(seeking, /seek-timeout/);
     await assert.rejects(adapter.seek(10000), /already/);
-    await timeoutFailure;
+    await new Promise(function (done) { setTimeout(done, 15); });
+    assert.strictEqual(adapter.snapshot().state, "playing", "Slow scrub waits without a Retry transition");
     completeSeek();
-    assert.strictEqual(adapter.snapshot().position, 0, "A timed-out seek must not later mutate the playhead");
+    await seeking;
+    assert.strictEqual(adapter.snapshot().position, 0, "Recovery reports the observed native clock rather than the target");
     adapter.close();
     // Tizen 3.0 (UE55MU6172): reopening a transcode at 6690 s after an audio switch left AVPlay
     // READY forever, because a READY-state seekTo on HLS never called back.

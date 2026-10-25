@@ -53,10 +53,13 @@ timed for another cut. Invalid replacement plans leave the working player intact
 These are host contracts, not acceptance of real-PMS output or native audio.
 Seek success/error callbacks verify actual decoder state against the latest
 owned Play/Pause intent. Pending user controls queue intent without calling
-native playback APIs before the callback. An unanswered timeout is an explicit
-terminal error, not verified pause; another seek is refused until the operation
-answers or the source is explicitly retired. A still-owned late callback may
-restore intent but cannot erase that failure or rewrite its landing. Closed/new
+native playback APIs before the callback. Normal scrubbing previews locally,
+commits on key-up or900ms idle, and keeps only the latest queued target while a
+native seek is outstanding. Its slow-callback threshold shows buffering, not
+the playback-problem/Retry view; the callback completes recovery before any
+queued request runs. Startup resume retains an explicit terminal deadline,
+not verified pause; a late owned startup callback cannot erase that failure.
+Closed/new
 sources cannot inherit it. Post-callback buffering completion refreshes the
 actual native clock, including a second buffer phase that snaps to a keyframe.
 Failed restoration/clock reads are explicit player errors, never enum-only
@@ -68,6 +71,8 @@ fail explicitly instead of claiming that playback resumed or started over.
 Resume failures retain their identity and phase; they are not decoder rejection
 and must not automatically renegotiate/reopen a Direct Play source while its
 owned seek is still outstanding.
+Player Info and Chapters buttons/overlays and their navigation paths are
+removed. Detail-page File information remains unchanged.
 
 Video playlists are server-backed: browse existing playlists, play/shuffle them,
 page their items, and explicitly confirm moving an entry to the beginning.

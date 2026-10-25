@@ -53,7 +53,7 @@
     var scrubRepeats = 0;
     var scrubTimer = null;
     var scrubOwner = null;
-    var playerPanel = "";
+    var playerSeek = null;
     var playerPosition = 0;
     var playerDuration = 0;
     var playerStatsVisible = false;
@@ -2534,12 +2534,6 @@
         return snapshot.position || playerPosition || 0;
     }
 
-    function closePlayerPanel() {
-        var panel = document.getElementById("player-info") || document.getElementById("chapter-strip");
-        if (panel && panel.parentNode) { panel.parentNode.removeChild(panel); }
-        playerPanel = "";
-    }
-
     function closeUpNext() {
         upNextGeneration += 1;
         var panel = document.getElementById("up-next-panel");
@@ -2554,21 +2548,18 @@
         var progress = document.querySelector && document.querySelector(".playback-progress");
         if (elapsed) { elapsed.textContent = timeLabel(playerPosition); }
         if (remaining) { remaining.textContent = playerRemaining(playerPosition, playerDuration); }
-        var panelPosition = document.querySelector && document.querySelector(".player-info-position");
-        if (panelPosition) {
-            panelPosition.textContent = translate("Playing") + ": " + timeLabel(playerPosition) +
-                " / " + timeLabel(playerDuration);
-        }
         var statsPosition = document.querySelector && document.querySelector(".playback-stats-position");
         if (statsPosition) {
             statsPosition.textContent = translate("Position") + ": " + timeLabel(playerPosition) +
                 " / " + timeLabel(playerDuration);
         }
+        var preview = scrubTarget !== null ? scrubTarget :
+            playerSeek ? (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : playerPosition;
         if (progress && playerDuration > 0) {
-            progress.setAttribute("aria-valuenow", String(Math.round(playerPosition)));
-            progress.setAttribute("aria-valuetext", timeLabel(playerPosition) + " / " + timeLabel(playerDuration));
+            progress.setAttribute("aria-valuenow", String(Math.round(preview)));
+            progress.setAttribute("aria-valuetext", timeLabel(preview) + " / " + timeLabel(playerDuration));
             var fill = progress.querySelector(".playback-progress-fill");
-            if (fill && fill.style) { fill.style.width = Math.min(100, Math.max(0, playerPosition * 100 / playerDuration)) + "%"; }
+            if (fill && fill.style) { fill.style.width = Math.min(100, Math.max(0, preview * 100 / playerDuration)) + "%"; }
         }
     }
 
@@ -2584,101 +2575,6 @@
         if (streamFlag(stream.forced)) { labels.push(translate("Forced")); }
         if (streamFlag(stream.default)) { labels.push(translate("Default")); }
         return labels.join(" / ");
-    }
-
-    function openPlayerPanel(name) {
-        if (!player) { return; }
-        cancelHudTimer();
-        var menu = document.getElementById("player-menu");
-        if (menu && menu.parentNode) { menu.parentNode.removeChild(menu); }
-        closePlayerPanel();
-        playerPanel = name;
-        var panel = element("section", "player-overlay-panel " + (name === "chapters" ? "chapter-strip" : "player-info"));
-        panel.id = name === "chapters" ? "chapter-strip" : "player-info";
-        panel.setAttribute("aria-label", translate(name === "chapters" ? "Chapters" : "Info"));
-        if (name === "chapters") {
-            var chapters = playerItem.Chapter || [];
-            var position = currentPlayerPosition();
-            var selected = -1;
-            var focusCard = null;
-            chapters.forEach(function (chapter, index) {
-                var start = Number(chapter.startTimeOffset) || 0;
-                var next = chapters[index + 1];
-                if (position >= start && (!next || position < (Number(next.startTimeOffset) || 0))) { selected = index; }
-            });
-            chapters.forEach(function (chapter, index) {
-                var card = button(panel, "", function () {
-                    player.seek(Number(chapter.startTimeOffset) || 0).then(function () {
-                        closePlayerPanel();
-                        showHud();
-                    }).catch(showPlayerError);
-                }, false, "none");
-                card.className += " chapter-card" + (index === selected ? " chapter-card-current" : "");
-                if (index === selected) { focusCard = card; }
-                card.setAttribute("aria-label", (chapter.tag || translate("Chapter {number}", { number: index + 1 })) +
-                    ", " + chapterTimeLabel(Number(chapter.startTimeOffset) || 0));
-                if (chapter.thumb) {
-                    var image = element("img", "chapter-card-art");
-                    image.alt = "";
-                    image.src = placeholderArt();
-                    image.setAttribute("data-artwork-source", chapter.thumb);
-                    card.appendChild(image);
-                    queueImage(image, playerClient, chapter.thumb, { width: 480, height: 270 });
-                }
-                card.appendChild(element("span", "chapter-card-title",
-                    chapter.tag || translate("Chapter {number}", { number: index + 1 })));
-                card.appendChild(element("span", "chapter-card-time", chapterTimeLabel(Number(chapter.startTimeOffset) || 0)));
-            });
-            if (!focusCard && panel.querySelector("button")) { focusCard = panel.querySelector("button"); }
-            if (!chapters.length) { panel.appendChild(element("p", "", translate("No chapters available."))); }
-        } else {
-            var artwork = element("img", "info-artwork");
-            artwork.alt = "";
-            artwork.src = placeholderArt();
-            panel.appendChild(artwork);
-            if (playerItem.thumb || playerItem.grandparentThumb || playerItem.art) {
-                queueImage(artwork, playerClient, playerItem.thumb || playerItem.grandparentThumb || playerItem.art,
-                    { width: 480, height: 270 });
-            }
-            var details = element("div", "player-info-details");
-            details.appendChild(element("h2", "", playerItem.title || "Untitled"));
-            var context = playerItem.grandparentTitle ?
-                playerItem.grandparentTitle + (playerItem.parentTitle ? " / " + playerItem.parentTitle : "") +
-                    (playerItem.index ? " / " + translate("Episode {number}", { number: playerItem.index }) : "") : "";
-            if (context) { details.appendChild(element("p", "player-info-context", context)); }
-            if (playerItem.summary) { details.appendChild(element("p", "player-info-summary", playerItem.summary)); }
-            var facts = element("div", "player-info-facts");
-            facts.appendChild(element("span", "player-info-position", translate("Playing") + ": " +
-                timeLabel(currentPlayerPosition()) + " / " + timeLabel(Number(playerItem.duration) || playerDuration)));
-            if (playerItem.year) { facts.appendChild(element("span", "", String(playerItem.year))); }
-            if (playerItem.contentRating) { facts.appendChild(element("span", "", playerItem.contentRating)); }
-            if (playerItem.rating) { facts.appendChild(element("span", "", translate("Rating") + ": " + playerItem.rating)); }
-            var current = player.snapshot();
-            var media = (playerItem.Media || [])[playerSettings.mediaIndex] || (playerItem.Media || [])[0] || {};
-            var streams = media.Part && media.Part[0] && media.Part[0].Stream || [];
-            var selection = player.selection();
-            var selectedAudio = streams.filter(function (stream) {
-                return stream.streamType === 2 && String(stream.id) === String(selection.audioId);
-            })[0];
-            facts.appendChild(element("span", "", translate("Video") + ": " +
-                (current.videoCodec || media.videoCodec || translate("Unknown"))));
-            facts.appendChild(element("span", "", translate("Audio") + ": " +
-                (current.audioCodec || selectedAudio && selectedAudio.codec || media.audioCodec || translate("Unknown"))));
-            facts.appendChild(element("span", "", translate("Playback") + ": " + modeName(player.quality().mode)));
-            streams.forEach(function (stream) {
-                var badge = trackBadge(stream);
-                if (badge) { facts.appendChild(element("span", "player-info-badge", badge)); }
-            });
-            details.appendChild(facts);
-            var actions = element("div", "player-info-actions");
-            button(actions, "Close", closePlayerPanel);
-            panel.appendChild(details);
-            panel.appendChild(actions);
-            focusCard = panel.querySelector("button");
-        }
-        screen.appendChild(panel);
-        if (focusCard) { focusCard.focus(); }
-        showHud();
     }
 
     function updateSubtitleTimingLabel() {
@@ -3073,7 +2969,6 @@
         setStatus(message, true);
         if (!player) { return; }
         cancelHudTimer();
-        closePlayerPanel();
         var old = document.getElementById("playback-error");
         if (old && old.parentNode) { old.parentNode.removeChild(old); }
         var panel = element("section", "playback-error");
@@ -4024,8 +3919,7 @@
         if (!player || playerClosing || hudBuffering ||
                 player.snapshot().state !== "playing" ||
                 screen.querySelector(".skip-marker") ||
-                document.getElementById("player-menu") || document.getElementById("player-info") ||
-                document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
+                document.getElementById("player-menu") || document.getElementById("playback-stats") ||
                 document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
                 document.getElementById("playback-error") || status.className.indexOf("status-error") !== -1) { return; }
         var owner = player;
@@ -4034,8 +3928,7 @@
             if (player !== owner || playerClosing || hudBuffering ||
                     owner.snapshot().state !== "playing" ||
                     screen.querySelector(".skip-marker") ||
-                    document.getElementById("player-menu") || document.getElementById("player-info") ||
-                    document.getElementById("chapter-strip") || document.getElementById("playback-stats") ||
+                    document.getElementById("player-menu") || document.getElementById("playback-stats") ||
                     document.getElementById("subtitle-timing") || document.getElementById("up-next-panel") ||
                     document.getElementById("playback-error")) { return; }
             if (hud) {
@@ -4195,7 +4088,6 @@
         });
         button(menu, "Quality and version", openQuality);
         button(menu, "Support record", openSupportRecord);
-        button(menu, "Info", function () { closePlayerMenu(); openPlayerPanel("info"); });
         if (playerItem.type === "track") {
             button(menu, "Previous track", function () { skipMusic(-1, false); });
             button(menu, "Next track", function () { skipMusic(1, false); });
@@ -4241,7 +4133,7 @@
         hudBuffering = false;
         hudFocus = null;
         scrubReturnFocus = null;
-        playerPanel = "";
+        playerSeek = null;
         playerStatsVisible = false;
         subtitleTiming = false;
         playerItem = item;
@@ -4296,12 +4188,6 @@
         var progressFill = element("div", "playback-progress-fill");
         progress.appendChild(progressFill);
         hud.appendChild(progress);
-        var tabs = element("div", "player-tabs");
-        button(tabs, "Info", function () { openPlayerPanel("info"); }, false, "none");
-        if (item.Chapter && item.Chapter.length) {
-            button(tabs, "Chapters", function () { openPlayerPanel("chapters"); }, false, "none");
-        }
-        hud.appendChild(tabs);
         var subtitle = element("p", "subtitle-text");
         subtitle.id = "subtitle-text";
         applySubtitleAppearance(subtitle);
@@ -4389,13 +4275,8 @@
                     if (!player || player !== ownPlayer || playerClosing) { return; }
                     if (event.type === "time") {
                         updatePlayerClocks(event.position, event.duration || item.duration);
-                        var percent = Math.min(100, Math.max(0, event.position * 100 / (event.duration || item.duration || 1)));
                         progress.setAttribute("aria-valuemax", String(event.duration || item.duration || 1));
-                        progress.setAttribute("aria-valuenow", String(Math.round(event.position)));
-                        progress.setAttribute("aria-valuetext", timeLabel(event.position) + " / " +
-                            timeLabel(event.duration || item.duration || 0));
-                        if (progressFill.style) { progressFill.style.width = percent + "%"; }
-                        updateSkip(event.position);
+                        if (scrubTarget === null && (!playerSeek || playerSeek.target === null)) { updateSkip(event.position); }
                         if (externalCues) {
                             var externalSubtitle = document.getElementById("subtitle-text");
                             if (externalSubtitle) {
@@ -4417,7 +4298,7 @@
                         showHud();
                         if (adaptive && adaptive.buffer(!!event.detail, Date.now(),
                                 player.snapshot().state === "playing" && !document.hidden &&
-                                !document.getElementById("player-menu") && !playerPanel && !subtitleTiming)) {
+                                !document.getElementById("player-menu") && !playerSeek && !subtitleTiming)) {
                             recoverPlayer(false);
                         }
                     } else if (event.type === "state") {
@@ -4482,18 +4363,38 @@
 
     function seekPlayer(delta) {
         if (!player) { return; }
-        seekToPlayer(player.snapshot().position + delta);
+        var base = scrubTarget !== null ? scrubTarget : playerSeek ?
+            (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : player.snapshot().position;
+        seekToPlayer(base + delta);
     }
 
     function seekToPlayer(target) {
         if (!player || playerClosing) { return; }
         var selectedPlayer = player;
+        target = Math.max(0, Math.min(player.snapshot().duration || target, target));
+        if (playerSeek && playerSeek.owner === player) { playerSeek.target = target; return; }
+        var request = { owner: player, requested: target, target: null };
+        playerSeek = request;
+        function completed() {
+            if (playerSeek !== request) { return; }
+            playerSeek = null;
+            if (player !== selectedPlayer || playerClosing) { return; }
+            if (request.target !== null) { seekToPlayer(request.target); }
+            else { updatePlayerClocks(selectedPlayer.snapshot().position, selectedPlayer.snapshot().duration); }
+        }
         player.seek(target).then(function (position) {
             if (player !== selectedPlayer || playerClosing) { return; }
-            setStatus(translate("Seek landed at {time}.", { time: timeLabel(position) }));
+            if (request.target === null && scrubTarget === null) {
+                setStatus(translate("Seek landed at {time}.", { time: timeLabel(position) }));
+            }
+            completed();
             showHud();
         }).catch(function (error) {
-            if (player === selectedPlayer && !playerClosing) { showPlayerError(error); }
+            if (player === selectedPlayer && !playerClosing) {
+                if (error && error.code === "avplay-seek") { setStatus(errorText(error), true); }
+                else { showPlayerError(error); request.target = null; }
+                completed();
+            }
         });
     }
 
@@ -4513,7 +4414,8 @@
         var snapshot = player.snapshot();
         if (["playing", "paused"].indexOf(snapshot.state) === -1 || playerClosing) { return; }
         if (scrubOwner !== player || scrubTarget === null) {
-            cancelScrub(); scrubOwner = player; scrubTarget = snapshot.position;
+            cancelScrub(); scrubOwner = player;
+            scrubTarget = playerSeek ? (playerSeek.target !== null ? playerSeek.target : playerSeek.requested) : snapshot.position;
         }
         scrubRepeats += 1;
         var step = preferences.skipInterval * 1000 * Math.min(4, 1 + Math.floor((scrubRepeats - 1) / 3));
@@ -4529,16 +4431,16 @@
         }
         setStatus(translate("Seek to {time}", { time: timeLabel(scrubTarget) }));
         if (scrubTimer !== null) { clearTimeout(scrubTimer); }
-        scrubTimer = setTimeout(commitScrub, 300);
+        scrubTimer = setTimeout(commitScrub, 900);
     }
 
     function stopPlayer(after) {
         if (!player || playerClosing) { return Promise.resolve(); }
         playerClosing = true;
+        playerSeek = null;
         cancelScrub();
         subtitleSearchGeneration += 1;
         cancelHudTimer();
-        closePlayerPanel();
         closeUpNext();
         var stats = document.getElementById("playback-stats");
         if (stats && stats.parentNode) { stats.parentNode.removeChild(stats); }
@@ -4584,7 +4486,7 @@
         (playerItem.Marker || []).forEach(function (marker) {
             if (marker.type === "intro" || marker.type === "credits") {
                 button(menu, marker.type === "intro" ? "Skip Intro" : "Skip Credits", function () {
-                    player.seek(marker.endTimeOffset).catch(showPlayerError);
+                    seekToPlayer(marker.endTimeOffset);
                 });
             }
         });
@@ -5374,29 +5276,7 @@
             return;
         }
         if (playerControls && !hud.hidden && key === 40 && playerControls.contains(active)) {
-            var tab = screen.querySelector(".player-tabs button");
-            if (tab) { tab.focus(); }
             return;
-        }
-        if (player && active && active.parentNode && /player-tabs/.test(active.parentNode.className || "")) {
-            if (key === 38) {
-                var row = screen.querySelector(".playback-controls");
-                var rowButtons = row && row.querySelectorAll("button");
-                if (rowButtons && rowButtons.length) { rowButtons[rowButtons.length - 1].focus(); }
-                return;
-            }
-            if (key === 40) {
-                var panel = document.getElementById(playerPanel === "chapters" ? "chapter-strip" : "player-info");
-                var panelButton = panel && panel.querySelector("button");
-                if (panelButton) { panelButton.focus(); }
-                return;
-            }
-        }
-        if (player && active && active.parentNode && /chapter-strip/.test(active.parentNode.className || "") && key === 38) {
-            var chaptersTab = Array.prototype.filter.call(screen.querySelectorAll(".player-tabs button"), function (node) {
-                return node.textContent === translate("Chapters");
-            })[0];
-            if (chaptersTab) { chaptersTab.focus(); return; }
         }
         var localRow = active && active.parentNode;
         if (key === 39 && active && /(?:^| )account-control(?: |$)/.test(active.className || "")) {
@@ -5405,7 +5285,7 @@
             return;
         }
         if ((key === 37 || key === 39) && localRow &&
-                /(?:home-navigation|home-feature-actions|playback-controls|player-tabs|chapter-strip|detail-actions)/.test(localRow.className || "")) {
+                /(?:home-navigation|home-feature-actions|playback-controls|detail-actions)/.test(localRow.className || "")) {
             var rowControls = Array.prototype.slice.call(localRow.querySelectorAll("button"));
             var rowIndex = rowControls.indexOf(active);
             var adjacent = rowControls[rowIndex + direction];
@@ -5568,18 +5448,6 @@
                 return;
             }
             if (player && subtitleTiming) { closeSubtitleTiming(); return; }
-            if (player && playerPanel) {
-                var activePanel = playerPanel;
-                closePlayerPanel();
-                var tabs = screen.querySelectorAll(".player-tabs button");
-                var desired = activePanel === "chapters" ? translate("Chapters") : translate("Info");
-                Array.prototype.some.call(tabs, function (tab) {
-                    if (tab.textContent === desired) { tab.focus(); return true; }
-                    return false;
-                });
-                showHud();
-                return;
-            }
             if (player && document.getElementById("playback-stats")) {
                 togglePlayerStats();
                 return;
@@ -5645,7 +5513,7 @@
             else { togglePlayer(); }
             return;
         }
-        if (player && !document.getElementById("player-menu") && !playerPanel && !playerStatsVisible &&
+        if (player && !document.getElementById("player-menu") && !playerStatsVisible &&
                 !subtitleTiming && !document.getElementById("up-next-panel") &&
                 !document.getElementById("playback-error") && (key === 37 || key === 39)) {
             var hud = screen.querySelector(".player-hud");

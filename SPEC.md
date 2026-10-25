@@ -1,6 +1,19 @@
 # Vemm 0.2.0 requirements
 
 Status: implementation authorized; not delivered.
+2026-10-26 urgent owner correction: Left/Right must preview locally and commit
+only on key-up or 800-1000ms idle, serialize native seeks with only the latest
+queued target, and show recoverable buffering rather than Retry for a slow
+scrub callback/timeout. Remove player Info/Chapters entries and their focus/
+keyboard paths, retaining detail-page File information. Observe timing
+regressions red/green, full host/unsigned build, fast independent review, then
+normal same-author in-place updates on available original-identity-matched TVs.
+No injected TV input while the owner may be watching.
+The subsequent direct instruction "publish as soon as you have the build, no
+confirmaton needed it" authorizes publishing this reviewed scrub/button-removal
+build through the existing Vemm prerelease route after gates and in-place
+updates. This supersedes the earlier no-publication hold for this scoped
+delivery, not a full-core/native acceptance claim or main merge permission.
 Latest operation authorization: the owner explicitly directs updating the
 already-signed-in production apps in place now, without waiting for synthetic
 QA: "no,. i need you to update the app in place as these are alredy loggin.
@@ -254,6 +267,17 @@ summaries.
 | 2026-10-25 | revise | PB-01, QA-01, REVIEW-01 | Independent dc82768c narrow source closure PASS observed original7c decisions[1,0]/avplay-close/latePLAYING versus repaired[1]/original seek-timeout with resume phase/latePAUSED terminal error position0. Callback error/native retirement refuse reopen; startup Play, explicit close/new source and ordinary decoder fallback also pass. Exact dc full host/11 Python/28ES5-M47 and unsigned source build passed clean. No full-core, native or release acceptance; the exclusive-input device hold remains. |
 
 ## Execution and acceptance
+
+Urgent scrub/button-removal regression observed red: a550ms first-repeat gap
+committed a native seek at the former300ms idle timer; normal seek timeout
+entered terminal error. Repaired main now waits key-up/900ms idle, preserves
+local preview against old native clocks, and serializes native completion with
+latest-only queued targets. Actual main/controller/adapter tests exercise
+slow callbacks, timeout buffering, native refusal without Retry, retained
+pause, no reopen, and delayed repeated key-up taps. Player Info/Chapters UI,
+overlays/CSS and navigation paths removed; separate File information retained.
+Startup resume failure classification/deadline stays independent. No TV input
+is injected to validate this while the owner may be watching.
 
 2026-10-26: direct owner authorization now permits serial normal in-place
 production updates on the available original-identity-matched known TVs,

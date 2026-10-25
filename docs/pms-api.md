@@ -32,9 +32,12 @@ The native seek adapter verifies/restores actual decoder state against latest
 owned play/pause intent after a native success/error callback. Samsung's
 [seekTo constraint](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-seekTo)
 requires waiting for that callback before other playback APIs. Pending user
-controls queue intent. A missing-callback timeout becomes terminal error,
-without claiming verified native pause or admitting another seek; a late owned
-callback can restore intent but cannot turn the failure into success.
+controls queue intent. Normal remote scrubs preview locally, commit on key-up
+or900ms idle, and serialize callbacks with only the newest queued target.
+A slow normal seek shows buffering and keeps its native ownership until the
+callback, never a competing seek/reopen or Retry screen. A startup resume
+deadline remains a terminal error, without claiming verified native pause;
+its late callback cannot turn that startup failure into success.
 After post-callback buffering, a fresh
 [getCurrentTime](https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html#AVPlayManager-getCurrentTime)
 updates the cached clock/UI. QN70F tracing observed a second buffering cycle
