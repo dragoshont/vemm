@@ -247,9 +247,10 @@ async function run() {
         assert.strictEqual(number, 3, "Credits/Up Next preserves the owned queue");
         press("More"); press("Markers"); await settle();
         assert(w.document.querySelector("#player-menu").textContent.includes("Skip Intro"), "Queue transitions refetch marker metadata");
-        press("Close menu"); press("Chapters"); await settle();
-        assert(w.document.querySelector(".screen").textContent.includes("Synthetic chapter"), "Queue transitions retain chapters");
-        w.document.dispatchEvent(new w.KeyboardEvent("keydown", { keyCode: 10009, bubbles: true })); await settle();
+        press("Close menu"); await settle();
+        assert(!Array.from(w.document.querySelectorAll(".screen button")).some(function (control) {
+            return control.textContent === "Chapters" || control.textContent === "Info";
+        }), "Queue transitions cannot restore removed player controls");
         version += 1;
         await next();
         assert(w.document.getElementById("status").textContent.includes("changed on Plex"), "A stale queue cannot advance");
