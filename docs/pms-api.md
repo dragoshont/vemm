@@ -47,11 +47,11 @@ The privately retained observations are independently authored JSON, not bundles
 or account records. These comparisons and the protocol/DOM tests are partial
 REQ-WEB-01 evidence, **not** full Web parity or Samsung acceptance.
 
-The subsequent `REQ-SEARCH-ONLINE-01` integration reuses the already documented
+The historical `5747511e` / `10b16abc` `REQ-SEARCH-ONLINE-01` integration reused the documented
 Discover search/details and exact local GUID association contract in the
 [client specification](samsung-tizen-client-spec.md). Its provenance is pinned
 Python-PlexAPI, not a successful online-search observation in the public Web
-startup above. Main Search now includes online movie/show metadata with the
+startup above. That integration included online movie/show metadata with the
 linked profile's account token, while library search/availability keep each
 server's grant. Catalogue identities/keys and detail GUID/type are validated;
 duplicates are collapsed by GUID and only 30 online results are retained.
@@ -59,6 +59,12 @@ Actual-main.js synthetic journeys cover no-server access, account/server token
 separation, cloud/library partial failures and Retry, query-edit cancellation,
 exact local availability, and GUID/server-key Back focus. These contracts do
 not establish live cloud availability or licensed streaming rights.
+The later owner direction superseded that release scope: default Search is now
+personal/shared-library-only, makes no automatic catalogue request, and exposes
+no catalogue-search promotion. The implementation/regressions remain deferred
+behind a source-disabled switch with no production setting; public metadata
+lookup is optional, not a release blocker. No Plex client distributions are
+downloaded/run and no licensed Plex catalogue playback is enabled.
 
 Marker availability is external to the client. Plex's
 [credits documentation](https://support.plex.tv/articles/credits-detection/)

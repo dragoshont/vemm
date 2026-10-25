@@ -23,6 +23,8 @@
     var authGeneration = 0;
     var accountToken = "";
     var accountClient = null;
+    // Online catalogue search is deferred; no production setting enables it.
+    var catalogueSearchEnabled = false;
     var activeProfile = null;
     var linkedProfile = null;
     var servers = [];
@@ -797,7 +799,9 @@
         servers = [];
         page(translate("Choose a server"), "servers");
         if (typeof warning === "string" && warning) { screen.appendChild(element("p", "inline-error", warning)); }
-        button(screen, "Search Plex catalogue", function () { visit(function () { openSearch(""); }); });
+        if (catalogueSearchEnabled) {
+            button(screen, "Search Plex catalogue", function () { visit(function () { openSearch(""); }); });
+        }
         setStatus("Discovering your Plex Media Servers...");
         accountClient.getServers().then(function (result) {
             if (generation !== viewGeneration) { return; }
@@ -1555,7 +1559,9 @@
         }, false, "refresh");
         button(utilities, "Live TV and DVR", function () { visit(openTelevision); }, false, "television");
         if (accountClient) { button(utilities, "Watchlist", function () { visit(function () { catalogueUi().watchlist(); }); }); }
-        if (accountClient) { button(utilities, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); }); }
+        if (catalogueSearchEnabled && accountClient) {
+            button(utilities, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); });
+        }
         button(utilities, "Change server", function () {
             currentClient = null;
             currentServerId = "";
@@ -1906,7 +1912,7 @@
         retryView = null;
         clear(screen);
         resetImages();
-        var searchTitle = accountClient ? "Search Plex and your servers" : "Search your servers";
+        var searchTitle = catalogueSearchEnabled && accountClient ? "Search Plex and your servers" : "Search your servers";
         page(translate(searchTitle), "search");
         var input = element("input", "remote-input");
         input.type = "search";
@@ -1948,7 +1954,7 @@
             resetImages();
             restoreView = function () { openSearch(query); };
             retryView = restoreView;
-            var searchAccount = accountClient;
+            var searchAccount = catalogueSearchEnabled ? accountClient : null;
             setStatus(searchAccount ? "Searching Plex catalogue and reachable servers..." : "Searching reachable Plex servers...");
             var targets = servers.length ? servers.slice() : currentClient ? [null] : [];
             var index = 0;

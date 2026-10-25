@@ -71,21 +71,23 @@ details retain their source server and playlist-specific identity; opening a
 result does not start playback. Editing or clearing a query retires its old
 requests/results. Back waits for results before restoring the exact server/item
 focus; retained results and headings share the 200-result bound.
-With a linked profile, the main Search also queries Plex's online Discover
-catalogue, not just owned/shared libraries. A separately labelled Plex catalogue
-group retains up to 30 unique, validated movie/show identities; library results
-reserve the other 170 slots regardless of response order. Server-only search
-retains its 200-result bound. Source failures remain visible beside successful
-results and offer Retry without discarding the query. Back restores an online
-result by GUID or a library result by server and rating key, not position alone.
-The server-selection screen also offers online search when no personal server
-is available. Catalogue details use the account service; Find in my libraries
-checks exact GUIDs with each server's own grant and labels separate server
-copies. Metadata discovery is not authorization for licensed Plex streaming.
-Without a known or connected PMS, availability shows an explicit no-server
-empty state, makes no request and does not offer an ineffective Retry.
-Standalone catalogue search retains input-edit cancellation and query/focus
-return behavior. Synthetic host coverage is not live cloud/native acceptance.
+Search is library-first, including with a linked profile: it queries only
+reachable personal/shared PMS libraries and retains up to 200 results.
+It makes no automatic Discover/catalogue request and does not promote
+Plex-distributed Movies & Shows. Plex authentication and each server's own
+access grant remain necessary; this is not removal of account linking.
+Source failures remain visible beside successful results and offer Retry
+without discarding the query. Back restores the exact server and rating key,
+not position alone.
+
+Online catalogue search is deferred behind a source-disabled switch with no
+production setting or default Home/server-selection entry. Its existing
+metadata-only implementation/regressions remain, including validated GUIDs,
+bounded results, exact local availability, no-PMS empty state and cancellation.
+Public metadata lookup is at most optional future scope, not a release blocker.
+Do not download/run Plex client distributions for this release work; no
+licensed Plex catalogue playback is enabled. Explicit Watchlist/local-availability
+behavior remains separate from default library search.
 
 DVR scheduling offers fresh storage locations within the chosen library, or an
 explicit Plex-default choice when none are advertised; it never picks a hidden

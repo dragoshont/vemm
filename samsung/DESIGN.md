@@ -63,7 +63,7 @@ identity surface, with an Account text fallback when artwork is unavailable.
 | Servers and favourites | Structured selection rows, then grouped account/navigation actions |
 | Home | Full-bleed feature, persistent Home/favourite-library/Search capsule, separate Account menu, explicit play/info/cycle controls and poster shelves |
 | Libraries and collections | Browse toolbar and six-column portrait grid; three-column landscape or square music artwork |
-| Search and people | Large search field, separately labelled online Plex catalogue and server shelves; biography/portrait and image/title credit rows |
+| Search and people | Large library-search field and server-labelled shelves; biography/portrait and image/title credit rows. No default catalogue/distribution-search promotion |
 | Details | Cinematic art and scrim, expandable two-line synopsis, primary action and round restart/More controls; secondary actions hidden until requested; extras and cast below |
 | Watchlist and catalogue | Poster grid and selected filters; cover, metadata and explicit local-availability actions |
 | Guide and DVR | Provider selection, program rows, channel/date views, recording status and server-supplied preference fields |

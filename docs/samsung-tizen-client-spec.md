@@ -233,6 +233,9 @@ and redirect behavior still require named-device acceptance.
   alphabet/first-character navigation.
 - **BROWSE-3:** Search reachable servers and group results by supported media kind. Search state,
   query and focus must be controllable using the supported Samsung remote/input model.
+  Current release search is personal/shared-library-first, even with a linked account:
+  no automatic Discover/catalogue requests or Plex-distributed Movies & Shows promotion.
+  Optional public metadata lookup is deferred; legitimate account/server grants remain.
 - **BROWSE-4:** Item details show available metadata, artwork, synopsis and available actions.
   Support show/season/episode navigation, collections, related items, extras/trailers, cast/crew,
   person information and filmography when supplied by Plex endpoints.
@@ -426,16 +429,16 @@ GUIDs are checked again in the response. It is not a title-only guess.
 Source: the pinned client's `searchDiscover`, `_toOnlineMetadata`, and
 [LibrarySection.getGuid](https://github.com/pushingkarmaorg/python-plexapi/blob/8a9ade7f364582cabb6d5bc200994fddb2113d48/plexapi/library.py).
 Catalogue search displays at most 30 returned results, local matching at most 200 cards.
-Main Search includes this online catalogue alongside owned/shared-library results;
-it is also reachable from server selection without a personal server. Linked-profile
-search reserves 30 unique validated online results and 170 library results within
-the shared 200-result retention bound; server-only search retains 200.
-Online identities and metadata detail GUID/type must agree, never a title-only
-or numeric-PMS-ID substitute. Query edits cancel both sources, partial failures
-offer Retry without hiding successful results, and Back restores online GUID or
-server/rating-key identity after asynchronous results arrive. Standalone catalogue
-search uses the same cancellation/focus ownership. These are synthetic host
-contracts, not independently observed Plex Web cloud behavior or live/native acceptance.
+The owner subsequently deferred online catalogue search. Default Search now
+queries only personal/shared libraries with the full 200-result bound, including
+linked profiles; no Home/server-selection catalogue-search entry is exposed.
+Online search code and regression contracts are retained source-disabled without
+a production setting. They require agreeing online GUID/type/key and metadata
+detail GUID/type, exact per-server local association, cancellation, partial
+errors/Retry and identity-owned Back; absent PMS is an explicit empty availability
+state without a request/ineffective Retry. This deferred work is not current
+release acceptance, independently observed Plex Web cloud behavior or a licensed
+Plex streaming feature. Do not download/run Plex client distributions.
 Licensed/ad-supported playback remains disabled: personal-library decision schemas do not
 establish cloud streaming authorization, ad obligations or DRM. The absence of a DRM flag in
 that schema is not evidence that catalogue content is unprotected.

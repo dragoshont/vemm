@@ -150,7 +150,10 @@ async function run() {
         window.eval(fs.readFileSync(path.join(app, "js", name + ".js"), "utf8"));
     });
     window.localStorage.setItem("vemm-tizen-account", JSON.stringify({ version: 2, storage: "unencrypted", token: "synthetic-account-token" }));
-    window.eval(fs.readFileSync(path.join(app, "main.js"), "utf8"));
+    var source = fs.readFileSync(path.join(app, "main.js"), "utf8");
+    var startup = source.lastIndexOf('    addConnectForm("");');
+    window.eval(source.slice(0, startup) +
+        '    window.__deferredCatalogue = function () { visit(function () { catalogueUi().search(); }); };\n' + source.slice(startup));
     function click(label) {
         var node = Array.from(window.document.querySelectorAll("button")).find(function (button) { return button.textContent === label; });
         assert(node, "Missing control: " + label + "; current screen: " + window.document.body.textContent);
@@ -201,7 +204,9 @@ async function run() {
         click("Back"); await settle();
         assert(window.document.querySelector(".screen-home"),
             "Refresh replaces the completed confirmation rather than retaining it in Back history");
-        click("Plex catalogue"); await settle();
+        assert(!Array.from(window.document.querySelectorAll("button")).some(function (node) { return node.textContent === "Plex catalogue"; }),
+            "Home does not promote deferred catalogue/distribution search");
+        window.__deferredCatalogue(); await settle();
         window.document.querySelector('input[type="search"]').value = "Synthetic";
         click("Search"); await settle();
         click("Synthetic Watchlist movie"); await settle();

@@ -64,7 +64,7 @@ async function run() {
         assert.strictEqual(request.headers["X-Plex-Token"], "synthetic-server" + (copyId ? "-" + copyId : ""));
         if (url.pathname === "/hubs/search") {
             if (mode === "server-error") { return Promise.resolve(response({}, 503)); }
-            if (mode === "bounded-late") {
+            if (mode === "bounded-late" || mode === "bounded-default") {
                 return Promise.resolve(response({ Hub: Array.from({ length: 1000 }, function (_, i) {
                     return { title: "Synthetic group " + i, type: "movie",
                         Metadata: [Object.assign({}, local, { ratingKey: String(100 + i) })] };
@@ -95,6 +95,7 @@ async function run() {
     var boundary = source.lastIndexOf('    addConnectForm("");');
     w.eval(source.slice(0, boundary) + '    currentClient = window.__client; accountClient = window.__account; servers = []; openSearch("");' +
         ' window.__catalogue = function () { catalogueUi().search(); };' +
+        ' window.__enableDeferredCatalogue = function () { catalogueSearchEnabled = true; currentClient = window.__client; openSearch(""); };' +
         ' window.__serverPage = function () { openServers(); };' +
         ' window.__multiple = function () { servers = window.__servers; openSearch(""); }; }());');
     async function settle() {
@@ -118,6 +119,19 @@ async function run() {
         click("Search");
     }
     try {
+        search("Library first"); await settle();
+        assert(!calls.some(function (call) { return call.host === "discover.provider.plex.tv" || call.host === "metadata.provider.plex.tv"; }),
+            "Default Search must not query Plex catalogue services even with a linked account");
+        assert(!w.document.querySelector(".online-search-results"), "Default Search does not promote Plex catalogue/distribution");
+        mode = "bounded-default"; search("Bounded library first"); await settle();
+        assert.strictEqual(w.document.querySelectorAll(".search-results .media-card").length, 200,
+            "Linked-account library-only Search retains the complete existing 200-card bound");
+        assert(!calls.some(function (call) { return call.host === "discover.provider.plex.tv" || call.host === "metadata.provider.plex.tv"; }));
+        mode = "complete";
+        w.__serverPage(); await settle();
+        assert(!Array.from(w.document.querySelectorAll("button")).some(function (node) { return node.textContent === "Search Plex catalogue"; }),
+            "Default server selection does not promote deferred catalogue search");
+        w.__enableDeferredCatalogue();
         search("Online only"); await settle();
         assert(calls.some(function (call) { return call.host === "discover.provider.plex.tv"; }),
             "Main Search must search online, not only libraries");
@@ -232,6 +246,6 @@ async function run() {
         assert.strictEqual(w.document.querySelector("input").value, "Standalone Back");
         assert(w.document.activeElement.textContent.includes(movie.title), "Standalone Back retains GUID focus even when result order changes");
     } finally { dom.window.close(); }
-    console.log("Online search actual UI: main entry, account/PMS separation, details, exact availability, Back and cancellation passed");
+    console.log("Library-first default has no catalogue requests/promotions; explicitly test-enabled deferred catalogue contracts remain intact");
 }
 run().catch(function (error) { console.error(error.stack || error); process.exitCode = 1; });

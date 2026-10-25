@@ -147,7 +147,9 @@ enabled by this investigation.
 
 The 0.2.0 choice is the existing explicit PMS-rendered fallback, not an
 unmeasured local renderer. Named-TV format correctness and CPU/memory/frame
-comparisons remain open while SDK access is blocked. Unicode numeric entities
+comparisons have not been run on the latest candidate. Earlier SDK transport
+failures were superseded by three normal Ethernet updates; current access
+needs fresh verification, not a blanket blocked-access assumption. Unicode numeric entities
 in the supported text path now retain valid supplementary-plane characters
 using ES5 surrogate pairs; malformed surrogate entities remain literal.
 
