@@ -3864,14 +3864,8 @@
         applySubtitleAppearance(subtitle);
         screen.appendChild(subtitle);
         var controls = element("div", "playback-controls");
-        var rewind = button(controls, translate("Back {seconds} seconds", { seconds: preferences.skipInterval }),
-            function () { seekPlayer(-preferences.skipInterval * 1000); }, false, "rewind");
-        rewind.setAttribute("data-seconds", String(preferences.skipInterval));
         var pauseControl = button(controls, "Pause / Play", togglePlayer, false, "pause");
         pauseControl.setAttribute("aria-label", translate("Pause / Play"));
-        var forward = button(controls, translate("Forward {seconds} seconds", { seconds: preferences.skipInterval }),
-            function () { seekPlayer(preferences.skipInterval * 1000); }, false, "forward");
-        forward.setAttribute("data-seconds", String(preferences.skipInterval));
         button(controls, "Subtitles", function () { openTracks("subtitle"); }, false, "subtitles");
         button(controls, "Audio", function () { openTracks("audio"); }, false, "audio");
         var moreControl = button(controls, "More", openPlaybackOptions, false, "more");
@@ -4029,7 +4023,7 @@
             renderDetail(item, client);
             showPlayerError(error);
         }
-        rewind.focus();
+        pauseControl.focus();
     }
 
     function togglePlayer() {
@@ -4851,7 +4845,7 @@
         var controls = screen.querySelectorAll(".playback-controls button");
         var target = scrubReturnFocus;
         if (!target || !target.parentNode || target.disabled || insideHidden(target)) {
-            target = controls.length > 1 ? controls[1] : controls[0];
+            target = controls[0];
         }
         if (target) { target.focus(); }
     }

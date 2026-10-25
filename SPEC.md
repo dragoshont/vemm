@@ -4,6 +4,21 @@ Status: implementation authorized; not delivered.
 Baseline: `2b50628cd9a346dbe1d374e103124665b749b260`.
 Owner: the Vemm product-backlog session.
 
+**Shipping hold:** the owner's latest "stop releasing" followed by "do all"
+means continue all approved local implementation/tests/spec reconciliation,
+not resume shipping. No further signing/distribution, TV installs/restarts/
+launches, push/publication, PR edits, merge, tag or release. Preserve retained
+artifacts; no device command, owned connection or Samsung lease is active.
+Earlier signing/deployment grants do not override this hold.
+
+Evidence currency: the retained signed `c1b7b015` production 0.2.0 was accepted
+as a normal update on MU6172, Q80C and QN70F, with raw installed-version
+read-back. Both RU7092 units were unreachable and not updated. Earlier
+transport-blocked evidence below describes its collection time, not a current
+blanket SDK failure. Installation is not loaded-runtime or feature acceptance.
+The original 34 grouped rows are retained, but are not an exhaustive
+interaction-level reconciliation of the owner's feedback.
+
 The owner approved the entire previously researched product backlog, recovery
 of earlier functional feedback, an adversarial review, Plex Web interoperability
 investigation, implementation, and deployment to every available known TV.
@@ -58,7 +73,83 @@ negative findings require evidence, not speculation.
 | REQ-WEB-01 | Investigate Plex Web interoperability and implement findings. | Identify the exact observed Plex Web version/source and lawful observation method; compare relevant metadata, markers, watched state, queues, tracks, quality, lifecycle and recovery; turn findings into independently implemented protocol fixtures/regressions and Vemm behavior. No proprietary-code copying, DRM/auth bypass or household-account writes. Missing access/evidence remains explicit. | Vemm | in_progress | docs/pms-api.md records actual public Web 4.163.0 asset integrity and isolated synthetic startup observations, separating static/request/fixture evidence. Independent marker/queue/ABR protocol fixtures and watched read-back/adaptive implementations trace findings to behavior. Authenticated disposable playback/track/lifecycle comparison remains open; no proprietary implementation or household state used. |
 | REQ-REVIEW-01 | Adversarially review baseline and final delivery. | Independent review maps the entire approved scope to code, behavior and evidence; material findings are corrected or genuinely blocked; final review evaluates the exact new candidate, not the old baseline. | Vemm | in_progress | Independent scoped repaired-delta/doc/artifact reviews at exact 13ef9686 and 463c5290: PASS, not full delivery. Reviewer independently ran both clean full host gates, reproduced old-source failures with new tests, and verified actual unsigned WGT payloads, complete-source bytes and gate-log hashes. The four e0c findings and later profile PIN Back, cross-library page ownership and track variant gaps are corrected. The 463c source ZIP contains all 258 files. Subsequent fb20fac7 Watchlist read-back and final ledger need fresh frozen receipts/review. All34 requirements plus real backend, signature/native and deployment acceptance remain open; earlier scoped PASS is not final delivery acceptance. |
 | REQ-REL-01 | Prepare a reproducible Vemm 0.2.0 candidate. | Version/app metadata agree; committed clean source passes focused regressions, full Samsung host checks, ES5/M47 checks, unsigned SDK build and source/package inventory; preserve identity, notices and complete-source availability. No publication is implied. | Vemm | accepted | Independent actual-artifact verification at e0c7d7da confirms the narrow unsigned-candidate criterion: version agreement, clean full host/ES5/M47 and unsigned SDK build logs, both unsigned production/QA WGT hashes, unique exact payload bytes including all notices/licences, all 257 tracked-source ZIP files and log hashes bound by host-receipt.json. Both WGTs correctly contain zero signatures. Canonical builder rejects stripped/modified/extra/duplicate/symlink payloads before distribution; seven distribution regressions also independently pass. Earlier 4964b0fc/a238 toolkit-restaged WGTs remain retired for omitted legal payload. Every revised frozen source needs refreshed receipts; this preparation acceptance does not grant signature trust, resolve the REVISE review, or satisfy REQ-QA/DEPLOY. |
-| REQ-DEPLOY-01 | Deploy and verify 0.2.0 on every available known TV. | Fresh scan and live identity match select all available saved TVs; existing-author signed updates succeed without Vemm uninstall; read back exact installed 0.2.0 on each; execute appropriate native feature acceptance and preserve receipts privately. Do not call the overall program complete while other requirements remain unmet. | Vemm | blocked | Fresh discovery now reaches all five developer ports, but all five SDB connections fail before live identity can be re-established. One previously authorized SDB-only restart, performed with no active SDK links under the exclusive lane, did not restore access. Cause is not established; host Local Network permission and TV Developer Mode host-PC configuration require an actual access check, not bypass or repeated approval. Production 0.2.0 was not installed; the earlier owned QA install is not production deployment. Private per-target connection and QA ownership receipts retained. |
+| REQ-DEPLOY-01 | Deploy and verify 0.2.0 on every available known TV. | Fresh scan and live identity match select all available saved TVs; existing-author signed updates succeed without Vemm uninstall; read back exact installed 0.2.0 on each; execute appropriate native feature acceptance and preserve receipts privately. Do not call the overall program complete while other requirements remain unmet. | Vemm | in_progress | Restored Ethernet allowed serial live-original-DUID-matched normal updates from 0.0.1 to exact retained signed c1b7b015 production 0.2.0 on MU6172, Q80C and QN70F. SDK success and bounded raw app-list version 0.2.0 were observed on each. Both distinct RU7092 units timed out on directed Ethernet discovery and were not updated. Device update acceptance is observed; historical author fingerprints, settings/sign-in preservation, loaded-runtime identity and native feature/service/performance acceptance are not inferred. Private exact package hashes and per-target receipts retained. Later source changes require new packages; no blind app restart while the owner is watching. |
+| REQ-UI-TRANSPORT-01 | Remove redundant on-screen interval controls without removing remote seeking. | Actual-player HUD has Pause / Play, Subtitles, Audio and More, plus applicable marker actions; initial and expired-opener fallback focus is Pause / Play. Remote row navigation does not seek; slider/hidden-HUD held seeking and dedicated media keys retain bounds, commit and pause intent. Verify the repaired payload on the identified TV. | Vemm | in_progress | Observed failing player-layout-ui regression showed Back 10 seconds and Forward 10 seconds in the actual HUD. Source removes those controls and repairs their initial/fallback focus references. Updated player-layout-ui and product-ui pass four-control, expired Intro opener, D-pad/held scrub, media Rewind/Fast Forward and pause-preservation journeys. This source is not the previously deployed c1b7 payload; native seeking is still unverified. |
+| REQ-INT-01 | Reconcile concrete interactions, not only grouped backlog headings. | Trace original recoverable feedback and binding PRODUCT/DESIGN/client criteria to implementation, observable tests and explicit missing/partial/unverified/external boundaries; implement confirmed source omissions. Do not call a missing UI device-blocked or declare the original grouped ledger exhaustive. | Vemm | in_progress | Interaction reconciliation below adds explicit transport, focus, visible-change and source-gap criteria. Exact earlier seeking-failure wording was not recovered; the current removal direction is explicit. Saved-playlist add/remove/smart editing and DVR conflict/storage-location workflow gaps remain source gaps, not native-test failures. The historical research baseline is not current implementation proof. |
+| REQ-RUNTIME-01 | Resolve the reported unchanged livingroom experience. | Resolve exact saved target without guessing; use supported non-disruptive running/source evidence where available, distinguish installation from active runtime, and compare immediately visible entries against the retained original 0.0.1 payload. | Vemm | blocked | Both updated MU6172 and Q80C have saved Livingroom TV names, differing only by vendor prefix/case. The owner is unavailable to disambiguate; no target is guessed, launched, debug-restarted or terminated. Actual retained 0.0.1 main.js lacks Customize Home, Video playlists, Adaptive quality, Converted audio volume, Reduced motion and Support record; c1b7 source includes them. These are menu/behavior changes, not a default visual redesign. No evidence establishes stale running code or that the owner has seen those entries. |
+
+## Interaction-level reconciliation
+
+This extends the same ledger. `implemented` means a source behavior with the
+named synthetic contract, not product acceptance; `partial` means useful
+source exists but a specific part is missing; `missing` means the named
+interaction is not offered. `unverified` applies to an observation not made,
+and `external-blocked` names an actual service/API/authorization dependency.
+An unavailable TV does not turn absent source UX into an implemented feature.
+Test references below are under `tests/tizen/`; the full host gate is still
+required on each committed candidate.
+
+Binding sources: [PRODUCT](samsung/PRODUCT.md), [DESIGN](samsung/DESIGN.md),
+and [client contract](docs/samsung-tizen-client-spec.md) sections 3, 4, 5, 9A
+and 10. The original gap-analysis/current-state research is historical intake,
+not evidence that a current source interaction works. Exact owner quotations
+are in Corrections; do not reconstruct missing quotations from old agent
+summaries.
+
+| Concrete criterion / binding source | Parent REQ | Source state and evidence | Remaining acceptance or omission |
+| --- | --- | --- | --- |
+| AUTH-1: short code/QR, expiry renewal during stalled polls, explicit denial Retry, background cancellation | AC-01, QA-01 | implemented: `auth-refresh-ui.test.js:75-133`; `js/auth.js` and pairing UI | Real service/linking and packaged renewal unverified |
+| AUTH-2: protected PIN cannot restore the retired profile; explicit switch, sign-out and expired-grant return | AC-01 | implemented: `profile-boundary-ui`, `session-ui`, `session` | Actual selected profile, saved-sign-in deletion/relaunch and state preservation unverified |
+| AUTH-3: owned/shared grants, unavailable-server Retry, TLS/relay distinctions | AC-01, NT-01 | implemented source: `server-selection`, `account`, `session-ui`; no invented TLS bypass | Packaged TLS/relay and real shared-server selection unverified |
+| AUTH-4: header credentials, redirect refusal, stream-URL-only exception, no native-error token leakage | ID-01, QA-01 | implemented: `plex-api`, `response-limits`, `stream-token-exposure` | Native URL handling/redirect behavior remains unverified, not an assertion of cryptographic protection |
+| AUTH-5: optional remembered sign-in, removal on sign-out, truthful unencrypted storage disclosure | AC-01, IN-01 | implemented source: `session`, `preferences`, `samsung/PRIVACY.md`; no encryption claim | Supported secure-storage investigation is not evidence of encrypted-at-rest credentials; retail persistence unverified |
+| AUTH-6: no title/search/subtitle/server telemetry; separate revocable opt-in if a sender is added | PB-02 | No telemetry sender is introduced; `support-record` allowlists a local preview | Do not label a local user-invoked support preview automatic telemetry |
+| BROWSE-1: PMS Continue Watching/recent shelves, favorite-library filtering and explicit hero Play/Info/cycle | UX-02 | implemented: `home-deck`, `home-hero`, `home-season-navigation`; merely focusing/cycling does not play | Named-TV source/state and D-pad behavior unverified |
+| BROWSE-1 / DESIGN Layout: See all beyond 12 items, retain opening shelf/Back; optional row visibility/order/hero Save/Reset | UX-02 | implemented: `home-paging-ui`, `home-personalization-ui`, `home-layout` | Real profile/restart persistence and physical remote acceptance unverified; no default redesign is promised |
+| BROWSE-2: movie/show/season/episode routes, sort/filter/unwatched/alphabet and bounded paging | UX-03 | implemented: `product-ui`, `media-ui`, `route-resilience`; 200-card retained window | Per-variant native focus/memory distributions unverified |
+| BROWSE-3: remote search, reachable-server grouping, controllable query/Back and no empty-query request | UX-03 | implemented source: `product-ui`, `route-resilience`, `lg-parity-ui` | Exhaustive real-server response/media-type completeness is not established by a search entry point |
+| BROWSE-4 / DESIGN Details: two-line expandable synopsis, extras/trailer, collection and related-item return | UX-03 | implemented: `detail-back-focus`, `lg-parity-ui`, `media-ui` | Real metadata availability and packaged text fit unverified |
+| BROWSE-4: on-deck show Play/Resume uses episode identity; missing on-deck falls back to Seasons | UX-03, MARK-01 | implemented: `home-season-navigation`, `lg-parity-ui`; client contract section 9A | Native playback of the selected episode unverified |
+| BROWSE-4: person biography/credit pages and exact local/shared GUID matching, not licensed playback | WL-01, WEB-01 | implemented: `people`, `filmography-ui`, `watchlist` | Actual account grants and incomplete-index recovery on packaged runtime unverified |
+| BROWSE-5: denied/loading/empty/failure differ, Retry re-fetches, stale results cannot steal the next route | UX-01, UX-03 | implemented: `route-resilience.test.js:100-114`, `account-navigation-ui.test.js:121-159` | The reported physical Account/Settings trap itself remains unreproduced, not refuted |
+| BROWSE-6: bounded pages/images/profile artwork; explicit cancellation and release | PF-01, UX-03 | implemented: `artwork-lifetime`, `profile-image`, `response-limits`, queue/photo contracts | Decoded-image/heap and long-session budgets are unverified, not zero |
+| PLAY-1: UI uses the playback controller and isolated AVPlay adapter | PB-01, QA-01 | implemented: `playback`, `avplay`, `player-transitions` | Actual AVPlay behavior remains model/firmware-specific |
+| PLAY-2: selected-version capability/track/subtitle negotiation; Force refuses conversion, Auto falls back | PB-01, PB-03 | implemented: `capabilities`, `playback`, `playback-metadata-ui` | Current hardware codec/HDR/audio and actual direct/transcode output unverified |
+| PLAY-3 / current feedback: no on-screen interval Back/Forward; Pause first and safe expired-opener focus | UI-TRANSPORT-01 | implemented in this repair: observed red-to-green `player-layout-ui`, `product-ui` | Newly repaired source is not yet deployed; no native seek fix claimed |
+| PLAY-3: slider/hidden-HUD held Left/Right, acceleration, key-up or 300 ms idle commits once, clamps bounds | UI-TRANSPORT-01, PB-01 | implemented: `product-ui.test.js:615-687`; policy unchanged by button removal | Physical repeated/released keys and landed TV seek remain unverified |
+| PLAY-3: dedicated Rewind/Fast Forward use saved interval and preserve pause; row arrows navigate without seek | UI-TRANSPORT-01 | implemented: updated `product-ui`; the removed buttons are not these key handlers | Native seek responsiveness/failure is unresolved; earlier exact failure wording unavailable |
+| PLAY-3: landed playhead, preparing/buffering and non-playing controls follow actual adapter state | PB-01 | implemented source: `avplay`, `playback`, `product-ui` | Keyframe snapping/actual panel position on each TV unverified |
+| PLAY-4: explicit start/pause/stop/completion, string queue correlation and PMS progress/read-back | PB-01, WATCH-01 | implemented: `playback`, `progress-bounds`, queue tests | Real PMS final state/read-back and interruption persistence external-blocked by absent disposable backend |
+| PLAY-5: real selected/default/forced/SDH/duplicate track variants, language grouping, safe paused switch | ST-01 | implemented: `player-layout-ui`, `player-transitions`, `account-preferences-ui` | Audible/visible selected output and real per-profile/per-Part persistence unverified |
+| PLAY-6: Unicode/multiline/overlap cue timing, search/download failure and track/version cancellation | ST-02 | implemented text paths: `subtitles`, `subtitle-search`, `subtitle-api`, `player-transitions` | Visible format/timing across native/overlay/burned paths unverified |
+| PLAY-6: local styled ASS/SSA, PGS and VobSub equivalence | ST-03 | partial: existing device/server routes; no equivalent local styled/image renderer | Feasibility/API/resource limits remain explicit; a host SRT pass cannot close this criterion |
+| PLAY-7: actual metadata includes markers/chapters; focused Intro/Credits persist for segment; held OK acts once | MARK-01 | implemented: `plex-web-interop`, `skip-markers`, `player-layout-ui`, `product-ui` | Named-TV synthetic metadata-to-action/seek acceptance still unverified |
+| PLAY-7: chapter cards seek their own time; Up Next/Watch Credits preserve pause/countdown and successor ownership | MARK-01, PB-01 | implemented: `player-layout-ui`, `video-queue-ui` | Native episode transitions, pause and standby unverified |
+| PLAY-7: version/quality/source, actual versus requested facts, actionable Retry/Restart/Stop/Back | PB-01, PB-02 | implemented: `playback-metadata-ui`, `player-layout-ui`, `support-record` | Physical output is explicitly not measured |
+| PLAY-8: aspect preservation/display mode, per-format HDR/picture expectations | PB-01, QA-01 | adapter source and `avplay` contracts exist | Current source non-16:9 composition/HDR acceptance is unverified; engine tables are not acceptance |
+| PLAY-9: recoverable timeout/refusal/unsupported stream, no silent black-screen success | PB-01 | implemented controller error/cancel/retry paths: `playback`, `player-transitions`, `player-layout-ui` | Real interruption, native decoder failure and long-session recovery unverified |
+| PLAY-10 / section 5: direct/transcode, subtitles, HDR/audio and model-specific workload register | QA-01, PF-01 | Host fixtures are implemented, not a completed format matrix | Missing current-artifact runtime observations/budgets; package counts are not functional passes |
+| UI-1 / DESIGN: cinematic loop, no heavy Home focus frame, safe margins, legible text and lower-width grids | AU-01, UX-03 | implemented layout contracts: `blue-calm-theme`, `card-focus-layout`, `icon-layout` | Static/synthetic geometry is not physical couch text-fit, contrast or current model performance |
+| UI-2 / PRODUCT: profile/server/Home/library/search/detail/person/photo/Watchlist/DVR/settings/confirmation routes | UX-01, UX-03 | source routes plus `route-resilience` loading/empty/error/Retry/Back coverage | Route presence is not exhaustive interaction or service acceptance |
+| UI-3: short/held OK distinction, Tools/Info context menu, no repeated mutation, Cancel returns card | AU-01, WATCH-01 | implemented: `lg-parity-ui`, `watch-readback-ui`, `product-ui` | Actual Samsung key-up/repeat behavior unverified |
+| UI-4 / DESIGN: Back restores media identity/filter/cursor/focus/scroll, not another library's globals | UX-03, AC-01 | implemented: `detail-back-focus`, `account-navigation-ui`, `route-resilience` | Packaged player return, transient suspension and restart acceptance unverified |
+| UI-4 / DESIGN: first-page Back offers Exit app with Stay focused; only explicit Exit terminates | UX-01, AU-01 | implemented: `home-season-navigation`, `session-ui`, `lg-parity-ui` | Native app termination/foreground restoration unverified |
+| UI-5: English/Spanish/Belarusian app text, placeholders/errors, reduced motion and larger interface text | AU-01 | implemented: `localization`, `dynamic-localization`, `interface-preferences-ui` | Old-engine formatting, caption contrast, panel text-fit and Voice Guide/Store obligations unverified |
+| UI-6: standby/wake/background/no-auto-play and separate The Frame Art Mode contract | PB-01, QA-01 | hidden-state cancellation/no-auto-play source exists; Frame contract not accepted | Standby/process kill/Art Mode are unverified, not inferred from DOM visibility |
+| DESIGN watch state: explicit scoped confirmation, unchanged read-back is unconfirmed, Back reloads badges/resume | WATCH-01 | implemented: `watch-actions`, `watch-readback-ui`, `home-cache-ui` | Disposable-account mutation/read-back external-blocked; household profiles forbidden |
+| PRODUCT video queues: playlist pages, move-to-beginning confirmation/read-back, previous/next/shuffle/repeat | QU-01 | implemented: `video-queue`, `video-queue-ui`, `plex-api` | Real server/native order, cleanup and playback unverified |
+| Original full-client goal / QU-01 editing: saved-playlist create/rename/delete, item add/remove and smart-playlist editing | QU-01, INT-01 | missing: PRODUCT and `docs/pms-api.md:170` disclose these omissions; current API exposes only list/detail/items/move | These are source UX gaps, not missing TV tests. Existing limitations are disclosure, not owner-approved removal from the full-client goal |
+| PRODUCT music: server audio queue, >200 entries, transactional next, shuffle/repeat and retryable cleanup | MU-01 | implemented: `music-queue`, `music-queue-ui`; not Plexamp parity | Real server ordering, native audio, interruption and memory unverified |
+| PRODUCT photos: cross-page albums, rotate/slideshow, bounds, download/decode cleanup and return focus | PH-01 | implemented: `photos`, `photo-api`, `photos-ui` | Actual source formats/PMS conversion, panel output and old-engine resource limits unverified |
+| Watchlist: account GUID read/add/remove verification, bounded paging and explicit unchanged-success feedback | WL-01 | implemented: `watchlist-readback`, `watchlist`, `media-ui` | Actual account persistence/concurrency external-blocked; not licensed streaming |
+| Client section 9A DVR: destination library and server preference forms, explicit schedule/cancel | TV-01 | partial: `js/television-ui.js:89-116,147-203`, `television.test.js:25-42` | Library selection exists; storage-location and conflict-resolution workflows are still source gaps, not only an unavailable server |
+| Client section 9A Live TV: consumer allocation, keepalive, release on cancel/exit and real live output | TV-01 | missing lifecycle implementation | external-blocked: supported ownership contract and disposable entitled tuner/server not established; no speculative tune/write |
+| Original NT-01: same-scope outage metadata, bounded cache, auth/PIN safety and explicit stale-state indication | NT-01 | partial: `home-cache-ui`, scoped Home cache and retry; not downloads or a full offline client | Broader cloud-independent authentication/grant behavior is not established or silently promised |
+| Research ST-03/AD-01/SO-01: styled subtitles, audio sync/dialog/normalization, synchronized co-viewing | ST-03, AD-01, SO-01 | partial/feasibility: converted-audio percentage is implemented; no local PCM/dialog/sync control or room implementation | API/service/performance prerequisites remain named; volume boost is not normalization/dialog isolation or shared-room support |
+| Client section 9/9A licensed catalogue, distribution/Store and author-preserving installer recovery | SV-01, DS-01, DS-02, IN-01, ID-01 | partial: catalogue metadata and canonical packages; ordinary signed update accepted on three TVs | Licensed service/DRM/ads, Store/seller/legal, community adapter and Windows/Linux journeys remain independently gated |
+| Original GR-01/PF-01: retain acceleration, default-off experiment, no invented speed comparison | GR-01, PF-01 | implemented experimental disclosure; host resource bounds and earlier probe evidence only | Current per-model raw cold/warm/focus/artwork/large-library/long-session distributions missing; no official-Plex A/B claim |
+| Current "I see no change": visible features versus actual original 0.0.1, exact target and running code | RUNTIME-01, QA-01 | Offline comparison confirms new menu entries; default artwork/layout largely inherited | Livingroom target ambiguous; current running source/UI unverified. Do not diagnose stale runtime from installed version alone |
+| REQ-WEB-01 lawful Plex Web interoperability | WEB-01 | implemented observed-request-derived marker/string-queue/opt-in-ABR/volume fixtures: `plex-web-interop`; documented primary-client observation | Not proprietary-code copying, full Web parity or actual entitled-service acceptance |
 
 ## Corrections and authorization
 
@@ -74,6 +165,11 @@ negative findings require evidence, not speculation.
 | 2026-10-25 | revise | REQ-REVIEW-01 | Independent frozen-baseline verdict is REVISE. Repair the concrete gaps without rewriting working inherited behavior; retain all 34 rows and require a separate final-candidate review. |
 | 2026-10-25 | revise | Execution while SDK access is blocked | After the observed five-TV connection failure and the approved SDB-only recovery attempt, the owner selected "Continue source work while device access remains blocked". Continue source implementation; native acceptance and the authorized rollout remain open, not waived or cancelled. |
 | 2026-10-25 | revise | Real-account acceptance | Owner confirms no established disposable Plex account/profile/server configuration path is known. Continue synthetic fixtures and record real-account acceptance as externally blocked. Do not repeat this request or substitute household Guest/managed profiles. |
+| 2026-10-25 | revise | UI-TRANSPORT-01 | "did you fix vide skipping? remove skip left and right buttions? what exactly did you imple,enmtned?" Remove redundant on-screen interval controls; preserve remote Left/Right seeking and dedicated media keys. No exact earlier native seek failure was recovered, so do not invent a new seek policy or claim it fixed. |
+| 2026-10-25 | add | INT-01 | "thayt means you missed a lot fo specs". The grouped 34-row list is not exhaustive interaction reconciliation. Check original recoverable feedback and binding PRODUCT/DESIGN/client criteria, retain concrete gaps and implement confirmed actionable omissions; missing source UX is not device-blocked. |
+| 2026-10-25 | add | RUNTIME-01 | "honmestly i see no change" and "i am in livingroom". Installed version does not refute the report. Saved fleet names match two updated sets; exact target is unresolved while the owner is unavailable. No guessed target, blind launch/debug restart or household navigation/playback. |
+| 2026-10-25 | revise | DEPLOY-01, ID-01 | Restored intended Ethernet and live identity allowed normal signed updates on three sets. Observed update acceptance supersedes the earlier blanket transport blocker, not historical fingerprint, saved-state or native feature acceptance. Both distinct RU7092 sets remain unreachable/unmodified. |
+| 2026-10-25 | supersede | All shipping authorization | "ok, listen man, stop releasing" followed by "do all". Stop shipping, including signing/distribution, device install/restart/launch, push/publication, PR edit, merge/tag/release. Continue all approved local source/tests/spec implementation and interaction reconciliation. No shipping/device command was in flight at this correction; no new signing or delivery occurred. Existing artifacts are preserved and no Samsung lease is held. |
 
 ## Execution and acceptance
 
@@ -97,6 +193,30 @@ negative findings require evidence, not speculation.
   source-presence inventories, screenshots alone or a successful install alone.
 
 ## Handoff
+
+Current additional source correction removes only the redundant interval
+buttons, starts on Pause / Play and returns there when a scrub opener expires.
+`player-layout-ui` first failed on the actual old six-button HUD; repaired
+`player-layout-ui` and `product-ui` pass, including preserved held and media-key
+seeking/pause. Finish clean committed local full gates and the next scoped
+source review. Signing, distribution and device/shipping work are on the
+owner's explicit hold. This is not a deployed fix.
+
+The interaction reconciliation above records omitted explicit transport/focus
+criteria and other source gaps. Continue those source-ready omissions, not just
+the button correction. Earlier short grouped rows and the historical baseline
+audit are not exhaustive owner-feedback reconciliation.
+
+Latest production observation: c1b7b015 signed 0.2.0 updated MU6172, Q80C and
+QN70F normally, with raw version confirmation. Both RU7092 units remain
+unreachable and not updated. Scoped independent c1b7 Watchlist source/prose/
+artifact review and full clean host gate passed. Runtime/feature/service/
+performance acceptance remains open. Both MU6172 and Q80C carry Livingroom TV
+names; no current-target disambiguation exists and the owner is unavailable.
+Do not guess or restart either while investigating the reported unchanged UI.
+
+Historical slices and evidence follow; their SDK-blocked observations were
+superseded by the Ethernet restoration and three normal updates above.
 
 The latest additional host-implementable slices are `b4e6d56d` (profile/server
 grant and PIN Back ownership), `d9d7c44e` plus `463c5290` (deterministic explicit
@@ -174,21 +294,19 @@ title/version fields that precede `app_tizen_id`. The private install helper's
 parser now passes that synthetic record-order regression; no fresh native
 version read-back was possible. Do not invent an alternative app-info command.
 
-Use the private session artifacts for source-bound QA staging, generated media
-and the bounded fixture server. They contain no real Plex credentials. Run
-actual native remote/playback/lifecycle/performance journeys, finish remaining
-source/feasibility rows, obtain the independent final frozen-candidate review,
-then complete the approved existing-author production update on every available
-known TV with explicit exact-version read-back. Real cloud/tuner/account-write
+Preserve private session artifacts and generated synthetic media. Continue all
+local source/feasibility rows, concrete interaction reconciliation and the
+independent frozen-source review. Do not run signing/distribution, device or
+publication work under the current shipping hold. Real cloud/tuner/account-write
 acceptance still has no established disposable backend; household profiles are
 not a substitute. Service/seller/legal barriers remain explicit blocked rows.
 
-Latest access correction: all five fresh SDK connection attempts now fail
-despite reachable developer ports. A single approved SDB-only restart with no
-active SDK links did not restore access; no TV was rebooted and no security
-setting bypassed. Release the lane while waiting for the human host/device
-access check. Do not repeat installs, treat the earlier successful QA install
-as a verified version, or count unavailable native measurements as passes.
+Latest access correction: the intended Ethernet interface returned and enabled
+three normal signed production updates. The two missing RU7092 targets timed
+out on bounded directed Ethernet discovery. No TV was rebooted or security
+setting bypassed; the serial lane and owned links were released. Do not repeat
+connections without new evidence, count QA as production, or substitute an
+installed-version receipt for runtime/native functional observations.
 
 Failed approaches: branding-only delivery, interpreting research as implemented
 features, treating old host receipts as current TV acceptance, and repeatedly
@@ -198,8 +316,8 @@ Verify: confirm canonical `dragoshont/vemm`, the intended isolated branch and
 this committed ledger; read `AGENTS.md` and the governing client/product/design
 contracts. Use focused `tests/tizen` regressions while iterating, then
 `tools/tizen/test.sh` and `tools/tizen/build-source.sh samsung/Vemm` on the
-committed clean candidate. Before deployment load the installed Tizen skill,
-verify existing private signing/target coverage and use the Samsung lane.
-Retain source/package hashes and actual per-target installed-version/native
-acceptance. No adopted Architrave config or gate runner existed at intake;
+committed clean candidate. Device/signing/distribution/publication work is on
+hold; do not act on older shipping grants. Retain existing source/package
+hashes and actual per-target installed-version/native evidence without
+promoting it to current-source acceptance. No adopted Architrave config or gate runner existed at intake;
 do not invent one as a prerequisite to product work.

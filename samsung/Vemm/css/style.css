@@ -2802,16 +2802,6 @@ body,
     font-size: 2.4vh;
 }
 
-.playback-controls .menu-control::after {
-    content: attr(data-seconds);
-    position: absolute;
-    bottom: 5px;
-    left: 0;
-    width: 100%;
-    font-size: 16px;
-    text-align: center;
-}
-
 .screen,
 .shelf-row,
 .home-navigation { scrollbar-width: none; }

@@ -38,6 +38,17 @@ These thresholds are conservative implementation limits, not measured per-TV
 performance budgets. Synthetic controller and real-UI/fake-adapter tests cover
 the limits, cancellation and no-unintended-autoplay behavior.
 
+## Transport and seeking
+
+The transport row starts on Pause / Play and includes Subtitles, Audio and
+More. Redundant on-screen interval backward/forward buttons are absent.
+Left/Right navigates that row; Up opens the focusable progress slider, where
+Left/Right scrubs and Down or Back restores the originating control (or
+Pause / Play if that control expired). Hidden-HUD Left/Right seeking and the
+dedicated Rewind/Fast Forward keys retain their existing interval, bounds and
+pause intent. Intro/Credits marker actions remain distinct and available.
+These are host-exercised input contracts, not proof of a repaired retail seek.
+
 ## Credits and successor pause ownership
 
 The final-credits countdown consumes only foreground playing-time ticks.

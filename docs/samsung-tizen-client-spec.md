@@ -72,9 +72,14 @@ title obeys the same favourite-library filter as its shelves. The show primary a
 `includeOnDeck=1` and opens/resumes the server-selected episode, accepting either object or array
 `OnDeck.Metadata`; it never submits the show itself as a playable leaf. Without an on-deck episode,
 Seasons remains the navigation path.
-The playback overlay uses a compact transport row and progress bar. Chapters, tracks, quality,
-playback information, music-queue controls and Stop live under More rather than covering the
-video in two rows of always-visible buttons. It hides after five seconds of uninterrupted play,
+The playback overlay uses a compact Pause / Play, Subtitles, Audio and More row and
+a focusable progress bar, without on-screen interval backward/forward buttons.
+Info and available Chapters remain tabs; quality, queue controls, Stop and the
+remaining playback options live under More. Left/Right traverses the visible
+transport row; Up reaches the scrub slider. Slider/hidden-HUD Left/Right and
+dedicated media Rewind/Fast Forward retain seeking; removing redundant buttons
+does not establish a fix for an unidentified native seek failure.
+The overlay hides after five seconds of uninterrupted play,
 except while a skippable marker is active. Skip Intro/Credits remains visible for the segment,
 with focus on its action when it first appears; a held OK cannot issue repeated skips.
 Subtitles remain independent and errors remain visible.

@@ -510,8 +510,10 @@ async function run() {
         await settle();
         assert.strictEqual(state, "PLAYING");
         assert.strictEqual(window.document.body.className, "playing");
-        assert.strictEqual(window.document.querySelector(".playback-controls").querySelectorAll("button").length, 6,
-            "Playback exposes the transport, direct track controls and More on the main overlay");
+        assert.deepStrictEqual(Array.from(window.document.querySelectorAll(".playback-controls button"))
+            .map(function (control) { return control.textContent; }),
+            ["Pause / Play", "Subtitles", "Audio", "More"],
+            "Playback removes the on-screen interval buttons while retaining tracks and More");
         var scrubSurface = window.document.querySelector(".playback-progress");
         assert.strictEqual(scrubSurface.getAttribute("role"), "slider",
             "Playback position is a remote-focusable scrub surface, not a passive progress bar");
@@ -523,41 +525,32 @@ async function run() {
             window.document.dispatchEvent(new window.KeyboardEvent(type, { keyCode: key, repeat: !!repeat, bubbles: true }));
         }
         var playerControls = Array.from(window.document.querySelectorAll(".playback-controls button"));
-        assert.strictEqual(window.document.activeElement, playerControls[0], "Playback starts with rewind focused");
-        playerControls[1].focus();
+        assert.strictEqual(window.document.activeElement, playerControls[0], "Playback starts with Pause / Play focused");
         remote("keydown", 38);
         assert.strictEqual(window.document.activeElement, scrubSurface, "Up from transport controls focuses playback position");
         remote("keydown", 40);
-        assert.strictEqual(window.document.activeElement, playerControls[1], "Down returns to the transport control that opened the slider");
+        assert.strictEqual(window.document.activeElement, playerControls[0], "Down returns to the transport control that opened the slider");
         var seeksBeforeNavigation = seekTargets.length;
         remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[2],
-            "Right from focused Pause / Play must focus Forward rather than scrub");
+        assert.strictEqual(window.document.activeElement, playerControls[1],
+            "Right from focused Pause / Play reaches Subtitles without seeking");
         remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[3], "Right from Forward reaches Subtitles");
+        assert.strictEqual(window.document.activeElement, playerControls[2], "Right from Subtitles reaches Audio");
         remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[4], "Right from Subtitles reaches Audio");
-        remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[5], "Right from Audio reaches More");
+        assert.strictEqual(window.document.activeElement, playerControls[3], "Right from Audio reaches More");
         remote("keydown", 37);
-        assert.strictEqual(window.document.activeElement, playerControls[4], "Left from More returns to Audio");
+        assert.strictEqual(window.document.activeElement, playerControls[2], "Left from More returns to Audio");
         remote("keydown", 37);
-        assert.strictEqual(window.document.activeElement, playerControls[3], "Left from Audio returns to Subtitles");
+        assert.strictEqual(window.document.activeElement, playerControls[1], "Left from Audio returns to Subtitles");
         remote("keydown", 37);
-        assert.strictEqual(window.document.activeElement, playerControls[2], "Left from Subtitles returns to Forward");
+        assert.strictEqual(window.document.activeElement, playerControls[0], "Left from Subtitles returns to Pause / Play");
         remote("keydown", 37);
-        assert.strictEqual(window.document.activeElement, playerControls[1], "Left from Forward returns to Pause / Play");
-        remote("keydown", 37);
-        assert.strictEqual(window.document.activeElement, playerControls[0], "Left from Pause / Play reaches rewind");
-        remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[1], "Right returns from rewind to Pause / Play");
-        remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[2], "Right from Pause / Play reaches Forward");
+        assert.strictEqual(window.document.activeElement, playerControls[0], "Left at Pause / Play stays on the row");
         remote("keydown", 39);
         remote("keydown", 39);
         remote("keydown", 39);
-        assert.strictEqual(window.document.activeElement, playerControls[5],
-            "Right traverses track controls and Forward to More");
+        assert.strictEqual(window.document.activeElement, playerControls[3],
+            "Right traverses the remaining track controls to More");
         assert.strictEqual(state, "PLAYING", "Directional traversal must not toggle playback");
         assert.strictEqual(seekTargets.length, seeksBeforeNavigation, "Focused HUD navigation must not seek");
         var seeksBeforeOptions = seekTargets.length;
@@ -571,7 +564,7 @@ async function run() {
         assert.strictEqual(seekTargets.length, seeksBeforeOptions, "Menu navigation must not seek");
         remote("keydown", 27);
         assert(!window.document.getElementById("player-menu"), "Back closes playback options");
-        assert.strictEqual(window.document.activeElement, playerControls[5],
+        assert.strictEqual(window.document.activeElement, playerControls[3],
             "Back from playback options restores focus to More");
         click("More");
         var supportOpener = Array.from(window.document.querySelectorAll("#player-menu button")).find(function (node) {
@@ -709,7 +702,18 @@ async function run() {
         assert.strictEqual(state, "PAUSED");
         assert.strictEqual(hudTimers.size, 0, "Paused playback must not hide its controls");
         assert.strictEqual(window.document.querySelector(".player-hud").hidden, false);
-        click("Forward 15 seconds");
+        await new Promise(function (resolve) { window.setTimeout(resolve, 200); });
+        remote("keydown", 417);
+        await settle();
+        assert.strictEqual(position, 27000, "Media Fast Forward replaces the removed interval button");
+        assert.strictEqual(state, "PAUSED", "Media Fast Forward preserves pause intent");
+        await new Promise(function (resolve) { window.setTimeout(resolve, 200); });
+        remote("keydown", 412);
+        await settle();
+        assert.strictEqual(position, 12000, "Media Rewind retains the saved 15-second interval");
+        assert.strictEqual(state, "PAUSED", "Media Rewind preserves pause intent");
+        await new Promise(function (resolve) { window.setTimeout(resolve, 200); });
+        remote("keydown", 417);
         await settle();
         assert.strictEqual(position, 27000);
         await new Promise(function (resolve) { window.setTimeout(resolve, 200); });

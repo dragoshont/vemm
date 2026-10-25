@@ -167,10 +167,32 @@ function playerFixture(trackOptions, mediaItem) {
 }
 
 async function hudAndPanels() {
+    var markerItem = JSON.parse(JSON.stringify(item));
+    markerItem.Marker = [{ id: 10, type: "intro", startTimeOffset: 45000, endTimeOffset: 48000 }];
+    var markerApp = playerFixture(null, markerItem);
+    try {
+        await markerApp.settle();
+        markerApp.callbacks.avplay.onEvent({ type: "time", position: 46000, duration: markerItem.duration });
+        var markerControl = markerApp.findButton("Skip Intro");
+        assert(markerControl, "Interval-button removal preserves metadata-driven Intro actions");
+        markerControl.focus();
+        markerApp.key(38);
+        assert.strictEqual(markerApp.document.activeElement.id, "playback-progress");
+        markerApp.callbacks.avplay.onEvent({ type: "time", position: 49000, duration: markerItem.duration });
+        assert(!markerApp.findButton("Skip Intro"), "The originating marker action can expire while scrubbing");
+        markerApp.key(40);
+        assert.strictEqual(markerApp.document.activeElement, markerApp.findButton("Pause / Play"),
+            "An expired scrub opener returns to Pause / Play, not the old second-button index");
+    } finally { markerApp.dom.window.close(); }
     var app = playerFixture();
     try {
         var controls = Array.prototype.slice.call(app.document.querySelectorAll(".playback-controls button"))
             .map(function (button) { return button.textContent.trim(); });
+        assert.deepStrictEqual(controls, ["Pause / Play", "Subtitles", "Audio", "More"],
+            "The player removes redundant interval buttons, not marker actions or remote seeking");
+        await app.settle();
+        assert.strictEqual(app.document.activeElement, app.findButton("Pause / Play"),
+            "The reduced transport initially focuses Pause / Play");
         ["Subtitles", "Audio", "More"].forEach(function (name) {
             assert(controls.indexOf(name) !== -1, "The transport exposes " + name + " directly");
         });
