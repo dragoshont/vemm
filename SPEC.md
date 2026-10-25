@@ -247,6 +247,19 @@ summaries.
 
 ## Handoff
 
+Online Search at exact clean `5747511e` passed the full host/28-file ES5/M47
+gate and temporary unsigned source build, clean afterward. Independent frozen
+review also ran the full host gate and additional edit/Back, cloud-401 and
+actual profile-token transition probes, but returned REVISE for one real
+continuation defect: with no known/connected PMS, online details > Find in my
+libraries used a null client, exposed an exception and offered ineffective
+Retry. A new actual-main.js regression reproduces that continuation failure.
+The repair admits no fallback target without a real current client and shows
+an explicit no-server availability state, without requests, errors or Retry.
+It retains Back to catalogue details and the original query/GUID focus.
+Refresh committed gates and obtain targeted review closure before any source
+acceptance; real cloud/PMS/native and revised full-spec acceptance remain open.
+
 The player source correction at `8e5b94cd` removes only the redundant interval
 buttons, starts on Pause / Play and returns there when a scrub opener expires.
 The exact clean commit passed the full host gate, temporary unsigned source

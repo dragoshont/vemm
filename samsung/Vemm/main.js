@@ -3124,8 +3124,16 @@
     function findCatalogueItem(item, options) {
         options = options || {};
         var generation = serviceView(options.title || "Find in my libraries", function () { findCatalogueItem(item, options); });
-        var targets = servers.length ? servers.filter(function (server) { return server.id !== options.exclude; }) : [null];
-        if (!targets.length) { setStatus("No other servers are available to this profile."); return; }
+        var targets = servers.length ? servers.filter(function (server) { return server.id !== options.exclude; }) :
+            currentClient ? [null] : [];
+        if (!targets.length) {
+            var empty = options.exclude ? "No other servers are available to this profile." :
+                "No Plex servers are available to check this title.";
+            screen.appendChild(element("p", "empty-state", translate(empty)));
+            setStatus(empty);
+            focusFirst();
+            return;
+        }
         var index = 0, active = 0, finished = 0, shown = 0, failed = 0;
         function pump() {
             while (active < 2 && index < targets.length) {

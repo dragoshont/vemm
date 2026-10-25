@@ -197,6 +197,21 @@ async function run() {
         search("No PMS needed"); await settle();
         assert.strictEqual(w.document.querySelectorAll(".search-results .title-tile").length, 2,
             "Online search remains reachable without an available personal server");
+        w.document.querySelector(".search-results .title-tile").focus(); key(13); await settle();
+        var noServerCalls = calls.length;
+        click("Find in my libraries"); await settle();
+        assert(w.document.querySelector(".empty-state"), "No connected/known PMS is an explicit empty availability state");
+        assert(w.document.getElementById("status").textContent.includes("No Plex servers are available"),
+            "No-server availability must not expose a null-client exception or incomplete-check warning");
+        assert(!w.document.querySelector(".inline-error"));
+        assert(!Array.from(w.document.querySelectorAll("button")).some(function (node) { return node.textContent === "Retry"; }),
+            "An absent PMS is not a transient failed request with an ineffective Retry");
+        assert.strictEqual(calls.length, noServerCalls, "An absent client cannot issue availability requests");
+        key(10009); await settle();
+        assert(w.document.querySelector(".screen-catalogue-detail"));
+        key(10009); await settle();
+        assert.strictEqual(w.document.querySelector("input").value, "No PMS needed");
+        assert(w.document.activeElement.textContent.includes(movie.title));
         mode = "bounded-late";
         w.__servers = [{ id: "alpha", name: "Synthetic alpha" }];
         w.__multiple(); search("Bounded online"); await settle();

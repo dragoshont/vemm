@@ -82,6 +82,8 @@ The server-selection screen also offers online search when no personal server
 is available. Catalogue details use the account service; Find in my libraries
 checks exact GUIDs with each server's own grant and labels separate server
 copies. Metadata discovery is not authorization for licensed Plex streaming.
+Without a known or connected PMS, availability shows an explicit no-server
+empty state, makes no request and does not offer an ineffective Retry.
 Standalone catalogue search retains input-edit cancellation and query/focus
 return behavior. Synthetic host coverage is not live cloud/native acceptance.
 
