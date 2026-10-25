@@ -66,6 +66,7 @@ function playerFixture(trackOptions, mediaItem) {
         save: function () {}
     };
     window.VemmSkipMarkers = require("../../samsung/Vemm/js/skip-markers.js");
+    window.VemmFileInfo = require("../../samsung/Vemm/js/file-info.js");
     window.VemmSubtitles = require("../../samsung/Vemm/js/subtitles.js");
     window.VemmAvplay = { create: function (options) { adapters += 1; callbacks.avplay = options; return {}; } };
     window.VemmPlayback = {
@@ -89,7 +90,8 @@ function playerFixture(trackOptions, mediaItem) {
                 stop: function () { state = "idle"; return Promise.resolve(item); },
                 selection: function () { return { audioId: 11, subtitleId: 21 }; },
                 part: function () { return item.Media[0].Part[0]; },
-                quality: function () { return { source: item.Media[0], stream: item.Media[0], mode: "direct", limit: "original" }; },
+                quality: function () { return trackOptions && trackOptions.qualityFacts ||
+                    { source: item.Media[0], stream: item.Media[0], mode: "direct", limit: "original" }; },
                 tracks: function () { return []; },
                 setSubtitleOffset: function (offset) { callbacks.subtitleOffset = offset; }
             };
@@ -403,6 +405,8 @@ async function adaptiveRecoveryPreservesTheSession() {
 }
 
 async function run() {
+    await hostileSupportRecordPreview();
+    await supportRecordRemotePreview();
     await adaptiveRecoveryPreservesTheSession();
     await introRemainsVisibleAndRemoteActionIsSingleShot();
     await hudAndPanels();
@@ -412,5 +416,99 @@ async function run() {
     await subtitleTimingZeroDetentAndTrackAvailability();
     await failedPlayerRecoveryRestartsThePipeline();
     console.log("Tizen LG-style player HUD, panels, Up Next, tracks, timing, stats and recovery: passed (synthetic player)");
+}
+
+async function hostileSupportRecordPreview() {
+    for (var mode of ["direct", "directstream", "transcode"]) {
+        var secret = "PRIVATE_TOKEN_DUID_SERVER_TITLE_PATH_PROFILE_QUEUE";
+        var app = playerFixture({ qualityFacts: {
+            mode: mode, limit: secret, source: { videoCodec: secret, audioCodec: secret, height: secret },
+            stream: { videoCodec: secret, videoResolution: secret, bitrate: secret, model: secret },
+            explanation: { reason: secret, fallback: secret, capability: { status: secret, source: secret } }
+        } });
+        try {
+            await app.settle();
+            app.click("More");
+            app.click("Support record");
+            var preview = app.document.querySelector("#support-record");
+            assert(!preview.textContent.includes(secret), "Optional metadata must not leak through the real preview: " + mode);
+            assert(!preview.textContent.includes("1080p"), "Missing output is not the default ceiling");
+            assert(preview.textContent.includes("Not reported by server"));
+            assert.strictEqual(JSON.parse(preview.querySelector("pre").textContent).mode, mode);
+            app.click("Scroll record down");
+            var output = preview.querySelector("pre");
+            assert.strictEqual(output.scrollTop, 160);
+            app.click("Scroll record up");
+            assert.strictEqual(output.scrollTop, 0);
+            app.click("Close");
+            assert.strictEqual(app.document.activeElement.textContent, "Support record");
+        } finally { app.dom.window.close(); }
+    }
+}
+
+async function supportRecordRemotePreview() {
+    var app = playerFixture({ qualityFacts: {
+        source: { height: 2160, videoCodec: "hevc", bitrate: 30000, title: "PRIVATE_TITLE" },
+        stream: { height: 720, videoCodec: "h264", audioCodec: "aac", bitrate: 3000 },
+        mode: "transcode", limit: "1080",
+        explanation: { reason: "quality", capability: { status: "documented", measured: true,
+            model: "PRIVATE_MODEL", source: "https://private.invalid" }, fallback: "none" }
+    } });
+    try {
+        await app.settle();
+        app.click("Pause / Play");
+        await app.settle();
+        app.click("More");
+        var opener = app.findButton("Support record");
+        assert(opener, "Playback options must expose a previewable redacted support record");
+        opener.focus();
+        app.key(13);
+        var preview = app.document.querySelector("#support-record");
+        assert(preview, "Remote Enter opens the actual main.js support preview");
+        var record = JSON.parse(preview.querySelector("pre").textContent);
+        assert.strictEqual(record.requestedCeiling, "1080");
+        assert.strictEqual(record.serverReportedOutput.height, 720);
+        assert.strictEqual(record.source.height, 2160);
+        assert.strictEqual(record.nativeOutput, "not-measured");
+        assert(preview.textContent.includes("Quality and version"), "Offer a useful non-mutating next action");
+        assert(!preview.textContent.includes("PRIVATE_"));
+        assert(!preview.textContent.includes("private.invalid"));
+        assert.strictEqual(app.document.activeElement.textContent, "Copy support record");
+        app.key(13);
+        assert(preview.textContent.includes("Copy is unavailable"), "An absent clipboard API is not success");
+        app.document.execCommand = function () { return false; };
+        app.key(13);
+        assert(preview.textContent.includes("Copy failed"), "A denied copy is not success");
+        app.document.execCommand = function () {};
+        app.key(13);
+        assert(preview.textContent.includes("Copy failed"), "A no-op clipboard stub is not success");
+        app.document.execCommand = function () { throw new Error("PRIVATE_CLIPBOARD_ERROR"); };
+        app.key(13);
+        assert(preview.textContent.includes("Copy failed"));
+        assert(!preview.textContent.includes("PRIVATE_CLIPBOARD_ERROR"));
+        var copied = "";
+        app.document.execCommand = function (command) {
+            assert.strictEqual(command, "copy");
+            copied = String(app.window.getSelection());
+            return true;
+        };
+        app.key(13);
+        assert.deepStrictEqual(JSON.parse(copied), record);
+        assert(preview.textContent.includes("Support record copied."));
+        app.key(10009);
+        assert(!app.document.querySelector("#support-record"));
+        assert.strictEqual(app.document.activeElement.textContent, "Support record",
+            "Back restores the owned playback action");
+        assert.strictEqual(app.starts(), 1);
+        assert.strictEqual(app.plays(), 0);
+        assert.strictEqual(app.adapters(), 1);
+        assert.deepStrictEqual(app.seeks, []);
+        assert.strictEqual(app.document.querySelector(".playback-progress").getAttribute("aria-valuenow"), "45000");
+        app.key(10009);
+        app.click("More");
+        app.click("Stats for nerds");
+        assert(app.document.querySelector("#playback-stats").textContent.includes("Native output"),
+            "Stats must distinguish PMS output from unmeasured native output");
+    } finally { app.dom.window.close(); }
 }
 run().catch(function (error) { console.error(error.stack || error); process.exitCode = 1; });

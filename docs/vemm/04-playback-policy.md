@@ -112,6 +112,45 @@ Stats for nerds may show mode, reason, fallback and evidence class. It must not
 show account/server tokens, private origins, titles in routine logs, DUIDs,
 certificate paths or raw native exception strings.
 
+### Local support record
+
+Settings > Diagnostics > Support record works without playback. While playing,
+More > Support record previews a snapshot of the current pipeline; it does not
+restart, seek, select tracks, update progress or upload anything. Enter opens
+the preview, its scroll controls reveal the full JSON, and Back or Close
+restores the exact opening action. Inspecting a paused session leaves it paused.
+The plain-language reason and suggested next action use the existing quality,
+Direct Play and track settings; they never apply a change automatically.
+
+The requested ceiling, original source metadata and PMS-reported stream are
+separate. Missing PMS fields stay unreported, never replaced by the requested
+ceiling. The record always labels decoded video, physical HDR/panel and audio
+output **not measured**. Even an observed capability-profile match is not a
+measurement of this playback's physical output.
+
+`VemmFileInfo.supportRecord` constructs the bounded `vemm-support-1` schema:
+active-playback flag, allowlisted quality rung/mode/reason/next-action/fallback/
+capability-evidence enums, and separate source/output objects. Each media object
+contains only allowlisted container/video/audio codec enums, positive integer
+width/height (at most 16384) and bitrate in kbps (at most 1000000). Unknown,
+malformed or non-enumerated values become `null`; arbitrary strings and extra
+fields are never copied or regex-redacted. There are no titles, paths, origins,
+tokens, session/queue/profile/server IDs, device/model/DUID data, versions,
+certificate paths, raw errors, track labels or viewing-position history.
+English machine keys/enums remain stable; the surrounding explanation is
+localized. Settings has no retained previous-session snapshot: without active
+playback it shows only the saved ceiling and explicit missing output.
+
+Copy support record is an explicit local action using feature-detected legacy
+DOM selection and `document.execCommand("copy")`. Only a `true` result reports
+copied; absent APIs, false results and exceptions show an unavailable/denied
+failure without exposing exception details. The preview remains available.
+There is no automatic clipboard use, filesystem export, network export,
+external service, new privilege or success-shaped no-op fallback. Clipboard
+availability and actual remote/native behavior still require named-model
+acceptance; host fixtures exercise successful selection, unavailable/denied
+paths, privacy injection and focus restoration, not a retail clipboard.
+
 Host tests prove decision contracts and fallback state transitions. They do not
 prove decoder output, HDR, audio, subtitle composition, panel quality or server
 hardware transcoding.

@@ -2603,14 +2603,18 @@
         var snapshot = player.snapshot();
         var quality = player.quality();
         var decision = quality.explanation || {};
+        var record = window.VemmFileInfo.supportRecord(quality);
         [
             translate("Playback") + ": " + modeName(quality.mode),
-            translate("Reason") + ": " + reasonName(decision.reason),
-            translate("Fallback") + ": " + fallbackName(decision.fallback),
+            translate("Reason") + ": " + (record.reason ? reasonName(record.reason) : translate("Not reported by server")),
+            translate("Fallback") + ": " + fallbackName(record.fallback),
             translate("Capability evidence") + ": " + capabilityName(decision.capability),
             translate("Position") + ": " + timeLabel(snapshot.position) + " / " + timeLabel(snapshot.duration),
-            translate("Video") + ": " + qualityLabel(quality.mode === "direct" ? quality.source : quality.stream),
-            translate("Quality") + ": " + qualityName(quality.limit),
+            translate("Server-reported output") + ": " + supportOutputLabel(record.serverReportedOutput),
+            translate("Requested ceiling") + ": " + (record.requestedCeiling ?
+                qualityName(record.requestedCeiling) : translate("Not reported by server")),
+            translate("Native output") + ": " + translate("Not measured: decoded video, panel HDR and physical audio output."),
+            translate("Next action") + ": " + supportNextAction(record.nextAction),
             translate("State") + ": " + translate(snapshot.state)
         ].forEach(function (line, index) {
             stats.appendChild(element("p", index === 4 ? "playback-stats-position" : "", line));
@@ -2623,6 +2627,95 @@
         screen.appendChild(stats);
         stats.querySelector("button").focus();
         showHud();
+    }
+
+    function supportNextAction(action) {
+        return translate({
+            "quality-settings": "To change the requested ceiling, use More > Quality and version. Inspecting this record changes nothing.",
+            "direct-play-settings": "To change Direct Play, stop playback and use Settings. Inspecting this record changes nothing.",
+            "track-settings": "To reduce conversion, review More > Audio and subtitles. Inspecting this record changes nothing.",
+            "server-conversion": "If playback fails, allow server conversion in Settings instead of Force Direct Play, then explicitly retry.",
+            "start-playback": "No active playback. Start a video or song, then use More > Support record for server-reported output.",
+            "verify-output": "No change is needed if playback works. Verify HDR and audio on the TV or receiver; this record does not measure them."
+        }[action]);
+    }
+
+    function supportOutputLabel(media) {
+        return qualityLabel(media && { height: media.height, videoCodec: media.videoCodec,
+            audioCodec: media.audioCodec, bitrate: media.bitrateKbps });
+    }
+
+    function openSupportRecord(event) {
+        var returnFocus = event && event.currentTarget || document.activeElement;
+        var previous = document.getElementById("player-menu");
+        if (previous) { previous.parentNode.removeChild(previous); }
+        cancelHudTimer();
+        var menu = element("section", "player-menu support-record-menu");
+        menu.id = "player-menu";
+        menu.setAttribute("role", "dialog");
+        menu.setAttribute("aria-modal", "true");
+        menu.setAttribute("aria-label", translate("Support record"));
+        var preview = element("div", "");
+        preview.id = "support-record";
+        menu.appendChild(preview);
+        preview.appendChild(element("h2", "", translate("Support record")));
+        preview.appendChild(element("p", "help-text", translate(
+            "Preview only. No uploads. Only allowlisted playback facts are included; no account, server, device or media identity.")));
+        var record = window.VemmFileInfo.supportRecord(player ? player.quality() : null, preferences.quality);
+        preview.appendChild(element("p", "help-text", translate("Requested ceiling") + ": " +
+            (record.requestedCeiling ? qualityName(record.requestedCeiling) : translate("Not reported by server"))));
+        preview.appendChild(element("p", "help-text", translate("Original source") + ": " + supportOutputLabel(record.source)));
+        preview.appendChild(element("p", "help-text", translate("Server-reported output") + ": " +
+            (record.mode ? modeName(record.mode) + " / " : "") + supportOutputLabel(record.serverReportedOutput)));
+        preview.appendChild(element("p", "help-text", translate("Reason") + ": " +
+            (record.reason ? reasonName(record.reason) : translate("Not reported by server"))));
+        preview.appendChild(element("p", "help-text", translate("Next action") + ": " + supportNextAction(record.nextAction)));
+        preview.appendChild(element("p", "help-text", translate("Native output") + ": " +
+            translate("Not measured: decoded video, panel HDR and physical audio output.")));
+        var text = JSON.stringify(record, null, 2);
+        var feedback = element("p", "help-text");
+        feedback.setAttribute("role", "status");
+        var output = element("pre", "support-record-text", text);
+        function dismiss() {
+            if (!screen.contains(menu)) { return; }
+            menu.parentNode.removeChild(menu);
+            if (previous) { screen.appendChild(previous); }
+            if (returnFocus && screen.contains(returnFocus)) { returnFocus.focus(); }
+            else { focusFirst(); }
+            if (player) { showHud(); }
+        }
+        menu.plexDismiss = dismiss;
+        var copy = button(preview, "Copy support record", function () {
+            if (typeof document.execCommand !== "function" || typeof document.createRange !== "function" ||
+                    typeof window.getSelection !== "function") {
+                feedback.textContent = translate("Copy is unavailable on this TV. Read the preview; nothing was exported.");
+                return;
+            }
+            var selection;
+            try {
+                selection = window.getSelection();
+                var range = document.createRange();
+                range.selectNodeContents(output);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                if (document.execCommand("copy") !== true) { throw new Error("copy-denied"); }
+                feedback.textContent = translate("Support record copied.");
+            } catch (error) {
+                feedback.textContent = translate("Copy failed or was denied. Nothing was exported; read the preview instead.");
+            } finally {
+                if (selection) { selection.removeAllRanges(); }
+                copy.focus();
+            }
+        });
+        preview.insertBefore(copy, preview.children[1]);
+        preview.insertBefore(feedback, copy.nextSibling);
+        button(preview, "Scroll record up", function () { output.scrollTop = Math.max(0, output.scrollTop - 160); });
+        preview.appendChild(output);
+        button(preview, "Scroll record down", function () { output.scrollTop += 160; });
+        button(preview, "Close", dismiss);
+        screen.appendChild(menu);
+        copy.focus();
+        if (player) { showHud(); }
     }
 
     function showUpNext(watchCredits) {
@@ -3555,6 +3648,7 @@
             togglePlayerStats();
         });
         button(menu, "Quality and version", openQuality);
+        button(menu, "Support record", openSupportRecord);
         button(menu, "Info", function () { closePlayerMenu(); openPlayerPanel("info"); });
         if (playerItem.type === "track") {
             button(menu, "Previous track", function () { skipMusic(-1, false); });
@@ -4610,6 +4704,7 @@
                 screen.appendChild(element("p", "help-text",
                     translate("AVPlay: {state}. {profile}. Model support is not certified. Account tokens, server origins, titles and queries are not logged or uploaded.", {
                         state: translate(window.webapis && window.webapis.avplay ? "available" : "unavailable"), profile: directPlaySummary() })));
+                button(screen, "Support record", openSupportRecord);
                 button(screen, "Back", backView);
                 focusFirst();
             });
@@ -4841,6 +4936,8 @@
         if (key === 10009 || key === 27 || key === 8) {
             if (editing && key === 8) { return; }
             event.preventDefault();
+            var support = document.getElementById("support-record");
+            if (support) { document.getElementById("player-menu").plexDismiss(); return; }
             if (player && active && active.id === "playback-progress") {
                 commitScrub();
                 restoreScrubControl();

@@ -1,4 +1,53 @@
 {
+  "Support record": { "es": "Registro de soporte", "be": "Запіс для падтрымкі" },
+  "Copy support record": { "es": "Copiar registro de soporte", "be": "Скапіяваць запіс для падтрымкі" },
+  "Scroll record up": { "es": "Desplazar registro hacia arriba", "be": "Пракруціць запіс уверх" },
+  "Scroll record down": { "es": "Desplazar registro hacia abajo", "be": "Пракруціць запіс уніз" },
+  "Requested ceiling": { "es": "Límite solicitado", "be": "Запытаная мяжа якасці" },
+  "Server-reported output": { "es": "Salida indicada por el servidor", "be": "Вывад паводле сервера" },
+  "Native output": { "es": "Salida nativa", "be": "Натыўны вывад" },
+  "Next action": { "es": "Siguiente acción", "be": "Наступнае дзеянне" },
+  "Not measured: decoded video, panel HDR and physical audio output.": {
+    "es": "No medidos: vídeo decodificado, HDR del panel y salida de audio física.",
+    "be": "Не вымерана: дэкадаванае відэа, HDR панэлі і фізічны аўдыявывад."
+  },
+  "Preview only. No uploads. Only allowlisted playback facts are included; no account, server, device or media identity.": {
+    "es": "Solo vista previa. Sin subidas. Solo incluye datos de reproducción permitidos; no identifica cuentas, servidores, dispositivos ni contenido.",
+    "be": "Толькі папярэдні прагляд. Без адпраўкі даных. Уключаны толькі дазволеныя звесткі пра прайграванне; без ідэнтыфікатараў уліковага запісу, сервера, прылады або медыя."
+  },
+  "To change the requested ceiling, use More > Quality and version. Inspecting this record changes nothing.": {
+    "es": "Para cambiar el límite solicitado, usa Más > Calidad y versión. Consultar este registro no cambia nada.",
+    "be": "Каб змяніць запытаную мяжу, адкрыйце Яшчэ > Якасць і версія. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "To change Direct Play, stop playback and use Settings. Inspecting this record changes nothing.": {
+    "es": "Para cambiar la reproducción directa, detén la reproducción y abre Ajustes. Consultar este registro no cambia nada.",
+    "be": "Каб змяніць прамое прайграванне, спыніце прайграванне і адкрыйце Налады. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "To reduce conversion, review More > Audio and subtitles. Inspecting this record changes nothing.": {
+    "es": "Para reducir la conversión, revisa Más > Audio y subtítulos. Consultar este registro no cambia nada.",
+    "be": "Каб паменшыць пераўтварэнне, праверце Яшчэ > Аўдыя і субцітры. Прагляд гэтага запісу нічога не змяняе."
+  },
+  "If playback fails, allow server conversion in Settings instead of Force Direct Play, then explicitly retry.": {
+    "es": "Si falla la reproducción, permite la conversión del servidor en Ajustes en lugar de forzar la reproducción directa y vuelve a intentarlo explícitamente.",
+    "be": "Калі прайграванне не ўдаецца, дазвольце пераўтварэнне на серверы ў Наладах замест прымусовага прамога прайгравання, затым паўтарыце спробу ўручную."
+  },
+  "No active playback. Start a video or song, then use More > Support record for server-reported output.": {
+    "es": "No hay reproducción activa. Inicia un vídeo o una canción y abre Más > Registro de soporte para ver la salida indicada por el servidor.",
+    "be": "Няма актыўнага прайгравання. Запусціце відэа або песню, затым адкрыйце Яшчэ > Запіс для падтрымкі, каб убачыць вывад паводле сервера."
+  },
+  "No change is needed if playback works. Verify HDR and audio on the TV or receiver; this record does not measure them.": {
+    "es": "Si la reproducción funciona, no hace falta cambiar nada. Comprueba el HDR y el audio en el televisor o receptor; este registro no los mide.",
+    "be": "Калі прайграванне працуе, змены не патрэбныя. Праверце HDR і аўдыя на тэлевізары або рэсіверы; гэты запіс іх не вымярае."
+  },
+  "Copy is unavailable on this TV. Read the preview; nothing was exported.": {
+    "es": "La copia no está disponible en este televisor. Lee la vista previa; no se ha exportado nada.",
+    "be": "Капіяванне на гэтым тэлевізары недаступнае. Прачытайце папярэдні прагляд; нічога не экспартавана."
+  },
+  "Copy failed or was denied. Nothing was exported; read the preview instead.": {
+    "es": "La copia ha fallado o se ha denegado. No se ha exportado nada; lee la vista previa.",
+    "be": "Капіяванне не ўдалося або было забаронена. Нічога не экспартавана; скарыстайцеся папярэднім праглядам."
+  },
+  "Support record copied.": { "es": "Registro de soporte copiado.", "be": "Запіс для падтрымкі скапіяваны." },
   "Video playlists": { "es": "Listas de vídeo", "be": "Спісы прайгравання відэа" },
   "Move to beginning": { "es": "Mover al principio", "be": "Перамясціць у пачатак" },
   "Move this playlist entry to the beginning?": { "es": "¿Mover esta entrada de la lista al principio?", "be": "Перамясціць гэты запіс спіса ў пачатак?" },

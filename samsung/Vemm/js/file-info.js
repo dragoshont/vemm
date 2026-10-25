@@ -109,5 +109,51 @@
         return result;
     }
 
-    return { rows: rows };
+    function choice(value, allowed) {
+        return typeof value === "string" && allowed.indexOf(value) !== -1 ? value : null;
+    }
+
+    function boundedInteger(value, maximum) {
+        return typeof value === "number" && isFinite(value) && value > 0 &&
+            value <= maximum && Math.floor(value) === value ? value : null;
+    }
+
+    function supportMedia(media) {
+        if (!media || typeof media !== "object") { return null; }
+        return {
+            container: choice(media.container, ["mp4", "mkv", "mpegts", "mov", "avi", "mp3", "flac", "ogg", "aac", "wav"]),
+            videoCodec: choice(media.videoCodec, ["h264", "hevc", "mpeg2video", "mpeg4", "vc1", "vp8", "vp9", "av1"]),
+            audioCodec: choice(media.audioCodec, ["aac", "ac3", "eac3", "dca", "dts", "truehd", "mp3", "flac", "opus", "vorbis", "pcm"]),
+            width: boundedInteger(media.width, 16384),
+            height: boundedInteger(media.height, 16384),
+            bitrateKbps: boundedInteger(media.bitrate, 1000000)
+        };
+    }
+
+    function supportRecord(quality, savedCeiling) {
+        var decision = quality && quality.explanation || {};
+        var reason = choice(decision.reason, ["supported", "profile", "video-codec", "container", "audio-codec",
+            "audio-container", "resolution", "quality", "bitrate", "bit-depth", "frame-rate", "level", "hdr",
+            "dolby-vision", "subtitle", "multipart", "settings", "server", "decoder"]);
+        var action = "verify-output";
+        if (["quality", "bitrate", "resolution"].indexOf(reason) !== -1) { action = "quality-settings"; }
+        else if (reason === "settings") { action = "direct-play-settings"; }
+        else if (["subtitle", "audio-codec", "audio-container"].indexOf(reason) !== -1) { action = "track-settings"; }
+        else if (reason && reason !== "supported") { action = "server-conversion"; }
+        return {
+            schema: "vemm-support-1",
+            playbackActive: !!quality,
+            requestedCeiling: choice(quality ? quality.limit : savedCeiling, ["original", "1080h", "1080", "720", "720l", "480"]),
+            mode: choice(quality && quality.mode, ["direct", "directstream", "transcode"]),
+            reason: reason,
+            nextAction: quality ? action : "start-playback",
+            fallback: choice(decision.fallback, ["server-transcode-if-refused", "stop-if-refused", "none"]),
+            capabilityEvidence: choice(decision.capability && decision.capability.status, ["documented", "observed", "unknown"]),
+            source: supportMedia(quality && quality.source),
+            serverReportedOutput: supportMedia(quality && quality.stream),
+            nativeOutput: "not-measured"
+        };
+    }
+
+    return { rows: rows, supportRecord: supportRecord };
 }));

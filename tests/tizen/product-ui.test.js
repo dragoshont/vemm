@@ -574,6 +574,29 @@ async function run() {
         assert.strictEqual(window.document.activeElement, playerControls[5],
             "Back from playback options restores focus to More");
         click("More");
+        var supportOpener = Array.from(window.document.querySelectorAll("#player-menu button")).find(function (node) {
+            return node.textContent === "Support record";
+        });
+        assert(supportOpener, "The production player exposes the safe support preview");
+        supportOpener.focus();
+        var supportRequests = requests.length;
+        var supportNativeCalls = nativeCalls.length;
+        var supportState = state;
+        remote("keydown", 13);
+        var supportPreview = window.document.getElementById("support-record");
+        assert(supportPreview);
+        assert.strictEqual(JSON.parse(supportPreview.querySelector("pre").textContent).nativeOutput, "not-measured");
+        remote("keydown", 40);
+        remote("keydown", 13);
+        remote("keydown", 40);
+        remote("keydown", 13);
+        remote("keydown", 27);
+        assert.strictEqual(window.document.activeElement, supportOpener);
+        assert.strictEqual(requests.length, supportRequests, "Inspect/scroll/close never writes progress or uploads");
+        assert.strictEqual(nativeCalls.length, supportNativeCalls, "Inspect/scroll/close never restarts or touches AVPlay");
+        assert.strictEqual(state, supportState);
+        remote("keydown", 27);
+        click("More");
         click("Stats for nerds");
         var stats = window.document.getElementById("playback-stats");
         var reasonBeforeClock = Array.from(stats.querySelectorAll("p")).filter(function (node) {

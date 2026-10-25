@@ -592,6 +592,16 @@ body.playing {
     margin: 12px 0;
 }
 
+.support-record-text {
+    max-height: 28vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 24px;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 .playing .status {
     position: absolute;
     top: 28px;

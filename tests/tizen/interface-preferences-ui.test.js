@@ -24,7 +24,7 @@ function fixture() {
     var style = window.document.createElement("style");
     style.textContent = fs.readFileSync(path.join(app, "css/style.css"), "utf8");
     window.document.head.appendChild(style);
-    ["js/i18n.js", "js/preferences.js"].forEach(function (file) {
+    ["js/i18n.js", "js/preferences.js", "js/file-info.js"].forEach(function (file) {
         window.eval(fs.readFileSync(path.join(app, file), "utf8"));
     });
     var source = fs.readFileSync(path.join(app, "main.js"), "utf8");
@@ -47,6 +47,17 @@ function fixture() {
 
 var first = fixture();
 try {
+    first.activate("Diagnostics");
+    first.activate("Support record");
+    var preview = first.window.document.querySelector("#support-record");
+    assert(preview, "Settings Diagnostics offers the same remote-owned safe preview without playback");
+    var record = JSON.parse(preview.querySelector("pre").textContent);
+    assert.strictEqual(record.playbackActive, false);
+    assert.strictEqual(record.serverReportedOutput, null);
+    assert.strictEqual(record.nativeOutput, "not-measured");
+    first.window.document.dispatchEvent(new first.window.KeyboardEvent("keydown", { keyCode: 10009, bubbles: true }));
+    assert.strictEqual(first.window.document.activeElement.textContent, "Support record");
+    first.activate("Back");
     first.activate("Reduced motion: Off");
     first.activate("On");
     assert.strictEqual(first.window.document.documentElement.getAttribute("data-reduced-motion"), "true");
