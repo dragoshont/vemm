@@ -2196,6 +2196,11 @@
                 visit(function () { openVideoPlaylist(item, client, 0); });
             });
         }
+        if (["movie", "episode", "clip"].indexOf(item.type) !== -1) {
+            detailAction(more, "Add to playlist", "add", function () {
+                visit(function () { openPlaylistPicker(item, client, 0); });
+            });
+        }
         if (item.type === "photo") {
             detailAction(actions, "View photo", "play", function () { visit(function () { openPhotos([item], 0, client); }); }).className =
                 "detail-pill detail-primary detail-pill-play";
@@ -3076,18 +3081,28 @@
         visit(function () {
             var generation = serviceView(title, refresh, "confirmation");
             screen.appendChild(element("p", "help-text", translate("This changes your Plex account or server. Nothing changes until you confirm.")));
+            screen.appendChild(element("p", "help-text",
+                translate("A request already sent to Plex may finish after you leave. Check Plex before repeating it.")));
             var pending = false;
+            function refreshView() {
+                if (generation !== viewGeneration) { return; }
+                navigation.pop();
+                refresh();
+            }
             var confirm = button(screen, "Confirm", function () {
                 if (pending || generation !== viewGeneration) { return; }
                 pending = true; confirm.disabled = true;
                 setStatus("Saving...");
-                Promise.resolve().then(write).then(function () {
+                Promise.resolve().then(function () {
+                    if (generation === viewGeneration) { return write(); }
+                }).then(function () {
                     if (generation !== viewGeneration) { return; }
                     setStatus("Plex accepted the change.");
-                    button(screen, "Refresh", refresh);
+                    button(screen, "Refresh", refreshView);
                 }).catch(function (error) {
                     if (generation !== viewGeneration) { return; }
                     setStatus(translate("The change was not confirmed. Check Plex before retrying.") + " " + errorText(error), true);
+                    button(screen, "Refresh", refreshView);
                 });
             });
             button(screen, "Cancel", backView);
@@ -3186,6 +3201,49 @@
         });
     }
 
+    function standardPlaylist(playlist) {
+        return playlist.smart === undefined || [false, 0, "0"].indexOf(playlist.smart) !== -1;
+    }
+
+    function openPlaylistPicker(item, client, offset) {
+        var restore = function () { openPlaylistPicker(item, client, offset); };
+        var generation = serviceView("Add to playlist", restore, "playlist-picker");
+        viewClients.push(client);
+        screen.appendChild(element("p", "help-text", item.title));
+        client.getVideoPlaylists(offset).then(function (container) {
+            if (generation !== viewGeneration) { return; }
+            var rows = container.Metadata;
+            if (!Array.isArray(rows) || rows.length > 50 ||
+                    typeof container.totalSize !== "number" || container.totalSize < offset + rows.length ||
+                    Math.floor(container.totalSize) !== container.totalSize ||
+                    container.offset !== undefined && container.offset !== offset ||
+                    !rows.length && offset < container.totalSize || rows.some(function (playlist) {
+                        return playlist.type !== "playlist" || playlist.playlistType !== "video" ||
+                            !/^[0-9]+$/.test(String(playlist.ratingKey));
+                    })) { throw new Error("Plex returned an invalid video playlist page."); }
+            var choices = group(screen, "", "selection-list");
+            rows.filter(standardPlaylist).forEach(function (playlist) {
+                button(choices, playlist.title || "Playlist", function () {
+                    confirmServiceWrite(translate("Add {title} to {playlist}?", { title: item.title, playlist: playlist.title }),
+                        function () { return client.addVideoPlaylistItem(playlist.ratingKey, item.ratingKey); },
+                        function () { openVideoPlaylist(playlist, client, 0); });
+                }, true);
+            });
+            if (offset > 0) { button(screen, "Previous page", function () { openPlaylistPicker(item, client, Math.max(0, offset - 50)); }); }
+            if (offset + rows.length < container.totalSize) {
+                button(screen, "Next page", function () { openPlaylistPicker(item, client, offset + rows.length); });
+            }
+            setStatus(choices.children.length ? "Choose a standard video playlist. Nothing changes until you confirm." :
+                "No editable video playlists on this page. Smart playlists use rules.");
+            focusFirst();
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", restore);
+            focusFirst();
+        });
+    }
+
     function openVideoPlaylist(playlist, client, offset, confirmed) {
         var generation = ++viewGeneration;
         clear(screen);
@@ -3201,8 +3259,19 @@
                 var row = element("section", "playlist-entry");
                 row.appendChild(element("p", "", String(offset + index + 1) + " · " + item.title));
                 button(row, "Details", function () { visit(function () { openDetail(item.ratingKey, client); }); });
-                if (!playlist.smart && offset + index > 0) {
-                    button(row, "Move to beginning", function () {
+                if (standardPlaylist(playlist)) {
+                    button(row, "Remove from playlist", function () {
+                        confirmServiceWrite(translate("Remove {title} from {playlist}?", { title: item.title, playlist: playlist.title }),
+                            function () {
+                                return client.removeVideoPlaylistItem(playlist.ratingKey, item.playlistItemID, item.ratingKey,
+                                    { offset: offset, totalSize: container.totalSize, Metadata: items });
+                            }, function () {
+                                openVideoPlaylist(playlist, client, offset > 0 && items.length === 1 ? Math.max(0, offset - 50) : offset);
+                            });
+                    });
+                }
+                if (standardPlaylist(playlist) && offset + index > 0) {
+                    var moveControl = button(row, "Move to beginning", function () {
                         var dialog = element("section", "playback-error");
                         dialog.setAttribute("role", "alertdialog");
                         dialog.appendChild(element("p", "", translate("Move this playlist entry to the beginning?")));
@@ -3236,7 +3305,7 @@
                         });
                         var cancel = button(dialog, "Cancel", function () {
                             dialog.parentNode.removeChild(dialog);
-                            row.querySelectorAll("button")[1].focus();
+                            moveControl.focus();
                         });
                         dialog.addEventListener("keydown", function (event) {
                             if ([10009, 27, 8].indexOf(event.keyCode) >= 0) {

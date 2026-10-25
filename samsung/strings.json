@@ -1,4 +1,49 @@
 {
+  "Add to playlist": { "es": "Añadir a una lista", "be": "Дадаць у спіс прайгравання" },
+  "Remove from playlist": { "es": "Quitar de la lista", "be": "Выдаліць са спіса прайгравання" },
+  "Add {title} to {playlist}?": { "es": "¿Añadir {title} a {playlist}?", "be": "Дадаць {title} у {playlist}?" },
+  "Remove {title} from {playlist}?": { "es": "¿Quitar {title} de {playlist}?", "be": "Выдаліць {title} з {playlist}?" },
+  "Playlist": { "es": "Lista de reproducción", "be": "Спіс прайгравання" },
+  "Choose a standard video playlist. Nothing changes until you confirm.": {
+    "es": "Elige una lista de vídeo normal. Nada cambia hasta que lo confirmes.",
+    "be": "Выберыце звычайны спіс відэа. Нічога не зменіцца без пацверджання."
+  },
+  "No editable video playlists on this page. Smart playlists use rules.": {
+    "es": "No hay listas de vídeo editables en esta página. Las listas inteligentes usan reglas.",
+    "be": "На гэтай старонцы няма спісаў відэа для рэдагавання. Разумныя спісы выкарыстоўваюць правілы."
+  },
+  "Wait for the previous playlist edit to finish.": {
+    "es": "Espera a que termine el cambio anterior de la lista.",
+    "be": "Пачакайце завяршэння папярэдняй змены спіса."
+  },
+  "Playlist verification timed out. Reload before editing.": {
+    "es": "Se agotó el tiempo de comprobación de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Час праверкі спіса скончыўся. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "Choose a standard video playlist. Smart playlists use rules.": {
+    "es": "Elige una lista de vídeo normal. Las listas inteligentes usan reglas.",
+    "be": "Выберыце звычайны спіс відэа. Разумныя спісы выкарыстоўваюць правілы."
+  },
+  "Playlist edits can verify up to 1000 entries. Nothing was confirmed.": {
+    "es": "La edición puede comprobar hasta 1000 entradas. No se confirmó ningún cambio.",
+    "be": "Пры рэдагаванні можна праверыць да 1000 запісаў. Ніводная змена не пацверджана."
+  },
+  "Choose a playable video for this playlist.": {
+    "es": "Elige un vídeo reproducible para esta lista.",
+    "be": "Выберыце відэа, якое можна прайграць, для гэтага спіса."
+  },
+  "Plex returned an invalid server identity.": {
+    "es": "Plex devolvió una identidad de servidor no válida.",
+    "be": "Plex вярнуў няправільны ідэнтыфікатар сервера."
+  },
+  "Plex did not confirm the playlist change. Reload before editing.": {
+    "es": "Plex no confirmó el cambio de la lista. Vuelve a cargarla antes de editar.",
+    "be": "Plex не пацвердзіў змену спіса. Перазагрузіце яго перад рэдагаваннем."
+  },
+  "A request already sent to Plex may finish after you leave. Check Plex before repeating it.": {
+    "es": "Una solicitud enviada a Plex puede finalizar después de salir. Comprueba Plex antes de repetirla.",
+    "be": "Запыт, ужо адпраўлены ў Plex, можа завяршыцца пасля вашага выхаду. Праверце Plex перад паўторнай спробай."
+  },
   "Support record": { "es": "Registro de soporte", "be": "Запіс для падтрымкі" },
   "Copy support record": { "es": "Copiar registro de soporte", "be": "Скапіяваць запіс для падтрымкі" },
   "Scroll record up": { "es": "Desplazar registro hacia arriba", "be": "Пракруціць запіс уверх" },

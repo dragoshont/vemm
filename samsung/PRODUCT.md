@@ -35,7 +35,11 @@ page their items, and explicitly confirm moving an entry to the beginning.
 Playback's More menu provides previous/next video, shuffle and repeat; queue
 transitions preserve entry identity and marker/chapter metadata without creating
 another queue. Metadata or cleanup failures remain visible and retryable.
-Saved-playlist item addition/removal and smart-playlist editing are not offered.
+Movie/episode/clip More offers a paged standard-playlist picker. Adding a video
+or removing its exact saved entry requires item/playlist confirmation and
+complete bounded identity/order read-back, not HTTP success alone. Duplicate
+media entries remain distinct. Smart playlists do not expose manual item edits.
+Creation/renaming/deletion and smart-rule editing remain source gaps.
 Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
 
 ## Brand commitments

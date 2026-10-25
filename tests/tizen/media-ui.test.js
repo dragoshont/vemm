@@ -185,7 +185,8 @@ async function run() {
         assert(window.document.body.textContent.includes("Your Watchlist is empty."));
         click("Back"); await settle();
         click("Back"); await settle();
-        click("Back"); await settle();
+        assert(window.document.querySelector(".screen-home"),
+            "Refresh replaces the completed confirmation rather than retaining it in Back history");
         click("Plex catalogue"); await settle();
         window.document.querySelector('input[type="search"]').value = "Synthetic";
         click("Search"); await settle();
@@ -268,9 +269,11 @@ async function run() {
         assert.strictEqual(scheduled[0].query.get("targetLibrarySectionID"), "2");
         click("Refresh"); await settle();
         click("Back"); await settle();
+        assert(window.document.querySelector(".screen-program"),
+            "A completed recording skips the discarded destination confirmation on Back");
         click("Back"); await settle();
         click("Back"); await settle();
-        click("Back"); await settle();
+        assert(window.document.querySelector(".screen-television"));
         click("Recording subscriptions"); await settle();
         click("Cancel recording subscription"); await settle();
         assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));

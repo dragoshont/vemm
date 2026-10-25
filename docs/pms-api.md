@@ -160,6 +160,8 @@ explicit video API selection; the default music behavior is unchanged.
 | Start playlist | `POST /playQueues?type=video&playlistID={id}&continuous=0&shuffle=0&repeat=1`. Explicit shuffle uses `shuffle=1`. Normal movie/episode playback retains the existing `uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/30&continuous=1` creation path. |
 | Navigate/shuffle/clear | The same documented directional 50-entry window, `/shuffle`, `/unshuffle`, timeline entry correlation and owned `/items` clear operations described for music above, using `type=video` metadata validation. No `own=1`, invented offset-based queue endpoint or new queue per transition. |
 | Reorder an existing playlist | Explicit Move to beginning, then Confirm, uses `PUT /playlists/{id}/items/{playlistItemID}/move` without `after`, as documented. This changes the saved playlist, not an already-created playback queue. Smart playlists are not manually reordered. |
+| Add one video | `PUT /playlists/{id}/items?uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/2`. The source client freshly reads its own identity and the selected movie/episode/clip, not a global server ID or an arbitrary pasted URL. |
+| Remove one saved entry | `DELETE /playlists/{id}/items/{playlistItemID}`. The OpenAPI's DELETE path calls this parameter `generatorId`, but its description explicitly deletes an item from a non-smart playlist. Duplicate library IDs are not interchangeable entry IDs. |
 
 Playlist reordering checks the displayed page's entry IDs and total immediately
 before writing, then independently reads page zero and checks the first entry
@@ -167,8 +169,34 @@ and total. A successful HTTP response with unchanged order is not success.
 Failure/uncertain read-back requires Reload playlist, not automatic write
 replay. `playlistItemID` identifies the edited entry; `playQueueItemID`
 identifies playback; neither is the possibly duplicated library `ratingKey`.
-Creation/deletion of saved playlists, item addition/removal and smart-playlist
-editing are not supplied by this workflow.
+For add/remove, `REQ-QU-EDIT-01` reads a complete bounded entry-ID/media-ID
+snapshot before and after the one mutation. Add requires the unchanged ordered
+prefix plus one new entry for the selected video; remove requires exactly the
+old ordered entries minus the selected saved-entry ID. The displayed removal
+page is checked against preflight, and standard video-playlist identity is
+checked again immediately before writing. Unknown, incomplete, duplicated or
+concurrently changed pages, unchanged HTTP success and denied read-back are
+explicit uncertainty, never automatic mutation retry.
+
+Verification reads 50-entry pages, retains at most 1000 identity pairs and
+admits no new phase after its 60-second deadline; an issued response still has
+the existing request deadline. Adding at the 1000-entry ceiling rejects before
+writing. View cancellation retires future requests, while an already-sent
+mutation may finish; it cannot be undone or replayed as cancellation cleanup.
+An in-flight per-playlist edit blocks another add/remove/move. Refresh replaces
+the completed confirmation in Back history; failed verification also offers
+read-only Refresh, not another Confirm.
+
+The independently implemented request forms also agree with the public
+[Python-PlexAPI playlist documentation](https://python-plexapi.readthedocs.io/en/latest/modules/playlist.html)
+and its linked source: standard-item add uses the source server's content URI,
+remove uses `playlistItemID`, and smart playlists require rule edits instead.
+This is protocol evidence, not code copying or a real-PMS acceptance run.
+`playlist-edits` and `playlist-edits-ui` exercise the actual API/main.js,
+duplicate media entries, all pages, empty/maximum/over-limit containers, explicit
+confirmation, denied/unchanged/concurrent results, repeated OK, pre/post-send
+cancellation and originating focus. Creation/renaming/deletion and smart-rule
+editing are still missing source workflows, not merely hardware-test gaps.
 
 Video retains the PMS version/count/offset and exact string entry IDs. Pages
 retain at most 200 entries, and every next/previous transition validates fresh
