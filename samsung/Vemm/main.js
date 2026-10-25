@@ -62,6 +62,7 @@
     var externalCues = null;
     var musicQueue = null;
     var musicLoading = false;
+    var musicGeneration = 0;
     var queueShuffle = false;
     var queueRepeat = "off";
     var viewCleanup = null;
@@ -2801,45 +2802,163 @@
         focusFirst();
     }
 
-    function startAlbum(item, client, shuffle) {
+    function startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions) {
         if (musicLoading || player || playerClosing) { return; }
         musicLoading = true;
+        var request = ++musicGeneration;
         var generation = viewGeneration;
+        var cancelled = false;
+        var owned = null;
+        var cleanup = function () {
+            cancelled = true;
+            musicGeneration += 1;
+            musicLoading = false;
+            if (owned) { releaseMusicQueue(owned); }
+        };
+        viewCleanup = cleanup;
+        musicQueuePanel(null, null, cleanup);
         setStatus(translate("Loading music queue..."));
-        client.getTracks(item.ratingKey).then(function (tracks) {
-            if (generation !== viewGeneration || player) { return; }
-            musicQueue = window.VemmQueue.create(tracks);
-            queueShuffle = shuffle;
-            queueRepeat = "off";
-            musicQueue.shuffle(shuffle);
-            return client.getMetadata(musicQueue.current().ratingKey).then(function (track) {
-                if (generation === viewGeneration && !player) { startPlayer(track, client, 0); }
+        client.createMusicPlayQueue(currentServerId, item.ratingKey, shuffle).then(function (projection) {
+            owned = window.VemmQueue.createServer(client, projection);
+            if (cancelled || generation !== viewGeneration || player) { releaseMusicQueue(owned); owned = null; return; }
+            return client.getMetadata(owned.current().ratingKey).then(function (track) {
+                if (cancelled || generation !== viewGeneration || player) {
+                    releaseMusicQueue(owned); owned = null; return;
+                }
+                musicQueue = owned;
+                owned = null;
+                viewCleanup = null;
+                queueShuffle = shuffle;
+                queueRepeat = "off";
+                startPlayer(track, client, offset || 0, mediaIndex, trackOptions);
             });
         }).catch(function (error) {
-            if (generation === viewGeneration) { musicQueue = null; showPlayerError(error); }
-        }).then(function () { musicLoading = false; });
+            if (owned) { releaseMusicQueue(owned); owned = null; }
+            if (!cancelled && generation === viewGeneration) {
+                viewCleanup = null;
+                musicQueuePanel(error, function () { startAlbum(item, client, shuffle, offset, mediaIndex, trackOptions); });
+            }
+        }).then(function () {
+            if (viewCleanup === cleanup) { viewCleanup = null; }
+            if (request === musicGeneration) { musicLoading = false; }
+        });
+    }
+
+    function releaseMusicQueue(queue) {
+        if (!queue || !queue.close) { return; }
+        if (musicQueue === queue) {
+            musicQueue = null;
+            musicGeneration += 1;
+            musicLoading = false;
+        }
+        queue.close().catch(function (error) {
+            musicQueuePanel(error, function () { releaseMusicQueue(queue); });
+        });
+    }
+
+    function musicQueuePanel(error, retry, cancel) {
+        var old = document.getElementById("music-queue-panel");
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        var panel = element("section", "playback-error");
+        panel.id = "music-queue-panel";
+        panel.setAttribute("role", error ? "alertdialog" : "dialog");
+        panel.appendChild(element("p", "help-text", error ? errorText(error) : translate("Loading music queue...")));
+        if (retry) {
+            button(panel, "Retry playback", function () {
+                if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+                retry();
+            });
+        }
+        var cancelControl = button(panel, "Cancel", function () {
+            if (cancel) { cancel(); }
+            if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            if (player) {
+                showHud();
+                var more = screen.querySelector(".playback-controls .menu-icon-more");
+                if (more) { more.focus(); }
+            }
+            else { focusFirst(); }
+        });
+        panel.addEventListener("keydown", function (event) {
+            if ([10009, 27, 8].indexOf(event.keyCode) === -1) { return; }
+            event.preventDefault();
+            event.stopPropagation();
+            cancelControl.click();
+        });
+        screen.appendChild(panel);
+        panel.querySelector("button").focus();
+        if (error) { setStatus(errorText(error), true); }
+    }
+
+    function shuffleMusic() {
+        if (!musicQueue || musicLoading || playerClosing) { return; }
+        var queue = musicQueue;
+        var owner = player;
+        musicLoading = true;
+        var request = ++musicGeneration;
+        Promise.resolve().then(function () { return queue.shuffle(!queueShuffle); }).then(function (enabled) {
+            if (musicQueue !== queue || player !== owner || playerClosing) { return; }
+            queueShuffle = enabled;
+            playerSettings.playQueue = queue.snapshot();
+            setStatus(translate(queueShuffle ? "Shuffle on." : "Shuffle off."));
+            if (owner.snapshot().state === "ended") {
+                musicLoading = false;
+                skipMusic(1, true);
+            }
+        }).catch(function (error) {
+            if (musicQueue === queue && player === owner && !playerClosing) {
+                musicQueuePanel(error, shuffleMusic);
+            }
+        }).then(function () { if (request === musicGeneration) { musicLoading = false; } });
     }
 
     function skipMusic(delta, automatic) {
         if (!player || !musicQueue || playerClosing || musicLoading) { return; }
         musicLoading = true;
+        var request = ++musicGeneration;
         var client = playerClient;
         var previous = playerItem;
-        stopPlayer(function () {
-            var next = delta < 0 ? musicQueue.previous() : musicQueue.next(automatic);
-            if (!next) {
-                musicQueue = null; musicLoading = false;
-                renderDetail(previous, client);
-                return;
+        var queue = musicQueue;
+        var owner = player;
+        var cancelled = false;
+        function current() {
+            return !cancelled && request === musicGeneration && player === owner && musicQueue === queue && !playerClosing;
+        }
+        musicQueuePanel(null, null, function () {
+            if (playerClosing) { return; }
+            cancelled = true;
+            queue.cancel();
+            musicGeneration += 1;
+            musicLoading = false;
+        });
+        Promise.resolve().then(function () { return queue.peek(delta, automatic); }).then(function (candidate) {
+            if (!current()) { return; }
+            if (!candidate) {
+                return stopPlayer(function () {
+                    releaseMusicQueue(queue);
+                    musicLoading = false;
+                    renderDetail(previous, client);
+                });
             }
-            renderDetail(next, client);
-            var generation = viewGeneration;
-            client.getMetadata(next.ratingKey).then(function (track) {
-                if (generation === viewGeneration && !player) { startPlayer(track, client, 0); }
-            }).catch(function (error) {
-                if (generation === viewGeneration) { musicQueue = null; showPlayerError(error); }
-            }).then(function () { musicLoading = false; });
-        }).then(function () { if (player) { musicLoading = false; } });
+            return client.getMetadata(candidate.item.ratingKey).then(function (track) {
+                if (!current()) { return; }
+                var paused = owner.snapshot().state === "paused";
+                return stopPlayer(function () {
+                    if (request !== musicGeneration) { releaseMusicQueue(queue); return; }
+                    queue.select(candidate);
+                    renderDetail(track, client);
+                    startPlayer(track, client, 0, 0, { paused: paused });
+                });
+            });
+        }).catch(function (error) {
+            if (current()) { musicQueuePanel(error, function () { skipMusic(delta, automatic); }); }
+        }).then(function () {
+            if (request === musicGeneration) { musicLoading = false; }
+            var panel = document.getElementById("music-queue-panel");
+            if (request === musicGeneration && panel && panel.getAttribute("role") === "dialog") {
+                if (panel.parentNode) { panel.parentNode.removeChild(panel); }
+            }
+        });
     }
 
     function cancelHudTimer() {
@@ -3029,8 +3148,7 @@
             button(menu, "Previous track", function () { skipMusic(-1, false); });
             button(menu, "Next track", function () { skipMusic(1, false); });
             button(menu, "Shuffle / On or off", function () {
-                queueShuffle = musicQueue.shuffle(!queueShuffle);
-                setStatus(translate(queueShuffle ? "Shuffle on." : "Shuffle off."));
+                shuffleMusic();
             });
             button(menu, "Repeat / Off, one, all", function () {
                 queueRepeat = queueRepeat === "off" ? "one" : queueRepeat === "one" ? "all" : "off";
@@ -3046,9 +3164,9 @@
 
     function startPlayer(item, client, offset, mediaIndex, trackOptions) {
         if (player || playerClosing) { return; }
-        if (item.type === "track" && (!musicQueue || musicQueue.current().ratingKey !== item.ratingKey)) {
-            musicQueue = window.VemmQueue.create([item]);
-            queueShuffle = false; queueRepeat = "off";
+        if (item.type === "track" && (!musicQueue || String(musicQueue.current().ratingKey) !== String(item.ratingKey))) {
+            startAlbum(item, client, false, offset, mediaIndex, trackOptions);
+            return;
         } else if (item.type !== "track") { musicQueue = null; }
         viewGeneration += 1;
         resetImages();
@@ -3084,6 +3202,7 @@
             paused: !!(trackOptions && trackOptions.paused),
             profile: directPlayProfile(), directPlay: preferences.directPlay
         };
+        if (item.type === "track" && musicQueue) { playerSettings.playQueue = musicQueue.snapshot(); }
         externalCues = trackOptions && trackOptions.cues || null;
         document.body.className = "playing";
         var hud = element("section", "player-hud");
@@ -3284,6 +3403,7 @@
         } catch (error) {
             document.body.className = "";
             player = null;
+            if (item.type === "track" && musicQueue) { releaseMusicQueue(musicQueue); }
             showHud();
             externalCues = null;
             renderDetail(item, client);
@@ -3383,6 +3503,9 @@
             showHud();
             playerClosing = false;
             document.body.className = "";
+            if (item.type === "track" && typeof after !== "function") {
+                releaseMusicQueue(musicQueue);
+            }
             if (typeof after === "function") { after(); }
             else { renderDetail(item, client); }
             if (typeof after !== "function") { musicQueue = null; }
@@ -4431,6 +4554,7 @@
     screen.addEventListener("click", function () { if (player) { showHud(); } });
     document.addEventListener("visibilitychange", function () {
         if (document.hidden) {
+            if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
             clearGraphics();
             cancelScrub();
             cancelHold();
@@ -4442,6 +4566,7 @@
                     openDetail(item.ratingKey, client);
                 };
                 stopPlayer(function () {
+                    if (musicQueue) { releaseMusicQueue(musicQueue); }
                     if (!document.hidden && foregroundRecovery) {
                         var recover = foregroundRecovery; foregroundRecovery = null; recover();
                     }
@@ -4465,11 +4590,12 @@
         }
     });
     window.addEventListener("pagehide", function () {
+        if (musicQueue) { musicGeneration += 1; musicQueue.cancel(); musicLoading = false; }
         if (graphics) { graphics.dispose(); graphics = null; }
         stopAuthorization();
         resetImages();
         if (viewCleanup) { viewCleanup(); viewCleanup = null; }
-        if (player) { stopPlayer(function () {}); }
+        if (player) { stopPlayer(function () { if (musicQueue) { releaseMusicQueue(musicQueue); } }); }
     });
     if (window.tizen && window.tizen.tvinputdevice) {
         try {

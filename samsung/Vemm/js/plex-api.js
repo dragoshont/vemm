@@ -632,12 +632,14 @@
         var token = String(options.token || "");
         var fetchRequest = options.fetch || (typeof fetch === "function" ? fetch : null);
         var scope = requestScope();
+        var musicScopes = {};
         if (!fetchRequest) {
             throw new Error("This runtime does not provide fetch.");
         }
 
-        function get(path, method, query, allowEmpty) {
-            var revision = scope.revision;
+        function get(path, method, query, allowEmpty, ownedScope) {
+            var activeScope = ownedScope || scope;
+            var revision = activeScope.revision;
             var headers = {
                 Accept: "application/json"
             };
@@ -657,13 +659,13 @@
                 }).join("&");
             }
             return Promise.resolve().then(function () {
-                if (!allowEmpty && (!method || method === "GET") && revision !== scope.revision) { throw requestCancelled(); }
+                if (!allowEmpty && (!method || method === "GET") && revision !== activeScope.revision) { throw requestCancelled(); }
                 return timedFetch(fetchRequest, target, {
                 method: method || "GET",
                 credentials: "omit",
                 redirect: "error",
                 headers: headers
-                }, allowEmpty || method && method !== "GET" ? null : scope);
+                }, allowEmpty || method && method !== "GET" ? null : activeScope);
             }).catch(function (error) {
                 if (error.code === "cancelled") { throw error; }
                 throw new Error("The server is unreachable. Check your network and retry.");
@@ -701,6 +703,55 @@
                 throw new Error("Plex returned an invalid local resource path.");
             }
             return value;
+        }
+
+        function queueId(value) {
+            if (typeof value === "number" && (!isNonNegativeInteger(value) || value > 9007199254740991) ||
+                    !/^[1-9][0-9]*$/.test(String(value))) {
+                throw new Error("Plex returned an invalid music queue identifier.");
+            }
+            return String(value);
+        }
+
+        function musicRequestScope(id) {
+            if (!musicScopes[id]) { musicScopes[id] = requestScope(); }
+            return musicScopes[id];
+        }
+
+        function musicProjection(container) {
+            var id = queueId(container.playQueueID);
+            var selected = queueId(container.playQueueSelectedItemID);
+            var total = container.playQueueTotalCount;
+            var version = container.playQueueVersion;
+            var offset = container.playQueueSelectedItemOffset;
+            if (!isNonNegativeInteger(total) || !total || total > 9007199254740991 ||
+                    !isNonNegativeInteger(version) || version > 9007199254740991 ||
+                    !isNonNegativeInteger(offset) || offset >= total ||
+                    typeof container.playQueueShuffled !== "boolean") {
+                throw new Error("Plex returned an invalid music queue revision or position.");
+            }
+            var rows = listFrom(container, "Metadata");
+            var selectedIndex = -1;
+            rows.some(function (row, index) {
+                if (row && String(row.playQueueItemID) === selected) { selectedIndex = index; return true; }
+                return false;
+            });
+            var start = Math.max(0, selectedIndex - 100);
+            var seen = {};
+            var items = rows.slice(start, start + 200).map(function (row) {
+                var itemId = queueId(row && row.playQueueItemID);
+                if (!row || row.type !== "track" || !/^[0-9]+$/.test(String(row.ratingKey)) || seen[itemId]) {
+                    throw new Error("Plex returned invalid music queue entries.");
+                }
+                seen[itemId] = true;
+                var item = {};
+                Object.keys(row).forEach(function (name) { item[name] = row[name]; });
+                item.playQueueItemID = itemId;
+                item.ratingKey = String(row.ratingKey);
+                return item;
+            });
+            return { id: id, itemId: selected, version: version, total: total, offset: offset,
+                shuffled: container.playQueueShuffled, items: items };
         }
 
         return {
@@ -999,6 +1050,50 @@
                     }
                     return { id: id, itemId: selected, items: listFrom(container, "Metadata") };
                 });
+            },
+            createMusicPlayQueue: function (machineId, ratingKey, shuffle) {
+                if (!/^[0-9A-Za-z_-]{1,80}$/.test(String(machineId || "")) || typeof shuffle !== "boolean") {
+                    return Promise.reject(new Error("Choose a valid server and music shuffle mode."));
+                }
+                return get("/playQueues", "POST", {
+                    type: "audio", continuous: 0, shuffle: shuffle ? 1 : 0, repeat: 1,
+                    uri: "server://" + machineId + "/com.plexapp.plugins.library/library/metadata/" + key(ratingKey)
+                }).then(function (container) {
+                    try {
+                        var projection = musicProjection(container);
+                        if (!projection.items.some(function (item) {
+                            return String(item.playQueueItemID) === projection.itemId;
+                        })) { throw new Error("Plex did not return the selected music queue entry."); }
+                        return projection;
+                    }
+                    catch (error) {
+                        var id = queueId(container.playQueueID);
+                        return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () { throw error; });
+                    }
+                });
+            },
+            getMusicPlayQueue: function (id, center, direction) {
+                if (direction !== -1 && direction !== 1) { return Promise.reject(new Error("Choose previous or next track.")); }
+                id = queueId(id);
+                return get("/playQueues/" + id, "GET", {
+                    center: queueId(center), window: 50,
+                    includeBefore: direction < 0 ? 1 : 0, includeAfter: direction > 0 ? 1 : 0
+                }, false, musicRequestScope(id)).then(musicProjection);
+            },
+            shuffleMusicPlayQueue: function (id, enabled) {
+                if (typeof enabled !== "boolean") { return Promise.reject(new Error("Choose shuffle on or off.")); }
+                return get("/playQueues/" + queueId(id) + (enabled ? "/shuffle" : "/unshuffle"), "PUT")
+                    .then(musicProjection);
+            },
+            clearMusicPlayQueue: function (id) {
+                id = queueId(id);
+                return get("/playQueues/" + id + "/items", "DELETE", null, true).then(function () {
+                    delete musicScopes[id];
+                });
+            },
+            cancelMusicQueueRequests: function (id) {
+                id = queueId(id);
+                if (musicScopes[id]) { musicScopes[id].cancel(); }
             },
             stopTranscode: function (session, kind) {
                 if (kind && ["video", "music"].indexOf(kind) === -1) { return Promise.reject(new Error("Invalid transcode kind.")); }

@@ -361,8 +361,13 @@ An engine without streaming fetch therefore fails closed with "This TV runtime i
 yet" (`tests/tizen/response-limits.test.js`) instead of downgrading transport security.
 
 Music libraries now navigate artists/albums/tracks and use the universal music transcoder with
-an HTTP MP3 request. Album queues are local, capped at 200 tracks, with shuffle and repeat
-off/one/all; they are not PMS PlayQueues. Photo libraries open a page-local viewer/slideshow,
+an HTTP MP3 request. Explicit track/album playback creates a PMS audio PlayQueue with string
+queue-entry IDs, revision-aware bounded paging beyond 200 tracks, server shuffle/unshuffle
+and client repeat off/one/all. Next-track metadata is fetched before stopping current audio;
+retry/cancel preserves queue selection and manual transitions preserve pause intent. Owned
+queues are cleared on stop/exit, with visible cleanup recovery. The
+[music protocol contract](pms-api.md#music-playqueues-source-backed-host-contract-2026-10-25)
+records the OpenAPI requests, bounds and host-only evidence. Photo libraries open a page-local viewer/slideshow,
 fetch server-resized images, enforce the response ceiling and a 15-second decode deadline, and
 release object URLs on replacement/back. Synthetic real-app journeys cover both features;
 MP3 delivery, photo formats and native output remain unobserved on Samsung hardware.
@@ -518,11 +523,11 @@ superseded assertions; current source takes precedence.
 
 | Feature | Actual LG source boundary | Samsung baseline and remaining work |
 |---|---|---|
-| Music and photos | `rust-modules/data/src/browse/mod.rs`, `SecKind::from_wire`, accepts only movie/show. Tests in `browse_fetch_state_tests.rs` explicitly reject artist/photo. Generic metadata/hub names are not playable screens. | Music queues/shuffle/repeat and photo slideshow exist on host. Server music PlayQueues, larger queues, native audio/image formats, interruption recovery and memory limits remain. These are new product features, not copied LG screens. |
+| Music and photos | `rust-modules/data/src/browse/mod.rs`, `SecKind::from_wire`, accepts only movie/show. Tests in `browse_fetch_state_tests.rs` explicitly reject artist/photo. Generic metadata/hub names are not playable screens. | Server music PlayQueues, larger bounded queues, shuffle/repeat, interruption/retry and photo slideshow exist on host. Native audio/image formats, hardware interruption recovery and measured memory limits remain. These are new product features, not copied LG screens. |
 | Live TV/DVR | No `/livetv` or `/media/subscriptions` bindings found in Rust source; the LG parity audit excludes this domain. | Guide/grid and confirmed DVR operations exist on host. Tuner consumer allocation/keepalive/release, storage-location selection, conflict workflows and actual server/native acceptance remain. LG provides no tuner lifecycle to reuse. |
 | Watchlist | No Watchlist read/add/remove bindings found in Rust source. | Paged reads, confirmed mutations and exact-GUID local matches exist on host. Cloud/profile acceptance, packaged remote paging and recovery remain. |
 | Cloud catalogue | `rust-modules/plex/src/plex/discover.rs` implements person biographies and `CreditGroup` filmography, not general catalogue search or licensed playback. `rust-modules/data/src/person.rs` joins credits to local availability; unowned credits are not local playback targets. | Metadata search/details, local matching and 50-credit career pages exist on host. Licensed/ad-supported streaming is blocked on authorization, DRM and ad contracts. A Discover module name does not prove AVOD support. |
-| Server queues and Up Next | `rust-modules/plex/src/plex/timeline.rs`, `create_play_queue`, POSTs `/playQueues` with `type=video`, continuous episodes, queue/item IDs and server identity. `rust-modules/media/src/route/plan.rs` retains queue projections. | Local music queue is not equivalent to a server PlayQueue. Reuse the identity/projection rules, but establish music-specific creation, mutation, paging and cleanup contracts rather than copying the video-only call. |
+| Server queues and Up Next | `rust-modules/plex/src/plex/timeline.rs`, `create_play_queue`, POSTs `/playQueues` with `type=video`, continuous episodes, queue/item IDs and server identity. `rust-modules/media/src/route/plan.rs` retains queue projections. | Music now uses OpenAPI-backed `type=audio` creation, directional windows, shuffle/unshuffle, timeline correlation and owned clear-items cleanup, with revision/order and >200-track UI regressions. Live PMS and native audio acceptance remain separate from these synthetic contracts. |
 | Localization | LG has English/Spanish/Belarusian catalogs under `locales/`; translated movie/show surfaces do not supply translations for the new media/service domains. | Static/conditional copy and named placeholders covered on host. Dynamic errors/composite copy, old-engine formatting and actual display text fit remain. |
 | Playback and lifecycle | `rust-modules/media/src/player/CLAUDE.md` documents bundled FFmpeg demux, access-unit queues, Starfish feed and ACB hardware-plane binding. Those are LG-specific native interfaces. | AVPlay is a separate adapter. Hidden-state stop and foreground no-auto-play are host exercised; codecs, HDR/audio/subtitles, seeks, process kill, standby and The Frame Art Mode need Samsung acceptance. LG device results cannot certify these. |
 
@@ -671,8 +676,8 @@ Each item starts with endpoint/schema/entitlement evidence and mock contracts, t
 runtime integration. A feature requiring an unavailable private service remains blocked with its
 evidence; it is not replaced by another media server.
 
-- [x] Music host baseline: artists/albums/tracks, metadata/artwork, bounded local album queue, shuffle/repeat and audio player; synthetic UI/session contracts exercised.
-- [ ] Music completion: server PlayQueues, larger album queues, native MP3/transcode verification and interruption recovery.
+- [x] Music host baseline: artists/albums/tracks, metadata/artwork, bounded server audio PlayQueues beyond 200 tracks, shuffle/repeat, interruption/retry/cancel and audio player; synthetic UI/session contracts exercised.
+- [ ] Music completion: authorized live PMS queues, native MP3/transcode verification, named-TV interruption recovery and measured memory bounds.
 - [x] Photos host baseline: album navigation, page-local viewer/slideshow, decode timeout and object-URL cleanup; synthetic UI/resource contracts exercised without progress writes.
 - [ ] Photos completion: verify native supported formats, display/remote behavior and measured memory ceilings.
 - [x] Live TV host discovery: advertised EPG providers, guide shelves, date/channel grid and existing channel lineups; recording capability is checked before offering scheduling.

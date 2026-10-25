@@ -76,6 +76,51 @@ All endpoints below were verified live on 2026-07-03 with read-only GETs, **exce
 
 ---
 
+## Music PlayQueues: source-backed host contract, 2026-10-25
+
+REQ-MU-01 uses the Play Queue operations in [the bundled OpenAPI](plex-openapi.json),
+not the historical video-only implementation or an inferred Plexamp protocol.
+The following requests are exercised only against synthetic PMS fixtures:
+
+| Operation | Request and ownership |
+| --- | --- |
+| Create | `POST /playQueues?type=audio&continuous=0&shuffle=0&repeat=1&uri=server://synthetic-server/com.plexapp.plugins.library/library/metadata/30`. Shuffle creation uses `shuffle=1`. Only an explicit Play/Play album action creates a queue. |
+| Page forward/backward | `GET /playQueues/{id}?center={playQueueItemID}&window=50&includeBefore=0&includeAfter=1`, or `includeBefore=1&includeAfter=0` for previous. OpenAPI defines `window` as the number on each side and excludes the center when one side is disabled. No offset-pagination endpoint or ownership-transfer flag is invented. |
+| Shuffle | `PUT /playQueues/{id}/shuffle` or `/unshuffle`. PMS maintains the selected entry and restores natural order on unshuffle. A mismatched selected ID, shuffle flag or regressing version is an explicit error. There is no Up Next editing in this music lane. |
+| Correlate playback | Existing `POST /:/timeline` includes the exact string `playQueueID` and `playQueueItemID`, including duplicate library keys and IDs beyond JavaScript's safe integer range. A library key or list index is not a queue-entry ID. |
+| Clear | `DELETE /playQueues/{id}/items` after playback stop. This is OpenAPI's clear-items operation, not an invented queue-deletion route. Only the queue this action created is cleared. |
+
+Creation's `repeat=1` requests the documented **wraparound window filling**, not
+a native repeat-one setting. Vemm separately owns repeat off/one/all: off stops
+at the known total, automatic repeat-one keeps the entry, manual next bypasses
+repeat-one, and all permits wrapping in either direction. Queue creation returns
+the selected offset and total; subsequent moves retain that position only while
+the queue's revision and total match. An external order/version change requires
+stopping and reopening the album instead of guessing a new position.
+
+The retained projection is at most 200 entries, with 50-entry directional reads
+and the existing 4 MiB/full-body deadline. The next entry's metadata must arrive
+before the current audio is stopped or queue selection advances. Retry repeats
+that same transition; cancellation rejects/invalidates obsolete reads and cannot
+start delayed audio. Pause intent survives a manual transition. Read cancellation
+is scoped by queue ID, so retiring a stale created queue cannot cancel another
+queue's page. POST/PUT responses are not aborted on view cancellation: a late
+creation is cleared when its identity arrives, and a pending mutation finishes
+before clear. Clear failure is visible and explicitly retryable. A lost creation
+response without a usable queue ID cannot be reconciled by inventing an ID or
+replaying a write automatically.
+
+`music-queue.test.js` traverses 321 entries with duplicate library keys, string
+queue IDs, versions, repeat boundaries, shuffle, cancellation and retryable
+cleanup. `music-queue-ui.test.js` uses the actual app's music screens and remote
+Enter handling through more than 200 tracks, failed/cancelled creation,
+metadata interruption/retry, cancelled paging, shuffle, previous/next,
+repeat-one, pause intent and cleanup failure/retry. `media-ui.test.js` also
+binds music timelines and stop to the server queue. These are host contracts,
+**not live PMS, named-TV native audio or Plexamp/native-output parity evidence**.
+
+---
+
 ## 1. Library sections
 
 ```

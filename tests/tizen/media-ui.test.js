@@ -28,6 +28,14 @@ async function run() {
     var watchlisted = true;
     var listener;
     var time = 0;
+    var queueVersion = 1;
+    function musicQueue(shuffled) {
+        return { playQueueID: "9007199254740993", playQueueSelectedItemID: "9007199254740995",
+            playQueueSelectedItemOffset: 0, playQueueTotalCount: 2, playQueueVersion: queueVersion,
+            playQueueShuffled: !!shuffled, Metadata: tracks.map(function (track, index) {
+                return Object.assign({}, track, { playQueueItemID: "900719925474099" + (5 + index) });
+            }) };
+    }
     window.URL.createObjectURL = function () { return "blob:synthetic-" + calls.length; };
     window.URL.revokeObjectURL = function (url) { revoked.push(url); };
     window.TextDecoder = TextDecoder;
@@ -95,7 +103,17 @@ async function run() {
         else if (url.pathname === "/library/metadata/30/children") { container = { Metadata: tracks, totalSize: 2 }; }
         else if (/^\/library\/metadata\/[12]$/.test(url.pathname)) {
             container = { Metadata: [tracks[Number(url.pathname.split("/").pop()) - 1]] };
-        } else if (url.pathname === "/music/:/transcode/universal/decision") {
+        }         else if (url.pathname === "/playQueues") {
+            assert.strictEqual(options.method, "POST");
+            assert.strictEqual(url.searchParams.get("type"), "audio");
+            container = musicQueue(false);
+        } else if (url.pathname === "/playQueues/9007199254740993/shuffle") {
+            queueVersion += 1; container = musicQueue(true);
+        } else if (url.pathname === "/playQueues/9007199254740993") {
+            container = musicQueue(true);
+            container.Metadata = [container.Metadata[1]];
+        } else if (url.pathname === "/playQueues/9007199254740993/items") { container = {}; }
+        else if (url.pathname === "/music/:/transcode/universal/decision") {
             assert.strictEqual(url.searchParams.get("audioCodec"), "mp3"); container = { generalDecisionCode: 1001 };
         } else if (/^\/library\/parts\/2[12]$/.test(url.pathname) ||
                 url.pathname === "/:/timeline" || url.pathname === "/music/:/transcode/universal/stop") { container = {}; }
@@ -171,17 +189,25 @@ async function run() {
         window.document.querySelector(".media-card").click(); await settle();
         assert(window.document.querySelector(".detail-cover"), "Music uses square artwork rather than a movie poster layout");
         click("Play album"); await settle();
+        assert(calls.some(function (call) { return call.path === "/playQueues" && call.query.get("type") === "audio"; }),
+            "Music must create a PMS audio PlayQueue rather than a local album list");
         assert.strictEqual(state, "PLAYING");
         assert(window.document.body.textContent.includes("Track 1"));
         click("More");
-        click("Shuffle / On or off"); click("Repeat / Off, one, all");
+        click("Shuffle / On or off"); await settle(); click("Repeat / Off, one, all");
         listener.onstreamcompleted(); await settle();
         assert(window.document.body.textContent.includes("Track 1"), "Repeat-one must replay the same track");
         click("More");
         click("Next track"); await settle();
-        assert(window.document.body.textContent.includes("Track 2"), "Manual next must bypass repeat-one");
+        assert(window.document.body.textContent.includes("Track 2"), "Manual next must bypass repeat-one: " +
+            window.document.querySelector(".screen").textContent + "\n" +
+            calls.slice(-12).map(function (call) { return call.path + "?" + call.query; }).join("\n"));
+        assert(calls.some(function (call) { return call.path === "/:/timeline" &&
+            call.query.get("playQueueItemID") === "9007199254740996"; }), "Music timelines use the selected string queue entry");
         click("More");
         click("Stop and return to details"); await settle();
+        assert(calls.some(function (call) { return call.path === "/playQueues/9007199254740993/items" &&
+            call.method === "DELETE"; }), "Stop clears the owned music queue");
         click("Back"); await settle();
         click("Back to Home"); await settle();
         click("Photos"); await settle();
@@ -226,12 +252,14 @@ async function run() {
         click("Back"); await settle();
         click("Recording subscriptions"); await settle();
         click("Cancel recording subscription"); await settle();
-        assert(!calls.some(function (call) { return call.method === "DELETE"; }));
+        assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));
         click("Cancel"); await settle();
-        assert(!calls.some(function (call) { return call.method === "DELETE"; }));
+        assert(!calls.some(function (call) { return call.method === "DELETE" && call.path === "/media/subscriptions/18"; }));
         click("Cancel recording subscription"); await settle();
         click("Confirm"); click("Confirm"); await settle();
-        assert.strictEqual(calls.filter(function (call) { return call.method === "DELETE"; }).length, 1,
+        assert.strictEqual(calls.filter(function (call) {
+            return call.method === "DELETE" && call.path === "/media/subscriptions/18";
+        }).length, 1,
             "Explicit recording cancellation must not repeat");
         console.log("Tizen linked-account Watchlist/catalogue GUID match/music/photos/DVR confirmation journeys: passed");
     } finally { dom.window.close(); }
