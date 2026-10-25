@@ -13,6 +13,8 @@ async function run() {
     var calls = [];
     var unchanged = false;
     var hold = false;
+    var browseSorts = false;
+    var browseQuery;
     var release;
     function playlist() {
         return { ratingKey: "7", type: "playlist", playlistType: "video", smart: "1",
@@ -38,10 +40,21 @@ async function run() {
             return Promise.resolve(response({ machineIdentifier: "source-server" }));
         }
         if (url.pathname === "/library/sections/1/all") {
+            if (browseSorts) {
+                if (url.searchParams.has("sort")) {
+                    browseQuery = url.searchParams.get("sort");
+                    return Promise.resolve(response({ totalSize: 0, size: 0, Metadata: [] }));
+                }
+                return Promise.resolve(response({ Meta: { Type: [{ type: "movie", Sort: [{
+                    key: "show.titleSort:asc,season.index:asc", title: "Show sort",
+                    descKey: "show.titleSort:desc,season.index:desc"
+                }], Filter: [] }] } }));
+            }
             return Promise.resolve(response({ Meta: {
                 Type: [{ type: "movie", Field: [{ key: "year", type: "integer", title: "Year" },
                     { key: "title", type: "string", title: "Title" }],
-                Sort: [{ key: "titleSort", title: "Title" }, { key: "addedAt", title: "Date added" }] }],
+                Sort: [{ key: "titleSort", title: "Title", descKey: "titleSort:desc,addedAt:desc" },
+                    { key: "addedAt", title: "Date added" }] }],
                 FieldType: [{ type: "integer", Operator: [{ key: ">=", title: "is greater than" }, { key: "=", title: "is" }] },
                     { type: "string", Operator: [{ key: "=", title: "contains" }] }]
             } }));
@@ -58,7 +71,8 @@ async function run() {
     var source = fs.readFileSync(path.join(root, "main.js"), "utf8");
     var boundary = source.lastIndexOf('    addConnectForm("");');
     w.eval(source.slice(0, boundary) +
-        '    currentClient = { cancelRequests: function () {} }; currentServerId = "different-primary"; renderDetail(window.__playlist, window.__client); }());');
+        '    currentClient = { cancelRequests: function () {} }; currentServerId = "different-primary"; renderDetail(window.__playlist, window.__client);' +
+        ' window.__browse = function () { currentClient = window.__client; openBrowseOptions({key:"1",type:"movie",title:"Synthetic library"}); }; }());');
     function control(label) {
         return Array.from(w.document.querySelectorAll("button")).find(function (node) { return node.textContent.trim() === label; });
     }
@@ -120,6 +134,8 @@ async function run() {
         assert.strictEqual(rules.root.rules[2].match, "or");
         assert.strictEqual(rules.root.rules[2].rules[1].value, "Nested title");
         assert.strictEqual(rules.sort[0], "titleSort:desc");
+        assert.strictEqual(rules.sort.join(","), "titleSort:desc,addedAt:desc",
+            "The advertised tie component changes limit membership and must not be dropped");
         assert.strictEqual(rules.limit, "25");
         press("Refresh"); await settle();
         press("More"); press("Edit smart rules"); await settle();
@@ -139,6 +155,11 @@ async function run() {
         release(); await settle();
         assert.strictEqual(writes(), 2, "Leaving a secondary-client preflight cannot later send the write");
         assert(control("Review rule changes"));
+        hold = false; browseSorts = true;
+        w.__browse(); await settle();
+        press("Show sort / Ascending"); await settle();
+        assert.strictEqual(browseQuery, "show.titleSort:asc,season.index:asc",
+            "Library browse uses the same supplied compound expression, not another appended direction");
     } finally { dom.window.close(); }
     console.log("Smart playlist actual UI: advertised remote forms, draft/Cancel/focus, encoded rules, no replay and secondary-client cancellation passed");
 }

@@ -51,7 +51,7 @@ function fixture(options) {
                 assert.strictEqual(url.searchParams.get("includeMeta"), "1");
                 assert.strictEqual(url.searchParams.get("includeAdvanced"), "1");
                 assert.strictEqual(url.searchParams.get("X-Plex-Container-Size"), "0");
-                return Promise.resolve(response({ Meta: options.missingSchema ? {} : meta }));
+                return Promise.resolve(response({ Meta: options.missingSchema ? {} : options.meta || meta }));
             }
             assert.strictEqual(url.pathname, "/playlists/7");
             if (options.readDenied && calls.some(function (call) { return call.method === "PUT"; })) {
@@ -85,6 +85,38 @@ async function run() {
     assert.strictEqual(read.rules.root.rules[1].value, "2000");
     assert.deepStrictEqual(read.rules.sort, ["titleSort:asc"]);
     assert.strictEqual(read.rules.limit, "20");
+    var compoundMeta = JSON.parse(JSON.stringify(meta));
+    compoundMeta.Type[0].Sort[0].descKey = "titleSort:desc,addedAt:desc";
+    var compound = fixture({ meta: compoundMeta });
+    var compoundLoaded = await compound.client.getSmartVideoPlaylist("7");
+    var compoundDraft = JSON.parse(JSON.stringify(compoundLoaded.rules));
+    compoundDraft.sort = ["titleSort:desc,addedAt:desc"];
+    await compound.client.updateSmartVideoPlaylist("7", compoundLoaded.playlist, compoundDraft);
+    assert.deepStrictEqual((await compound.client.getSmartVideoPlaylist("7")).rules.sort,
+        ["titleSort:desc,addedAt:desc"], "Advertised compound sorts remain a complete logical choice with a limit");
+    var partialSort = fixture({ meta: compoundMeta });
+    compoundDraft.sort = ["titleSort:desc"];
+    await assert.rejects(partialSort.client.updateSmartVideoPlaylist("7", compoundLoaded.playlist, compoundDraft), /safely/);
+    assert.strictEqual(partialSort.mutations().length, 0, "A truncated advertised compound is not a different valid choice");
+    compoundMeta.Type[0].Sort = [{ key: "show.titleSort:asc,season.index:asc", title: "Show",
+        descKey: "show.titleSort:desc,season.index:desc" }];
+    var noExplicitSort = fixture({ meta: compoundMeta, content: initial.replace("&sort=titleSort%3Aasc", "") });
+    assert.deepStrictEqual((await noExplicitSort.client.getSmartVideoPlaylist("7")).rules.sort, [],
+        "A compound advertised key must not reject a playlist that uses default ordering");
+    assert.strictEqual(rules.sortChoice({ key: "show.titleSort:asc,season.index:asc", title: "Show" }).descending, null,
+        "No opposite compound direction is invented when the server did not supply one");
+    var expandedMeta = JSON.parse(JSON.stringify(meta));
+    expandedMeta.Type[0].Sort[0].descKey = "titleSort:desc,addedAt:desc";
+    ["duration", "rating", "yearSort", "index"].forEach(function (key) {
+        expandedMeta.Type[0].Sort.push({ key: key, title: key });
+    });
+    var expandedMenu = rules.schema({ Meta: expandedMeta }, "1");
+    var expandedDraft = JSON.parse(JSON.stringify(draft));
+    expandedDraft.sort = ["titleSort:desc,addedAt:desc", "duration:asc", "rating:asc", "yearSort:asc"];
+    assert.strictEqual(rules.validate(expandedDraft, expandedMenu).sort.join(",").split(",").length, 5);
+    expandedDraft.sort.push("index:asc");
+    assert.throws(function () { rules.validate(expandedDraft, expandedMenu); }, /safely/,
+        "Five logical choices cannot hide six expanded server sort components");
     for (var bad of ["unchanged", "denied", "concurrent"]) {
         var uncertain = fixture({ [bad]: true });
         await assert.rejects(uncertain.client.updateSmartVideoPlaylist("7", loaded.playlist, draft),

@@ -1798,15 +1798,17 @@
             var types = container.Meta && container.Meta.Type || [];
             var type = types.filter(function (entry) { return entry.active; })[0] || types[0] || {};
             var sorting = group(screen, translate("Sort"), "selection-list");
-            (type.Sort || []).forEach(function (sort) {
+            (type.Sort || []).forEach(function (entry) {
+                var sort = window.VemmSmartPlaylists.sortChoice(entry);
                 ["asc", "desc"].forEach(function (direction) {
+                    var sortKey = direction === "desc" ? sort.descending : sort.ascending;
+                    if (sortKey === null) { return; }
                     var choice = button(sorting, translate(sort.title || sort.key) + " / " +
                         translate(direction === "asc" ? "Ascending" : "Descending"), function () {
-                        selected.sort = direction === "desc" && sort.descKey ? sort.descKey : sort.key + ":" + direction;
+                        selected.sort = sortKey;
                         openSection(section, { items: [], offset: 0, filters: selected });
                         loadNextPage();
                     }, true, "sort-" + direction);
-                    var sortKey = direction === "desc" && sort.descKey ? sort.descKey : sort.key + ":" + direction;
                     choice.setAttribute("aria-pressed", selected.sort === sortKey ? "true" : "false");
                 });
             });
@@ -3396,10 +3398,17 @@
         });
         state.schema.sorts.forEach(function (sort) {
             ["asc", "desc"].forEach(function (direction) {
+                var expression = direction === "asc" ? sort.ascending : sort.descending;
+                if (expression === null) { return; }
                 button(screen, translate(sort.title) + " / " + translate(direction === "asc" ? "Ascending" : "Descending"), function () {
-                    state.rules.sort = state.rules.sort.filter(function (value) { return value.split(":")[0] !== sort.key; });
-                    if (state.rules.sort.length >= 5) { setStatus("Remove a sort field before adding another.", true); return; }
-                    state.rules.sort.push(sort.key + ":" + direction);
+                    var names = expression.split(",").map(function (part) { return part.split(":")[0]; });
+                    var proposed = state.rules.sort.filter(function (value) {
+                        return !value.split(",").some(function (part) { return names.indexOf(part.split(":")[0]) !== -1; });
+                    }).concat([expression]);
+                    if (proposed.join(",").split(",").length > 5) {
+                        setStatus("Remove a sort field before adding another.", true); return;
+                    }
+                    state.rules.sort = proposed;
                     openSmartSort(state);
                 }, true);
             });

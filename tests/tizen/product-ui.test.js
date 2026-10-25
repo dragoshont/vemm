@@ -126,7 +126,7 @@ async function run() {
             json: function () { return Promise.resolve({ MediaContainer: container }); }
         });
     };
-    ["js/plex-api.js", "js/avplay.js", "js/playback.js", "js/subtitles.js", "js/subtitle-search.js", "js/preferences.js",
+    ["js/smart-playlists.js", "js/plex-api.js", "js/avplay.js", "js/playback.js", "js/subtitles.js", "js/subtitle-search.js", "js/preferences.js",
         "js/session.js", "js/recents.js", "js/home-hero.js", "js/item-menu.js", "js/skip-markers.js", "js/account-preferences.js", "js/file-info.js", "js/i18n.js", "main.js"].forEach(function (file) {
         window.eval(fs.readFileSync(path.join(app, file), "utf8"));
     });

@@ -15,6 +15,22 @@
         return value;
     }
     function fieldKey(value) { return typeof value === "string" && /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)?$/.test(value); }
+    function sortParts(value) {
+        var parts = text(value, 512).split(",");
+        if (parts.length > 5 || parts.some(function (part) {
+            return !/^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)?(?::(?:asc|desc|nullsLast))?$/.test(part);
+        })) { invalid(); }
+        return parts;
+    }
+    function sortChoice(sort) {
+        if (!sort) { invalid(); }
+        sortParts(sort.key);
+        var bare = fieldKey(sort.key);
+        var descending = sort.descKey === undefined ? bare ? sort.key + ":desc" : null : sort.descKey;
+        if (descending !== null) { sortParts(descending); }
+        return { key: sort.key, title: text(sort.title || sort.key, 512),
+            ascending: bare ? sort.key + ":asc" : sort.key, descending: descending };
+    }
     function parse(content, server) {
         identifier(server);
         text(content, 16384);
@@ -111,9 +127,10 @@
         });
         names = {};
         var sorts = selected.Sort.map(function (sort) {
-            if (!sort || !fieldKey(sort.key) || names[sort.key]) { invalid(); }
-            names[sort.key] = true;
-            return { key: sort.key, title: text(sort.title, 128) };
+            var choice = sortChoice(sort);
+            if (names[choice.key]) { invalid(); }
+            names[choice.key] = true;
+            return choice;
         });
         return { fields: fields, sorts: sorts, type: type };
     }
@@ -131,13 +148,38 @@
                     return key === types[input.type] + "." + entry.key || entry.key === types[input.type] + "." + key;
                 })[0];
         }
-        var sorts = input.sort.map(function (sort) {
-            var match = /^([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)?)(?::(asc|desc|nullsLast))?$/.exec(sort);
-            var choice = match && advertised(match[1], menu.sorts);
-            if (!choice || used[choice.key]) { invalid(); }
-            used[choice.key] = true;
-            return choice.key + (match[2] ? ":" + match[2] : "");
+        var expressions = [];
+        var sortFields = [];
+        menu.sorts.forEach(function (choice) {
+            [choice.key, choice.ascending, choice.descending].forEach(function (expression) {
+                if (expression === null) { return; }
+                expressions.push(sortParts(expression));
+                sortParts(expression).forEach(function (part) { sortFields.push({ key: part.split(":")[0] }); });
+            });
         });
+        function normalized(part) {
+            var pieces = part.split(":");
+            var choice = advertised(pieces[0], sortFields);
+            if (!choice) { invalid(); }
+            return choice.key + (pieces[1] ? ":" + pieces[1] : "");
+        }
+        expressions = expressions.map(function (parts) { return parts.map(normalized); })
+            .sort(function (a, b) { return b.length - a.length; });
+        var tokens = input.sort.length ? sortParts(input.sort.join(",")).map(normalized) : [];
+        tokens.forEach(function (part) {
+            var name = part.split(":")[0];
+            if (used[name]) { invalid(); }
+            used[name] = true;
+        });
+        var sorts = [];
+        for (var index = 0; index < tokens.length;) {
+            var expression = expressions.filter(function (parts) {
+                return parts.join(",") === tokens.slice(index, index + parts.length).join(",");
+            })[0];
+            if (!expression) { invalid(); }
+            sorts.push(expression.join(","));
+            index += expression.length;
+        }
         var count = 0;
         function group(node, depth) {
             if (!node || depth > 4 || ["and", "or"].indexOf(node.match) < 0 ||
@@ -182,5 +224,5 @@
         text(value, 16384);
         return value;
     }
-    return { parse: parse, schema: schema, validate: validate, uri: uri };
+    return { parse: parse, schema: schema, validate: validate, uri: uri, sortChoice: sortChoice };
 }));

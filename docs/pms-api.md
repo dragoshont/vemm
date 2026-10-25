@@ -209,7 +209,7 @@ corroborate this discovery and the ordered `push=1`, `pop=1`, `and=1`, `or=1`
 query grammar; the implementation does not copy that code.
 
 The editor supports at most 32 conditions, four nested group levels, five
-ordered sorts, 512 characters per condition value and a 16 KiB content URI.
+expanded sort components, 512 characters per condition value and a 16 KiB content URI.
 It preserves advertised equality/comparison operators, exact string escaping,
 type-scoped field aliases, optional sort directions, the existing GUID
 projection flag and an optional 1–100000 result limit. Redundant unary groups
@@ -218,6 +218,16 @@ unsupported fields/operators, non-video types, foreign-server/section URIs,
 unbalanced/mixed groups and over-limit rules explicitly stop editing; they
 are not silently dropped. This does not add every possible provider-specific
 or cross-type aggregation grammar.
+
+Sort choices preserve the complete supplied `Sort.key` and `Sort.descKey`,
+including compound tie components. Only a bare single-field key gets explicit
+`:asc`/`:desc` alternatives; a missing opposite compound expression is not
+invented. The shared validator admits complete advertised expressions, groups
+them for removal and counts every expanded component toward the five-field
+bound. A truncated compound is rejected before writing. Library browse reuses
+the same expression selection, never appending a direction to a compound.
+This repairs the independent frozen `cffc986b` REVISE finding: dropping a tie
+component can change smart-playlist membership when a result limit is set.
 
 Confirmation snapshots the draft before asynchronous preflight, reloads
 identity/schema, and checks exact title/content again immediately before the

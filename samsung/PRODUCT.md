@@ -49,8 +49,10 @@ Cancel restores the opening field/control and expanded More state. Changes
 invalidate retained metadata so Back cannot reuse an old name or deleted card.
 Smart video-playlist details > More > Edit smart rules loads the saved content
 URI and fresh server-advertised fields/operators/sorts. Remote forms preserve
-supported nested all/any groups, ordered sorts and a result limit. Rule changes
-require named confirmation, unchanged-title/content preflight and independent
+supported nested all/any groups, ordered sorts and a result limit, including
+the server's complete compound sort expressions and tie components;
+the five-sort-field bound counts expanded components, not just visible choices.
+Changes require named confirmation, unchanged-title/content preflight and independent
 equivalent-rule read-back; HTTP success alone is not confirmation. Unsupported,
 unknown or over-limit rules stop editing rather than being silently removed.
 No arbitrary network/filter URI can be pasted, and artwork is not rule data.
