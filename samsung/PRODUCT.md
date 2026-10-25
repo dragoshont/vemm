@@ -51,6 +51,12 @@ IDs from the destination Part using matching language/variant metadata or its
 advertised/default tracks, preserve Subtitles off, and discard external cues
 timed for another cut. Invalid replacement plans leave the working player intact.
 These are host contracts, not acceptance of real-PMS output or native audio.
+Seek completion and failure/timeout paths verify actual decoder state against
+the latest owned Play/Pause intent; pending user controls supersede the initial
+seek state. A late callback for the latest still-owned seek may reassert intent
+without rewriting its failed landing. Closed/new sources and superseded seeks
+cannot inherit that callback. Failed native restoration is an explicit player
+error, never a paused-enum success. Exact-source native acceptance is required.
 
 Video playlists are server-backed: browse existing playlists, play/shuffle them,
 page their items, and explicitly confirm moving an entry to the beginning.

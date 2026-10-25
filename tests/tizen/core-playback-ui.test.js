@@ -48,7 +48,11 @@ function fixture(options) {
         },
         getDuration: function () { return item.duration; }, getCurrentTime: function () { return position; },
         play: function () { state = "PLAYING"; }, pause: function () { state = "PAUSED"; },
-        seekTo: function (target, success) { position = target; success(); },
+        seekTo: function (target, success) {
+            position = target;
+            if (options.resumeOnSeek) { state = "PLAYING"; }
+            success();
+        },
         getTotalTrackInfo: function () { return [
             { type: "AUDIO", index: 0, extra_info: '{"language":"eng"}' },
             { type: "AUDIO", index: 1, extra_info: '{"language":"fra"}' }
@@ -228,7 +232,23 @@ async function versionSelection() {
     }
 }
 
-var cases = { audio: audioSelection, retry: retryPauseIntent, buffering: bufferingCountdown, version: versionSelection };
+async function pausedIntro() {
+    var item = media();
+    item.Marker.unshift({ type: "intro", startTimeOffset: 0, endTimeOffset: 8000 });
+    var ui = fixture({ item: item, resumeOnSeek: true });
+    try {
+        await ui.settle();
+        ui.event("oncurrentplaytime", 5000);
+        ui.click("Pause / Play"); await ui.settle();
+        ui.click("Skip Intro"); await ui.settle();
+        assert.strictEqual(ui.state(), "PAUSED", "The actual Intro journey restores native paused output after seek");
+        assert.strictEqual(ui.w.webapis.avplay.getCurrentTime(), 8000);
+        assert.strictEqual(ui.d.activeElement.textContent, "Pause / Play");
+    } finally { await ui.close(); }
+}
+
+var cases = { audio: audioSelection, retry: retryPauseIntent, buffering: bufferingCountdown,
+    version: versionSelection, intro: pausedIntro };
 async function run() {
     for (var name of process.argv[2] ? [process.argv[2]] : Object.keys(cases)) {
         assert(cases[name], "Unknown core regression selector");

@@ -15,6 +15,7 @@
         var duration = 0;
         var pending = null;
         var pendingSeek = null;
+        var seekSequence = 0;
         var timer = null;
 
         function notify(type, detail) { emit({ type: type, state: state, position: position, duration: duration, detail: detail }); }
@@ -181,28 +182,54 @@
             if (typeof target !== "number" || !isFinite(target)) { return Promise.reject(new Error("Invalid seek position.")); }
             if (pendingSeek) { return Promise.reject(new Error("A seek is already in progress. Wait before seeking again.")); }
             var ownGeneration = generation;
+            var ownSeek = ++seekSequence;
             target = Math.max(0, Math.min(duration || target, Math.round(target)));
             return new Promise(function (resolve, reject) {
                 var settled = false;
                 var timeout = setTimeout(function () { finish(error("seek-timeout")); }, options.seekTimeout || 10000);
-                function finish(failure, landed) {
-                    if (settled) { return; }
+                function retainState() {
+                    var expected = state.toUpperCase();
+                    var nativeState = avplay.getState();
+                    // Native completion must match the latest owned Play/Pause
+                    // intent, including changes made while seeking.
+                    if (state === "paused" && nativeState === "PLAYING") { avplay.pause(); }
+                    else if (state === "playing" && nativeState === "PAUSED") { avplay.play(); }
+                    if (avplay.getState() !== expected) { throw error("seek-state"); }
+                }
+                function stateFailure() {
+                    var failure = error("seek-state");
+                    generation += 1;
+                    transition("error");
+                    notify("error", failure.message);
+                    return failure;
+                }
+                function finish(failure) {
+                    if (settled) {
+                        if (ownGeneration === generation && ownSeek === seekSequence && !pendingSeek &&
+                                (state === "paused" || state === "playing")) {
+                            try { retainState(); } catch (nativeFailure) { stateFailure(); }
+                        }
+                        return;
+                    }
                     settled = true;
                     clearTimeout(timeout);
                     pendingSeek = null;
+                    if (ownGeneration === generation) {
+                        try {
+                            retainState();
+                            if (!failure) { position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0)); }
+                        } catch (nativeFailure) {
+                            failure = stateFailure();
+                        }
+                    } else if (!failure) { failure = new Error("Seek cancelled."); }
                     if (failure) { reject(failure); }
-                    else { resolve(landed); }
+                    else { resolve(position); notify("time"); }
                 }
                 pendingSeek = finish;
                 try {
                     avplay.seekTo(target, function () {
-                        if (settled) { return; }
                         if (ownGeneration !== generation) { finish(new Error("Seek cancelled.")); return; }
-                        try {
-                            position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0));
-                            finish(null, position);
-                            notify("time");
-                        } catch (failure) { finish(error("seek")); }
+                        finish(null);
                     }, function () { finish(error("seek")); });
                 } catch (failure) { finish(error("seek")); }
             });
@@ -212,11 +239,17 @@
             snapshot: function () { return { state: state, position: position, duration: duration }; },
             pause: function () {
                 requireState(["playing"], "pause");
-                try { avplay.pause(); transition("paused"); } catch (failure) { throw error("pause"); }
+                try {
+                    if (!pendingSeek || avplay.getState() !== "PAUSED") { avplay.pause(); }
+                    transition("paused");
+                } catch (failure) { throw error("pause"); }
             },
             play: function () {
                 requireState(["paused", "ready"], "play");
-                try { avplay.play(); transition("playing"); } catch (failure) { throw error("play"); }
+                try {
+                    if (!pendingSeek || avplay.getState() !== "PLAYING") { avplay.play(); }
+                    transition("playing");
+                } catch (failure) { throw error("play"); }
             },
             tracks: function () {
                 requireState(["ready", "playing", "paused"], "list tracks");

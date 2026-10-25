@@ -232,6 +232,7 @@ summaries.
 | 2026-10-25 | revise | QA-01, PF-01, RUNTIME-01, REVIEW-01 | "If native acceptance is next cheapest action, prepare authorized serial synthetic-content/account-safe plan and execute within existing grants, without guessing ambiguous livingroom identity or writing household progress." Bounded synthetic QA may produce the missing native evidence under existing author/exact-target grants; do not require completed native acceptance before its authorized creation. Production release remains conditional on revised core completion and whole-candidate review. Earlier transport failures are dated history, not a current blanket blocker. |
 | 2026-10-25 | revise | REVIEW-01, AC-01, PB-01, ST-01, MARK-01, UX-03 | Whole-core frozen c8aee1ea review is REVISE: protected linked-owner shortcut/profile-error fallback bypasses PIN; direct-file audio selection does not select the native decoder track; version changes forward old Part stream IDs/cues; Retry loses paused intent after terminal decoder error; buffering does not suspend final-credits countdown. Reproduce all five with actual production-path regressions, repair and independently review the frozen corrections/cross-effects before release. Deferred media/cloud are not blockers. |
 | 2026-10-25 | revise | REVIEW-01, QA-01 | Parent's retained c8 reconstruction scripts are not the original reviewer probes. Reconstructed 02 mocks the controller/adapter and 04 models initial failure rather than actual Pause then native error; neither proves the original real-controller finding. Independently authored core-playback-ui regressions now exercise actual main/controller/adapter with synthetic transport/native decoder, including actual Pause then native onerror. Their observed red/green is host evidence, never hardware output. |
+| 2026-10-25 | revise | PB-01, MARK-01, UI-TRANSPORT-01, QA-01 | Exact 09c85be8 separate QA updated and loaded on original-identity-matched QN70F/Tizen9: native PLAYING1535ms, explicit pause PAUSED1582ms, focused Intro action, then native PLAYING11199ms at paused-seek timeout without UI error. This is a concrete failed pause/seek criterion, not a seek PASS or proven API-versus-input root cause. Verify native state/intent across seek completion, user play/pause while pending, failures/timeouts and retired callbacks. A subsequent observation-only trace could not start: SDK debug timed out before inspector attachment; owned resources/lane were released, without production/household operations. |
 
 ## Execution and acceptance
 
@@ -284,17 +285,32 @@ Retry retains owned pause intent; buffering suspends the credits countdown.
 of an explicitly unprotected owner's grant. `core-playback-ui` loads actual
 main/controller/adapter and tests default selection without an unsolicited PUT,
 Force without selection/stop side effects, invalid destination preserving the
-working player, subtitle Off and same-cut cue/ID preservation. Working-tree
-full host/28-file ES5/M47 checks pass; the frozen corrections and cross-effects
-still require clean committed gates and independent review. None is native
-acceptance. The
+working player, subtitle Off and same-cut cue/ID preservation. Exact clean 09c85be8 passed full host/28-file ES5/M47 and unsigned source build;
+the independent finding-closure/cross-effect review returned scoped source PASS
+for all five, independently observing each regression red against c8 and green
+on the repair plus protected-owner403, ambiguous tracks and stale callbacks.
+None is native acceptance. The
 account-free exact-source QN70F QA run confirmed fresh original identity,
 installation/loaded source, actual AVPlay play/pause and Intro focus; paused
 Intro landing timed out and needs a final native state/position observation.
+The exact 09c85be8 QA update/read-back and loaded-source check subsequently
+passed on the freshly original-matched QN70F/Tizen9. Playing1535ms and
+paused1582ms were observed, but Intro then ended at native PLAYING11199ms
+instead of remaining paused. No UI error appeared. An observation-only trace
+attempt then timed out at SDK debug before inspector attachment; no blanket
+transport failure or successful API trace is inferred.
+The new adapter repair verifies/restores native state against current owned
+intent on success/failure/timeout, handles pending user controls, and refuses
+an unverified restoration explicitly. Only the latest still-owned timed-out
+seek may reassert intent on its late callback, without rewriting its failed
+landing; source/generation retirement prevents cross-player actions.
+`avplay-seek-intent` observed seven failures before repair, then a separate
+late-timeout-callback failure before its repair. The real main/controller/
+adapter Intro regression also models a native completion resuming output.
+Source checks are not proof of the native cause or successful hardware repair.
+Freeze and independently review this delta, then rerun source-bound synthetic
+native acceptance with recorded state/position/call observations.
 No seek, physical-remote, subtitle-output or full-native PASS is claimed.
-Resume exact-source synthetic native acceptance after freezing these repairs,
-recording final native state/position on any seek timeout rather than assuming
-a cause or a successful landing.
 Remaining source/service boundaries are explicit: no speculative Live TV
 consumer ownership; no unsupported audio DSP; scoped RAM-only outage metadata
 does not promise offline authentication/grant bypass. No household account may
@@ -337,12 +353,14 @@ blanket SDK blocker or silently accept unmeasured behavior.
 
 ## Handoff
 
-Next: freeze the five c8aee1ea repairs described above, run exact clean committed
-host/source gates, and send the immutable delta for independent finding closure
-and core cross-effects review. Rebind QA staging/signing/observer helpers to
-that candidate before any new native operation; the installed QN70F QA is
-still c8aee1ea. The earlier actual play/pause/Intro-focus observations do not
-accept the repaired source or the unresolved landed seek.
+Next: freeze the native seek-intent repair above, run exact clean committed
+host/source gates and independently review that immutable delta/cross-effects.
+The five c8aee1ea findings are source-closed by independently reviewed
+09c85be8, not overall release acceptance. The installed QN70F QA is now
+09c85be8 and exposed actual paused-Intro resuming; it is not the new adapter
+repair. Rebind QA staging/signing/observer helpers before the next source-bound
+native operation. Reconcile the timed-out QA debug attempt with read-only
+inspector discovery where available, rather than blindly restarting apps.
 No original reviewer probe scripts were recovered; do not promote reconstructed
 mock-controller seeds to equivalent evidence.
 

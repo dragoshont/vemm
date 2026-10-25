@@ -28,6 +28,12 @@ Replacement planning precedes stopping the existing player. Retry retains
 owned pause intent across native errors; Up Next freezes while buffering.
 The actual-main/controller/adapter regressions live in
 `tests/tizen/core-playback-ui.test.js`; hardware/service acceptance is separate.
+The native seek adapter now verifies/restores actual decoder state against the
+latest owned play/pause intent on success and failure/timeout, including pending
+user controls and a late callback only for the latest still-owned operation.
+It reports a restoration refusal instead of trusting a stale paused enum.
+`avplay-seek-intent.test.js` models those native-state transitions and retired
+callbacks; it does not substitute for re-observing the failed QN70F criterion.
 
 ## Plex Web interoperability observation, 2026-10-25
 
