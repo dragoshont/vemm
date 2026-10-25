@@ -4328,7 +4328,8 @@
             var matching = streams.filter(function (stream) {
                 return (stream.language || stream.languageTag || stream.languageCode || translate("Other languages")) === language;
             }).map(function (stream, index) {
-                var selected = type === "audio" ? current.audioId : externalCues ? 0 : current.subtitleId;
+                var selected = type === "audio" ? current.audioId : current.subtitleId;
+                if (type === "subtitle" && externalCues) { selected = null; }
                 return { stream: stream, index: index, rank: String(stream.id) === String(selected) ? 0 :
                     streamFlag(stream.default) ? 1 : 2 };
             }).sort(function (a, b) {
