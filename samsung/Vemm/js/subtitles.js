@@ -54,6 +54,13 @@
         });
         if (!cues.length) { throw new Error("No SRT or WebVTT cues were found. Use server-rendered subtitles instead."); }
         cues.sort(function (a, b) { return a.start - b.start; });
+        var maxEnds = [];
+        var maxEnd = 0;
+        cues.forEach(function (cue) {
+            maxEnd = Math.max(maxEnd, cue.end);
+            maxEnds.push(maxEnd);
+        });
+        Object.defineProperty(cues, "_vemmMaxEnds", { value: maxEnds });
         return cues;
     }
     function at(cues, position) {
@@ -64,10 +71,13 @@
             if (cues[mid].start <= position) { low = mid + 1; } else { high = mid - 1; }
         }
         var text = [];
-        for (var i = high; i >= Math.max(0, high - 10); i -= 1) {
-            if (cues[i].start <= position && position < cues[i].end) { text.unshift(cues[i].text); }
+        var maxEnds = cues._vemmMaxEnds;
+        for (var i = high; i >= 0; i -= 1) {
+            // An expired prefix cannot hide an older, still-active overlapping cue.
+            if (maxEnds && maxEnds.length === cues.length && maxEnds[i] <= position) { break; }
+            if (cues[i].start <= position && position < cues[i].end) { text.push(cues[i].text); }
         }
-        return text.join("\n");
+        return text.reverse().join("\n");
     }
     return { parse: parse, at: at, clean: clean };
 }));

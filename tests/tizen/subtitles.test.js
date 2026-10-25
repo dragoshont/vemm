@@ -28,6 +28,22 @@ assert.strictEqual(subtitles.at(unicodeCues, 1000), "\uD83D\uDE00\nMusic \uD834\
 assert.strictEqual(subtitles.at(unicodeCues, 3000), "");
 assert.strictEqual(subtitles.at(unicodeCues, 1500), "\uD83D\uDE00\nMusic \uD834\uDD1E",
     "Seeking back retains complete Unicode and multiline text");
+var overlappingText = "1\n00:00:00,000 --> 00:01:00,000\nLong cue\n\n";
+for (var cueIndex = 1; cueIndex <= 12; cueIndex += 1) {
+    var seconds = ("0" + cueIndex).slice(-2);
+    overlappingText += (cueIndex + 1) + "\n00:00:" + seconds + ",000 --> 00:00:" +
+        seconds + ",500\nShort cue " + cueIndex + "\n\n";
+}
+var overlappingCues = subtitles.parse(overlappingText);
+assert.strictEqual(subtitles.at(overlappingCues, 15000), "Long cue",
+    "Twelve later expired cues cannot erase an older cue that is still active");
+assert.strictEqual(subtitles.at(overlappingCues, 1500), "Long cue");
+assert.strictEqual(subtitles.at(overlappingCues, 12000), "Long cue\nShort cue 12");
+assert.strictEqual(subtitles.at(overlappingCues, 60000), "");
+assert.strictEqual(subtitles.at(JSON.parse(JSON.stringify(overlappingCues)), 15000), "Long cue",
+    "Plain externally supplied cue arrays retain correct overlap behavior");
+assert.deepStrictEqual(Object.keys(overlappingCues[0]).sort(), ["end", "start", "text"]);
+assert.strictEqual(Object.keys(overlappingCues).length, 13, "The public serialized cue shape stays unchanged");
 cues = subtitles.parse("1\n00:00:01,000 --> 00:00:02,000\nA<br/>B");
 assert.strictEqual(subtitles.at(cues, 1500), "A\nB");
 var fs = require("fs");
