@@ -278,8 +278,8 @@
             }
             visit(function () {
                 if (item.type === "photo") {
-                    var photos = (siblings || [item]).filter(function (entry) { return entry.type === "photo"; });
-                    openPhotos(photos, Math.max(0, photos.indexOf(item)), client);
+                    var photos = options.photoSource ? siblings : (siblings || [item]).filter(function (entry) { return entry.type === "photo"; });
+                    openPhotos(photos, Math.max(0, photos.indexOf(item)), client, options.photoSource);
                 } else if (item.type === "season") {
                     openListing(item.parentTitle || item.title, function (offset) {
                         return client.getChildren(item.ratingKey, offset);
@@ -1380,6 +1380,19 @@
         });
     }
 
+    var photoLibraryTotal = 0;
+    function photoLibrarySource() {
+        if (!currentSection || currentSection.type !== "photo" || !photoLibraryTotal) { return null; }
+        var section = currentSection.key;
+        var client = currentClient;
+        var filters = JSON.parse(JSON.stringify(libraryFilters));
+        return { start: currentOffset - currentItems.length, total: photoLibraryTotal, load: function (start) {
+            return client.getSectionItems(section, start, 50, filters).then(function (page) {
+                return { Metadata: page.items, offset: page.offset, totalSize: page.totalSize };
+            });
+        } };
+    }
+
     function openSection(section, saved) {
         viewGeneration += 1;
         itemsLoading = false;
@@ -1387,11 +1400,12 @@
         currentItems = saved ? saved.items : [];
         currentOffset = saved ? saved.offset : 0;
         libraryFilters = saved ? saved.filters : {};
+        photoLibraryTotal = saved && saved.photoTotal || 0;
         clear(screen);
         resetImages();
         restoreView = function () {
             openSection(section, { items: currentItems.slice(), offset: currentOffset,
-                filters: JSON.parse(JSON.stringify(libraryFilters)) });
+                filters: JSON.parse(JSON.stringify(libraryFilters)), photoTotal: photoLibraryTotal });
         };
         retryView = function () { loadNextPage(); };
         page(section.title || "Library", "library");
@@ -1407,7 +1421,10 @@
         var list = element("div", "item-list");
         list.id = "item-list";
         screen.appendChild(list);
-        currentItems.forEach(function (item) { card(list, item, currentClient, currentItems); });
+        var photoSource = photoLibrarySource();
+        currentItems.forEach(function (item) {
+            card(list, item, currentClient, currentItems, { photoSource: photoSource });
+        });
         var previousPage = button(screen, "Previous page", function () {
             var start = Math.max(0, currentOffset - currentItems.length - 50);
             openSection(section, { items: [], offset: start, filters: libraryFilters });
@@ -1447,6 +1464,7 @@
             currentItems = currentItems.concat(page.items);
             if (currentItems.length > 200) { currentItems = currentItems.slice(-200); }
             currentOffset = page.offset + page.items.length;
+            if (section.type === "photo") { photoLibraryTotal = page.totalSize; }
             document.getElementById("previous-page").disabled = currentOffset <= currentItems.length;
             var list = document.getElementById("item-list");
             var focused = document.activeElement;
@@ -1454,8 +1472,9 @@
             clear(list);
             resetImages();
             var restored = null;
+            var photoSource = photoLibrarySource();
             currentItems.forEach(function (item) {
-                var control = card(list, item, currentClient, currentItems);
+                var control = card(list, item, currentClient, currentItems, { photoSource: photoSource });
                 if (focusedKey === String(item.ratingKey)) { restored = control; }
             });
             if (focusedKey) {
@@ -1507,8 +1526,13 @@
             var list = element("div", "item-list");
             screen.appendChild(list);
             if (!items.length) { list.appendChild(element("p", "empty-state", translate("No available items in this view."))); }
-            items.forEach(function (item) { if (item.ratingKey) { card(list, item, client, items); } });
             var next = offset + (container.Metadata || []).length;
+            var photoSource = items.length && items.every(function (item) {
+                return item.type === "photo" || item.type === "photoalbum";
+            }) ? { start: next - items.length, total: container.totalSize === undefined ? next : container.totalSize, load: loader } : null;
+            items.forEach(function (item) {
+                if (item.ratingKey) { card(list, item, client, items, { photoSource: photoSource }); }
+            });
             if (container.totalSize > next && next > offset) {
                 button(screen, "Load more", function () {
                     openListing(title, loader, client, next, items, null, navigation);
@@ -2755,18 +2779,22 @@
         });
     }
 
-    function openPhotos(items, index, client) {
+    function openPhotos(items, index, client, source) {
         viewGeneration += 1;
         clear(screen);
         viewClients.push(client);
         resetImages();
         screen.className = "screen screen-photos";
-        restoreView = function () { openPhotos(items, index, client); };
+        restoreView = function () { openPhotos(items, index, client, source); };
         try {
             if (!window.URL || !window.URL.createObjectURL) { throw new Error("Photo display is unavailable in this runtime."); }
             var viewer = window.VemmPhotos.create({
-                items: items, index: index, client: client, parent: screen, element: element,
-                button: button, status: setStatus, translate: translate, urls: window.URL, back: backView
+                items: items, index: index, source: source, client: client, parent: screen, element: element,
+                button: button, status: setStatus, translate: translate, urls: window.URL, back: backView,
+                changed: function (pageItems, selected, start, total) {
+                    items = pageItems; index = selected;
+                    if (source) { source = { start: start, total: total, load: source.load }; }
+                }
             });
             viewCleanup = viewer.close;
         } catch (error) { setStatus(errorText(error), true); button(screen, "Back", backView); }

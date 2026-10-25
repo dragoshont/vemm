@@ -102,8 +102,13 @@ async function run() {
         else if (url.pathname === "/photo/:/transcode") {
             assert.strictEqual(url.searchParams.get("width"), "1920");
             assert.strictEqual(options.headers["X-Plex-Token"], "synthetic-server-token");
-            return Promise.resolve({ ok: true, status: 200, body: new ReadableStream({
-                start: function (controller) { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close(); }
+            return Promise.resolve({ ok: true, status: 200,
+                headers: { get: function (name) { return name === "Content-Type" ? "image/jpeg" : null; } },
+                body: new ReadableStream({
+                start: function (controller) {
+                    controller.enqueue(new Uint8Array([255, 216, 255, 192, 0, 8, 8, 4, 56, 7, 128, 1]));
+                    controller.close();
+                }
             }) });
         } else { return Promise.resolve({ ok: false, status: 404 }); }
         return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ MediaContainer: container }); } });

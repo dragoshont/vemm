@@ -875,12 +875,20 @@
                 var path = part && part.key || item.thumb;
                 try { localPath(path); }
                 catch (error) { return Promise.reject(error); }
-                return timedFetch(fetchRequest, baseUrl + "/photo/:/transcode?width=1920&height=1080&minSize=0&upscale=0&url=" +
+                return timedFetch(fetchRequest, baseUrl + "/photo/:/transcode?width=1920&height=1080&minSize=0&upscale=0&format=jpg&rotate=1&url=" +
                     encodeURIComponent(path), {
                         credentials: "omit", redirect: "error", headers: { "X-Plex-Token": token }
                     }, scope).then(function (response) {
                     if (!response.ok) { throw new Error("Photo is unavailable (HTTP " + response.status + ")."); }
-                    return response.blob();
+                    return response.blob().then(function (blob) {
+                        if (!blob.size || blob.size > 4 * 1024 * 1024) {
+                            throw new Error("Photo exceeds the image memory limit or is empty.");
+                        }
+                        if (!/^image\/(?:jpeg|png)$/i.test(blob.type || "")) {
+                            throw new Error("Photo format is unavailable. The server must return JPEG or PNG.");
+                        }
+                        return blob;
+                    });
                 });
             },
             streamUrl: function (path, query) {
