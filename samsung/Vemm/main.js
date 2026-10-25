@@ -1569,6 +1569,28 @@
         } };
     }
 
+    function sectionRestorer(section) {
+        var items = currentItems.slice();
+        var offset = currentOffset;
+        var filters = JSON.parse(JSON.stringify(libraryFilters));
+        var photoTotal = photoLibraryTotal;
+        var retainedRevision = watchRevision;
+        return function () {
+            var refresh = retainedRevision !== watchRevision;
+            var start = offset - items.length;
+            if (refresh && pendingRestore && pendingRestore.mediaKey) {
+                items.some(function (item, index) {
+                    if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
+                    start += Math.floor(index / 50) * 50;
+                    return true;
+                });
+            }
+            openSection(section, { items: refresh ? [] : items.slice(), offset: refresh ? start : offset,
+                filters: JSON.parse(JSON.stringify(filters)), photoTotal: photoTotal, refresh: refresh });
+            if (refresh) { loadNextPage(); }
+        };
+    }
+
     function openSection(section, saved) {
         viewGeneration += 1;
         itemsLoading = false;
@@ -1579,21 +1601,7 @@
         photoLibraryTotal = saved && saved.photoTotal || 0;
         clear(screen);
         resetImages();
-        var retainedRevision = watchRevision;
-        restoreView = function () {
-            var refresh = retainedRevision !== watchRevision;
-            var start = currentOffset - currentItems.length;
-            if (refresh && pendingRestore && pendingRestore.mediaKey) {
-                currentItems.some(function (item, index) {
-                    if (String(item.ratingKey) !== pendingRestore.mediaKey) { return false; }
-                    start += Math.floor(index / 50) * 50;
-                    return true;
-                });
-            }
-            openSection(section, { items: refresh ? [] : currentItems.slice(), offset: refresh ? start : currentOffset,
-                filters: JSON.parse(JSON.stringify(libraryFilters)), photoTotal: photoLibraryTotal, refresh: refresh });
-            if (refresh) { loadNextPage(); }
-        };
+        restoreView = sectionRestorer(section);
         retryView = function () { loadNextPage(); };
         page(section.title || "Library", "library");
         browseHeader(section);
@@ -1678,6 +1686,7 @@
                 document.getElementById("home-back").focus();
             }
             setStatus(translate("{loaded} of {total} items loaded. Showing the latest {shown}.", { loaded: currentOffset, total: page.totalSize, shown: currentItems.length }));
+            restoreView = sectionRestorer(section);
             if (pendingRestore) { focusFirst(); }
         }).catch(function (error) {
             if (generation !== viewGeneration) {

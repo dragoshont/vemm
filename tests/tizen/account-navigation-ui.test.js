@@ -142,6 +142,21 @@ async function run() {
         }
         assert.deepStrictEqual(reads.filter(function (read) { return read.indexOf("library:") === 0; }),
             ["library:1", "library:2", "library:1", "library:2"]);
+        mode = "items";
+        key(39); active("Home");
+        key(39); active("Movies"); key(13);
+        await until(function () { return document.activeElement.classList.contains("media-card"); });
+        for (var up = 0; up < 5 && !document.activeElement.closest(".home-navigation"); up += 1) { key(38); }
+        for (var left = 0; left < 5 && document.activeElement.textContent !== "Movies"; left += 1) { key(37); }
+        active("Movies");
+        key(39); active("Shows"); key(13);
+        await until(function () { return document.activeElement.classList.contains("media-card"); });
+        assert(document.querySelector(".media-card").textContent.includes("Synthetic show first"));
+        key(10009);
+        await until(function () { return document.querySelector('.home-navigation [aria-current="page"]').textContent === "Movies"; });
+        assert(document.querySelector(".media-card").textContent.includes("Synthetic first"),
+            "Library-to-library Back must restore the original library items, not the successor library's global page");
+        assert(!document.querySelector(".media-card").textContent.includes("Synthetic show"));
     } finally { window.close(); }
     console.log("Tizen Home/library Account and Settings D-pad, Back, held Enter and late-page ownership: passed");
 }

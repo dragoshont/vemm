@@ -110,6 +110,12 @@ only the linked account token is persisted for restart, not a managed-profile
 unlock. Returning from Settings to the same profiles/server screen may retain
 that screen's focus and scroll, but cannot retain media-view navigation.
 
+Library return closures snapshot their own retained items, offset, filters and
+photo total after each accepted page. They never read another library's later
+global page state. The existing 200-item live window and 20-entry navigation
+limit remain; Back restores the owning snapshot, while accepted watched-state
+changes refresh the page containing the opening item instead of stale badges.
+
 ### Optional Home layouts
 
 `js/home-layout.js` validates TV-local layout records; `main.js` uses the existing
