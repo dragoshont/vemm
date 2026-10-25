@@ -96,11 +96,35 @@ negative findings require evidence, not speculation.
 
 ## Handoff
 
-Next: continue this same ledger in the Vemm product-backlog session and begin
-the functional fixes, incorporating the independent baseline review. Resolve
-the reported skip/watched-state journeys first while keeping all other
-requirements active. Investigate Plex Web behavior as interoperability work,
-not as a source-code copying exercise.
+Continue this ledger on `dragoshont-vemm-product-backlog`; do not restart the
+requirements intake. Skip/watched regressions, Home paging/personalization,
+adaptive policy, scoped outage recovery, accessibility preferences, converted
+audio volume, bounded music/photo journeys and version agreement are integrated.
+`0d211396` integrates the completed video playlist/queue slice after those
+changes. The full combined host gate and unsigned product build passed on that
+clean commit; neither is native or real-PMS acceptance. No implementation child
+is still active. All 34 rows remain in scope.
+
+The separate credential-free QA widget is prepared from `a2383fdb` with app ID
+`VemmQaApp0.NativeQa`, not the production Vemm ID. Its unsigned package passed
+the actual toolkit audit and unsigned SDK build. An unnecessary synthetic token
+was removed after the audit rejected it; no audit bypass was used. A freshly
+original-DUID-matched `tv-edcfc1` reported a successful QA install, but the
+app-list parser did not establish its version. The subsequent read-only retry
+failed to reconnect, so version and native behavior remain unconfirmed. Only
+this owned QA identity was installed; production Vemm was not updated or
+uninstalled. Freshly rediscover and identity-match before every new process;
+retain private ownership/install receipts and resolve read-back before claiming
+acceptance. The last complete discovery matched all five saved original TVs.
+
+Use the private session artifacts for source-bound QA staging, generated media
+and the bounded fixture server. They contain no real Plex credentials. Run
+actual native remote/playback/lifecycle/performance journeys, finish remaining
+source/feasibility rows, obtain the independent final frozen-candidate review,
+then complete the approved existing-author production update on every available
+known TV with explicit exact-version read-back. Real cloud/tuner/account-write
+acceptance still has no established disposable backend; household profiles are
+not a substitute. Service/seller/legal barriers remain explicit blocked rows.
 
 Failed approaches: branding-only delivery, interpreting research as implemented
 features, treating old host receipts as current TV acceptance, and repeatedly
