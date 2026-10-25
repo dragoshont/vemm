@@ -1,13 +1,15 @@
 (function (root, factory) {
     var product = typeof module === "object" && module.exports && typeof require === "function" ?
         require("./product") : root.VemmProduct;
-    var api = factory(product);
+    var smartPlaylists = typeof module === "object" && module.exports && typeof require === "function" ?
+        require("./smart-playlists") : root.VemmSmartPlaylists;
+    var api = factory(product, smartPlaylists);
     if (typeof module === "object" && module.exports) {
         module.exports = api;
     } else {
         root.PlexApi = api;
     }
-}(this, function (product) {
+}(this, function (product, smartPlaylists) {
     "use strict";
     var PRODUCT = product && product.name || "Vemm";
     var VERSION = product && product.version || "unknown";
@@ -1078,10 +1080,10 @@
             },
             getFilters: function (section) { return get("/library/sections/" + key(section) + "/filters"); },
             getSorts: function (section) { return get("/library/sections/" + key(section) + "/sorts"); },
-            getBrowseMenus: function (section, type) {
-                return get("/library/sections/" + key(section) + "/all", "GET", {
-                    includeMeta: 1, type: type || 1, "X-Plex-Container-Size": 0
-                });
+            getBrowseMenus: function (section, type, advanced) {
+                var query = { includeMeta: 1, type: type || 1, "X-Plex-Container-Size": 0 };
+                if (advanced === true) { query.includeAdvanced = 1; }
+                return get("/library/sections/" + key(section) + "/all", "GET", query);
             },
             getFilterValues: function (section, path) {
                 var prefix = "/library/sections/" + key(section) + "/";
@@ -1285,6 +1287,85 @@
                     if (!item || item.type !== "playlist" || item.playlistType !== "video" ||
                             String(item.ratingKey) !== String(id)) { throw new Error("This video playlist is no longer available."); }
                     return item;
+                });
+            },
+            getSmartVideoPlaylist: function (id) {
+                var self = this;
+                var playlist;
+                var rules;
+                var revision = scope.revision;
+                var deadline = Date.now() + 60000;
+                function current() {
+                    if (revision !== scope.revision) { throw requestCancelled(); }
+                    if (Date.now() > deadline) { throw new Error("Playlist verification timed out. Reload before editing."); }
+                }
+                return self.getVideoPlaylist(id).then(function (item) {
+                    current();
+                    if ([true, 1, "1"].indexOf(item.smart) < 0) {
+                        throw new Error("Choose a smart video playlist to edit its rules.");
+                    }
+                    playlist = item;
+                    return self.identity();
+                }).then(function (identity) {
+                    current();
+                    rules = smartPlaylists.parse(playlist.content, identity.machineIdentifier);
+                    return self.getBrowseMenus(rules.section, rules.type, true);
+                }).then(function (container) {
+                    current();
+                    var menu = smartPlaylists.schema(container, rules.type);
+                    return { playlist: playlist, rules: smartPlaylists.validate(rules, menu), schema: menu };
+                });
+            },
+            updateSmartVideoPlaylist: function (id, expected, draft) {
+                id = key(id);
+                var self = this;
+                var beforeTitle = expected && expected.title;
+                var beforeContent = expected && expected.content;
+                var copy;
+                try { copy = JSON.parse(JSON.stringify(draft)); }
+                catch (error) { return Promise.reject(new Error("These smart rules cannot be safely edited. Nothing was changed.")); }
+                if (!copy || typeof copy !== "object") {
+                    return Promise.reject(new Error("These smart rules cannot be safely edited. Nothing was changed."));
+                }
+                return playlistChange(id, function (current) {
+                    var state;
+                    var desired;
+                    return self.getSmartVideoPlaylist(id).then(function (loaded) {
+                        current();
+                        state = loaded;
+                        if (typeof beforeTitle !== "string" || loaded.playlist.title !== beforeTitle ||
+                                typeof beforeContent !== "string" || loaded.playlist.content !== beforeContent ||
+                                copy.section !== loaded.rules.section || copy.type !== loaded.rules.type) {
+                            throw new Error("The playlist changed on Plex. Reload before editing.");
+                        }
+                        desired = smartPlaylists.validate(copy, loaded.schema);
+                        if (JSON.stringify(desired) === JSON.stringify(loaded.rules)) {
+                            throw new Error("Choose different smart rules before confirming.");
+                        }
+                        return self.identity();
+                    }).then(function (identity) {
+                        current();
+                        smartPlaylists.parse(state.playlist.content, identity.machineIdentifier);
+                        var uri = smartPlaylists.uri(desired, state.schema, identity.machineIdentifier);
+                        return self.getVideoPlaylist(id).then(function (latest) {
+                            current();
+                            if ([true, 1, "1"].indexOf(latest.smart) < 0 ||
+                                    latest.title !== beforeTitle || latest.content !== beforeContent) {
+                                throw new Error("The playlist changed on Plex. Reload before editing.");
+                            }
+                            return get("/playlists/" + id + "/items", "PUT", { uri: uri }, true, scope);
+                        });
+                    }).then(function () {
+                        current();
+                        return self.getSmartVideoPlaylist(id);
+                    }).then(function (after) {
+                        current();
+                        if (after.playlist.title !== beforeTitle ||
+                                JSON.stringify(after.rules) !== JSON.stringify(desired)) {
+                            throw new Error("Plex did not confirm the smart rules. Reload before editing.");
+                        }
+                        return after.playlist;
+                    });
                 });
             },
             getVideoPlaylistItems: function (id, start) {

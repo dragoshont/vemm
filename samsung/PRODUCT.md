@@ -47,7 +47,13 @@ not its media. Pending confirmations own the actual source server; leaving
 preflight prevents a late write even when another server is globally selected.
 Cancel restores the opening field/control and expanded More state. Changes
 invalidate retained metadata so Back cannot reuse an old name or deleted card.
-Smart-rule editing remains a source gap.
+Smart video-playlist details > More > Edit smart rules loads the saved content
+URI and fresh server-advertised fields/operators/sorts. Remote forms preserve
+supported nested all/any groups, ordered sorts and a result limit. Rule changes
+require named confirmation, unchanged-title/content preflight and independent
+equivalent-rule read-back; HTTP success alone is not confirmation. Unsupported,
+unknown or over-limit rules stop editing rather than being silently removed.
+No arbitrary network/filter URI can be pasted, and artwork is not rule data.
 Synthetic host coverage does not establish live-PMS or Samsung-native acceptance.
 
 DVR scheduling offers fresh storage locations within the chosen library, or an

@@ -1,4 +1,84 @@
 {
+  "Edit smart rules": { "es": "Editar reglas inteligentes", "be": "Змяніць разумныя правілы" },
+  "These smart rules cannot be safely edited. Nothing was changed.": {
+    "es": "Estas reglas no se pueden editar de forma segura. No se cambió nada.",
+    "be": "Гэтыя правілы немагчыма бяспечна змяніць. Нічога не зменена."
+  },
+  "Choose a smart video playlist to edit its rules.": {
+    "es": "Elige una lista de vídeo inteligente para editar sus reglas.",
+    "be": "Выберыце разумны спіс відэа, каб змяніць яго правілы."
+  },
+  "Choose different smart rules before confirming.": {
+    "es": "Cambia las reglas antes de confirmar.", "be": "Змяніце правілы перад пацвярджэннем."
+  },
+  "Plex did not confirm the smart rules. Reload before editing.": {
+    "es": "Plex no confirmó las reglas. Vuelve a cargar antes de editar.",
+    "be": "Plex не пацвердзіў правілы. Перазагрузіце перад рэдагаваннем."
+  },
+  "Loading this server's smart rules...": {
+    "es": "Cargando las reglas inteligentes de este servidor...",
+    "be": "Загрузка разумных правіл гэтага сервера..."
+  },
+  "Draft only. Review and confirm to replace the saved rules.": {
+    "es": "Solo es un borrador. Revisa y confirma para reemplazar las reglas guardadas.",
+    "be": "Гэта толькі чарнавік. Праверце і пацвердзіце замену захаваных правіл."
+  },
+  "Match all conditions": { "es": "Cumplir todas las condiciones", "be": "Выконваць усе ўмовы" },
+  "Match any condition": { "es": "Cumplir cualquier condición", "be": "Выконваць любую ўмову" },
+  "Conditions": { "es": "Condiciones", "be": "Умовы" },
+  "Condition": { "es": "Condición", "be": "Умова" },
+  "Edit group {number}": { "es": "Editar grupo {number}", "be": "Змяніць групу {number}" },
+  "Add condition": { "es": "Añadir condición", "be": "Дадаць умову" },
+  "Add condition group": { "es": "Añadir grupo de condiciones", "be": "Дадаць групу ўмоў" },
+  "Remove group": { "es": "Eliminar grupo", "be": "Выдаліць групу" },
+  "Plex default order": { "es": "Orden predeterminado de Plex", "be": "Стандартны парадак Plex" },
+  "Result limit": { "es": "Límite de resultados", "be": "Абмежаванне вынікаў" },
+  "No result limit": { "es": "Sin límite de resultados", "be": "Без абмежавання вынікаў" },
+  "Review rule changes": { "es": "Revisar cambios de reglas", "be": "Праверыць змены правіл" },
+  "Replace smart rules in {playlist}?": { "es": "¿Reemplazar las reglas de {playlist}?", "be": "Замяніць правілы ў {playlist}?" },
+  "Up to 32 conditions, four nested groups deep and five sort fields. Unknown rules are never discarded.": {
+    "es": "Hasta 32 condiciones, cuatro niveles de grupos y cinco campos de orden. No se descartan reglas desconocidas.",
+    "be": "Да 32 умоў, чатырох узроўняў груп і пяці палёў сартавання. Невядомыя правілы не адкідаюцца."
+  },
+  "Choose another field": { "es": "Elegir otro campo", "be": "Выбраць іншае поле" },
+  "Condition value": { "es": "Valor de la condición", "be": "Значэнне ўмовы" },
+  "Use 1 for yes or 0 for no.": { "es": "Usa 1 para sí o 0 para no.", "be": "Увядзіце 1 для «так» або 0 для «не»." },
+  "Enter a number. Commas match multiple values.": {
+    "es": "Introduce un número. Separa varios valores con comas.",
+    "be": "Увядзіце лік. Аддзяляйце некалькі значэнняў коскамі."
+  },
+  "Use Unix seconds or a relative date such as -30d.": {
+    "es": "Usa segundos Unix o una fecha relativa como -30d.",
+    "be": "Выкарыстоўвайце секунды Unix або адносную дату, напрыклад -30d."
+  },
+  "Enter exact text or a server value. Commas match multiple values.": {
+    "es": "Introduce el texto exacto o un valor del servidor. Separa varios valores con comas.",
+    "be": "Увядзіце дакладны тэкст або значэнне сервера. Аддзяляйце некалькі значэнняў коскамі."
+  },
+  "Use condition": { "es": "Usar condición", "be": "Ужыць умову" },
+  "Remove condition": { "es": "Eliminar condición", "be": "Выдаліць умову" },
+  "Smart playlists support up to 32 editable conditions.": {
+    "es": "Las listas inteligentes permiten editar hasta 32 condiciones.",
+    "be": "У разумным спісе можна рэдагаваць да 32 умоў."
+  },
+  "Nothing changes on Plex while you edit this draft.": {
+    "es": "No cambia nada en Plex mientras editas este borrador.",
+    "be": "Падчас рэдагавання чарнавіка ў Plex нічога не змяняецца."
+  },
+  "Remove sort {sort}": { "es": "Eliminar orden {sort}", "be": "Выдаліць сартаванне {sort}" },
+  "Remove a sort field before adding another.": {
+    "es": "Elimina un campo de orden antes de añadir otro.",
+    "be": "Выдаліце поле сартавання перад даданнем новага."
+  },
+  "Sort fields apply in the order shown. Remove all to use Plex default order.": {
+    "es": "Los campos se aplican en el orden mostrado. Elimina todos para usar el orden de Plex.",
+    "be": "Палі ўжываюцца ў паказаным парадку. Выдаліце ўсе для стандартнага парадку Plex."
+  },
+  "Enter 1 to 100000, or leave empty for no limit.": {
+    "es": "Introduce de 1 a 100000, o deja vacío para no limitar.",
+    "be": "Увядзіце ад 1 да 100000 або пакіньце пустым без абмежавання."
+  },
+  "Use limit": { "es": "Usar límite", "be": "Ужыць абмежаванне" },
   "Recording storage": { "es": "Almacenamiento de grabaciones", "be": "Сховішча запісаў" },
   "Choose another library": { "es": "Elegir otra biblioteca", "be": "Выбраць іншую бібліятэку" },
   "The recording library is no longer available.": {

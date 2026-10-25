@@ -2199,6 +2199,11 @@
             detailAction(actions, "Playlist items", "list", function () {
                 visit(function () { openVideoPlaylist(item, client, 0); });
             });
+            if ([true, 1, "1"].indexOf(item.smart) >= 0) {
+                detailAction(more, "Edit smart rules", "edit", function () {
+                    visit(function () { openSmartPlaylist(item, client); });
+                });
+            }
             detailAction(more, "Rename playlist", "edit", function () {
                 visit(function () { openPlaylistName(null, client, item); });
             });
@@ -3222,6 +3227,191 @@
 
     function standardPlaylist(playlist) {
         return playlist.smart === undefined || [false, 0, "0"].indexOf(playlist.smart) !== -1;
+    }
+
+    function smartRuleLabel(rule, schema) {
+        if (rule.rules) {
+            return translate(rule.match === "and" ? "Match all conditions" : "Match any condition") +
+                " (" + rule.rules.map(function (child) { return smartRuleLabel(child, schema); }).join("; ") + ")";
+        }
+        var field = schema.fields.filter(function (entry) { return entry.key === rule.field; })[0];
+        var operator = field.operators.filter(function (entry) { return entry.key === rule.operator; })[0];
+        return translate(field.title) + " " + translate(operator.title) + " " + rule.value;
+    }
+
+    function openSmartPlaylist(playlist, client) {
+        var restore = function () { openSmartPlaylist(playlist, client); };
+        var generation = serviceView("Edit smart rules", restore, "smart-playlist");
+        viewClients.push(client);
+        setStatus("Loading this server's smart rules...");
+        client.getSmartVideoPlaylist(playlist.ratingKey).then(function (state) {
+            if (generation !== viewGeneration) { return; }
+            state.client = client;
+            openSmartGroup(state, state.rules.root, null, 0);
+        }).catch(function (error) {
+            if (generation !== viewGeneration) { return; }
+            setStatus(errorText(error), true);
+            button(screen, "Retry", restore);
+            focusFirst();
+        });
+    }
+
+    function openSmartGroup(state, node, parent, depth) {
+        var restore = function () { openSmartGroup(state, node, parent, depth); };
+        var generation = serviceView("Edit smart rules", restore, "smart-playlist");
+        viewClients.push(state.client);
+        node.rules = node.rules.filter(function (rule) { return !rule.rules || rule.rules.length; });
+        screen.appendChild(element("p", "help-text", state.playlist.title));
+        screen.appendChild(element("p", "help-text", translate("Draft only. Review and confirm to replace the saved rules.")));
+        var match = button(screen, node.match === "and" ? "Match all conditions" : "Match any condition", function () {
+            node.match = node.match === "and" ? "or" : "and";
+            match.textContent = translate(node.match === "and" ? "Match all conditions" : "Match any condition");
+        });
+        var list = group(screen, translate("Conditions"), "selection-list");
+        node.rules.forEach(function (rule, index) {
+            button(list, rule.rules ? translate("Edit group {number}", { number: index + 1 }) :
+                smartRuleLabel(rule, state.schema), function () {
+                visit(function () {
+                    if (rule.rules) { openSmartGroup(state, rule, node, depth + 1); }
+                    else { openSmartCondition(state, node, index); }
+                });
+            }, true);
+        });
+        button(screen, "Add condition", function () {
+            visit(function () { openSmartCondition(state, node, -1); });
+        });
+        if (depth < 4) {
+            button(screen, "Add condition group", function () {
+                var nested = { match: "and", rules: [] };
+                node.rules.push(nested);
+                visit(function () { openSmartGroup(state, nested, node, depth + 1); });
+            });
+        }
+        if (parent) {
+            button(screen, "Remove group", function () {
+                parent.rules.splice(parent.rules.indexOf(node), 1);
+                backView();
+            });
+        } else {
+            button(screen, "Sort", function () { visit(function () { openSmartSort(state); }); });
+            screen.appendChild(element("p", "help-text", state.rules.sort.length ? state.rules.sort.join(", ") : translate("Plex default order")));
+            button(screen, "Result limit", function () { visit(function () { openSmartLimit(state); }); });
+            screen.appendChild(element("p", "help-text", state.rules.limit || translate("No result limit")));
+            button(screen, "Review rule changes", function () {
+                if (generation !== viewGeneration) { return; }
+                try { window.VemmSmartPlaylists.validate(state.rules, state.schema); }
+                catch (error) { setStatus(errorText(error), true); return; }
+                var summary = smartRuleLabel(state.rules.root, state.schema) + "; " +
+                    translate("Sort") + ": " + (state.rules.sort.join(", ") || translate("Plex default order")) + "; " +
+                    translate("Result limit") + ": " + (state.rules.limit || translate("No result limit"));
+                confirmPlaylistWrite(translate("Replace smart rules in {playlist}?", { playlist: state.playlist.title }), state.client,
+                    function () { return state.client.updateSmartVideoPlaylist(state.playlist.ratingKey, state.playlist, state.rules); },
+                    function () { openDetail(state.playlist.ratingKey, state.client, true); }, summary);
+            });
+        }
+        setStatus("Up to 32 conditions, four nested groups deep and five sort fields. Unknown rules are never discarded.");
+        focusFirst();
+    }
+
+    function openSmartCondition(state, node, index, field, operator, draft) {
+        var input;
+        var restore = function () {
+            openSmartCondition(state, node, index, field, operator, input ? input.value : draft);
+        };
+        serviceView("Condition", restore, "smart-condition");
+        viewClients.push(state.client);
+        var existing = index >= 0 ? node.rules[index] : null;
+        if (!field) {
+            state.schema.fields.forEach(function (choice) {
+                button(screen, choice.title, function () { openSmartCondition(state, node, index, choice); }, true);
+            });
+        } else if (!operator) {
+            screen.appendChild(element("p", "help-text", field.title));
+            field.operators.forEach(function (choice) {
+                button(screen, choice.title, function () { openSmartCondition(state, node, index, field, choice); }, true);
+            });
+            button(screen, "Choose another field", function () { openSmartCondition(state, node, index); });
+        } else {
+            screen.appendChild(element("p", "help-text", translate(field.title) + " " + translate(operator.title)));
+            var label = element("label", "setting-row", translate("Condition value"));
+            input = element("input", "remote-input");
+            input.type = "text"; input.maxLength = 512;
+            input.value = draft === undefined ? existing && existing.field === field.key ? existing.value : "" : draft;
+            label.appendChild(input); screen.appendChild(label);
+            screen.appendChild(element("p", "help-text", translate(field.type === "boolean" ? "Use 1 for yes or 0 for no." :
+                field.type === "integer" ? "Enter a number. Commas match multiple values." :
+                field.type === "date" ? "Use Unix seconds or a relative date such as -30d." :
+                    "Enter exact text or a server value. Commas match multiple values.")));
+            button(screen, "Use condition", function () {
+                var rule = { field: field.key, operator: operator.key, value: input.value };
+                var check = JSON.parse(JSON.stringify(state.rules));
+                check.root = { match: "and", rules: [rule] };
+                try {
+                    window.VemmSmartPlaylists.validate(check, state.schema);
+                    var count = 0;
+                    function countRules(group) {
+                        group.rules.forEach(function (entry) { if (entry.rules) { countRules(entry); } else { count += 1; } });
+                    }
+                    countRules(state.rules.root);
+                    if (index < 0 && count >= 32) { throw new Error("Smart playlists support up to 32 editable conditions."); }
+                } catch (error) { setStatus(errorText(error), true); input.focus(); return; }
+                if (index < 0) { node.rules.push(rule); } else { node.rules[index] = rule; }
+                backView();
+            });
+            if (existing) {
+                button(screen, "Remove condition", function () { node.rules.splice(index, 1); backView(); });
+            }
+            button(screen, "Choose another field", function () { openSmartCondition(state, node, index); });
+        }
+        button(screen, "Cancel", backView);
+        setStatus("Nothing changes on Plex while you edit this draft.");
+        if (input && !pendingRestore) { input.focus(); } else { focusFirst(); }
+    }
+
+    function openSmartSort(state) {
+        var restore = function () { openSmartSort(state); };
+        serviceView("Sort", restore, "smart-sort");
+        viewClients.push(state.client);
+        state.rules.sort.forEach(function (sort, index) {
+            button(screen, translate("Remove sort {sort}", { sort: sort }), function () {
+                state.rules.sort.splice(index, 1); openSmartSort(state);
+            });
+        });
+        state.schema.sorts.forEach(function (sort) {
+            ["asc", "desc"].forEach(function (direction) {
+                button(screen, translate(sort.title) + " / " + translate(direction === "asc" ? "Ascending" : "Descending"), function () {
+                    state.rules.sort = state.rules.sort.filter(function (value) { return value.split(":")[0] !== sort.key; });
+                    if (state.rules.sort.length >= 5) { setStatus("Remove a sort field before adding another.", true); return; }
+                    state.rules.sort.push(sort.key + ":" + direction);
+                    openSmartSort(state);
+                }, true);
+            });
+        });
+        setStatus("Sort fields apply in the order shown. Remove all to use Plex default order.");
+        focusFirst();
+    }
+
+    function openSmartLimit(state, draft) {
+        var input;
+        var restore = function () { openSmartLimit(state, input.value); };
+        serviceView("Result limit", restore, "smart-limit");
+        viewClients.push(state.client);
+        var label = element("label", "setting-row", translate("Result limit"));
+        input = element("input", "remote-input");
+        input.type = "text"; input.maxLength = 6;
+        input.value = draft === undefined ? state.rules.limit || "" : draft;
+        label.appendChild(input); screen.appendChild(label);
+        screen.appendChild(element("p", "help-text", translate("Enter 1 to 100000, or leave empty for no limit.")));
+        button(screen, "Use limit", function () {
+            var value = input.value.trim();
+            if (value && (!/^[1-9][0-9]{0,5}$/.test(value) || Number(value) > 100000)) {
+                setStatus("Enter 1 to 100000, or leave empty for no limit.", true); input.focus(); return;
+            }
+            state.rules.limit = value || null;
+            backView();
+        });
+        button(screen, "Cancel", backView);
+        if (pendingRestore) { focusFirst(); } else { input.focus(); }
     }
 
     function confirmPlaylistWrite(title, client, write, refresh, description) {

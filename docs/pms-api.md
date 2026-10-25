@@ -165,6 +165,7 @@ explicit video API selection; the default music behavior is unchanged.
 | Create a standard playlist | `POST /playlists?type=video&smart=0&title=...&uri=...` uses the freshly verified selected video's same-client URI; empty creation omits `uri`, following the bundled blank-playlist contract. The returned single ID is independently fetched, and its exact name, standard/video type and zero/one expected initial entries must match. |
 | Rename a playlist | `PUT /playlists/{id}?title.value=...&title.locked=1` after freshly matching the selected ID/title; read back that exact ID and requested name. This uses the documented metadata-edit form, not an arbitrary path or a playback queue. |
 | Delete a playlist | `DELETE /playlists/{id}` after freshly matching ID/title. Only a subsequent same-server typed HTTP 404 confirms deletion; unchanged metadata, 401/403, a malformed response or transport error does not. Never delete media or retry the mutation as cleanup. |
+| Edit smart rules | `PUT /playlists/{id}/items?uri=server://synthetic-server/com.plexapp.plugins.library/library/sections/1/all?...` replaces the smart filter rules, not manual entries. The URI is constructed from validated structured rules using the same freshly read server identity; callers cannot paste a network URI. |
 
 Playlist reordering checks the displayed page's entry IDs and total immediately
 before writing, then independently reads page zero and checks the first entry
@@ -198,6 +199,38 @@ The independently implemented request forms also agree with the public
 and its linked source: standard-item add uses the source server's content URI,
 remove uses `playlistItemID`, and smart playlists require rule edits instead.
 This is protocol evidence, not code copying or a real-PMS acceptance run.
+`REQ-QU-SMART-01` independently parses the playlist's `content` (never its
+artwork `composite`) and requests `includeMeta=1&includeAdvanced=1` with a
+zero-sized library page. `Meta.Type.Field`/`Sort` and
+`Meta.FieldType.Operator` supply the editable video fields/operators/sorts.
+The public [library documentation](https://python-plexapi.readthedocs.io/en/latest/modules/library.html)
+and [smart-filter reference](https://github.com/pkkid/python-plexapi/blob/master/plexapi/mixins/smart_filter.py)
+corroborate this discovery and the ordered `push=1`, `pop=1`, `and=1`, `or=1`
+query grammar; the implementation does not copy that code.
+
+The editor supports at most 32 conditions, four nested group levels, five
+ordered sorts, 512 characters per condition value and a 16 KiB content URI.
+It preserves advertised equality/comparison operators, exact string escaping,
+type-scoped field aliases, optional sort directions, the existing GUID
+projection flag and an optional 1–100000 result limit. Redundant unary groups
+are normalized for equivalent-rule read-back. Unknown query parameters,
+unsupported fields/operators, non-video types, foreign-server/section URIs,
+unbalanced/mixed groups and over-limit rules explicitly stop editing; they
+are not silently dropped. This does not add every possible provider-specific
+or cross-type aggregation grammar.
+
+Confirmation snapshots the draft before asynchronous preflight, reloads
+identity/schema, and checks exact title/content again immediately before the
+single write. Read-back must independently return the exact title, smart
+video type and equivalent complete rules. A local edit interlock prevents
+concurrent operations on the same playlist; it is not a server compare-and-swap
+and cannot prove real PMS race semantics. Scope retirement and the 60-second
+admission deadline apply between phases. An already-sent mutation may finish
+after leaving, but it cannot be replayed or represented as accepted without
+read-back. `smart-playlists` and `smart-playlists-ui` cover this API and actual
+main.js remote forms, nested groups, limits, Cancel/draft/focus, uncertainty
+and secondary-client cancellation. Live PMS and native acceptance remain open.
+
 `playlist-edits` and `playlist-edits-ui` exercise the actual API/main.js,
 duplicate media entries, all pages, empty/maximum/over-limit containers, explicit
 confirmation, denied/unchanged/concurrent results, repeated OK, pre/post-send
