@@ -32,6 +32,53 @@ does not prove signing, install/update, remote input, AVPlay decoding, HDR,
 panel output or performance. Those require separately authorized named-model
 acceptance, not an LG native benchmark.
 
+## Isolated native product fixture
+
+`tools/tizen/native-fixture.py` prepares a separate **Vemm QA** widget
+(`VemmQaApp0.NativeQa` / `VemmQaApp0`) and account-free HTTP fixture. It is
+development tooling, not another shipped renderer or a real PMS. A clean
+committed source is mandatory for staging; existing output is never overwritten.
+The original `main.js`, modules and notices are retained and hashed. Only the
+canonical startup suffix is replaced in a separately named executable copy,
+which refuses to start outside that exact QA application identity. Production
+Vemm identity, storage, sign-in and signing continuity are untouched; no new
+platform privileges are requested.
+
+```sh
+python3 tools/tizen/native-fixture.py stage --output /absolute/private/new-qa-app
+python3 tools/tizen/native-fixture.py media --output /absolute/private/new-synthetic-media
+python3 tools/tizen/native-fixture.py serve \
+  --media /absolute/private/new-synthetic-media \
+  --bind PRIVATE_HOST_IP --allow-client TV_IP --allow-client 127.0.0.1
+```
+
+The media command uses an already-installed `ffmpeg` to generate 30 seconds of
+synthetic H.264/AAC, HLS, artwork and SRT; it installs nothing and accepts no
+household input. The server verifies media checksums, binds an explicit
+private IPv4 interface, admits only explicitly listed client addresses, limits
+assets/ranges/request bodies and rejects unknown contracts rather than
+returning generic success. Mutations affect only its disposable RAM records.
+It does not implement real cloud entitlement, tuner, licensed catalogue or all
+PMS behavior.
+
+Build/sign/install the QA widget only under the authorized Samsung lane after
+checking the QA ID is not somebody else's existing app. Use the existing
+approved author/profile, never replace or uninstall production Vemm, and
+record the separate QA payload/source hashes. Following fresh live identity
+matching, invoke `VemmNativeFixture.start()` through its owned inspector with
+the explicit private fixture origin supplied **at runtime**, not stored in the
+widget. Fetch is restricted to that exact origin, including a deliberately
+never-valid synthetic token. This is a fetch boundary, not an assertion of
+general network isolation. Synthetic setup functions cannot navigate away
+from an active player or change ownership silently. Exercise real remote
+actions after setup; source helper calls alone do not prove D-pad behavior.
+
+Keep per-model native samples/receipts private and distinguish native
+DOM/resource/AVPlay observations from real PMS interoperability, production
+startup/update and physical panel/audio acceptance. Heap absence is `null`,
+not zero; timing is not presented FPS. Stop the owned fixture server and
+release only owned links/forwards when the bounded run ends.
+
 ## Separate Vemm distribution
 
 Vemm uses `VemmTvApp0` / `VemmTvApp0.Vemm`, `vemm-tizen-*` storage,
