@@ -51,6 +51,66 @@ Legacy private/generated paths remain ignored even though their tracked
 implementations were retired; never collect or delete those files as cleanup.
 Use `TV_IP`, `YOUR_PLEX_TOKEN` and synthetic `.invalid` endpoints in examples.
 
+## Execution without approval loops
+
+Carry the owner's decisions forward across turns and resumed sessions. Approval
+of implementation authorizes the agreed source changes. "Deploy", "install and
+launch", or approval of deployment authorizes the normal build, signing with an
+existing suitable SDK profile, non-destructive installation/update and launch on
+the agreed Samsung targets. Do not ask for separate approval for each necessary
+step or repeatedly ask the owner to reconfirm the same scope.
+
+"All TVs that are on" means the owner's awake, reachable Samsung TVs. Discover
+them and check existing SDB connections; absence from one SSDP scan does not prove
+a previously identified TV is off. Resolve exact serials privately and hold an
+exclusive Samsung lane during each target operation. Do not wake or reboot TVs,
+operate on unrelated devices, or automate Plex viewing-state writes.
+
+Use the established working signing profile recorded in private deployment
+receipts. The bilingual-menu deployment demonstrated accepted updates on both
+QE55QN70FAUXXH and QE65Q80CATXXH using an existing SDK profile. Reuse that profile
+for these targets unless newer evidence identifies a different required one;
+keep its name, paths and certificate details out of public documentation.
+A missing default
+Vemm author directory does not mean no usable signing profile exists. An unknown
+profile's update continuity can be tested by a normal non-destructive update
+under deployment approval; let the TV validate the signature. Stop on rejection:
+never uninstall to bypass it, replace/create certificates implicitly, change
+shared SDK profiles, or erase saved sign-in.
+
+Resolve ordinary tool failures before returning a blocker:
+- SDB can report failure with exit code zero; verify actual connection state.
+  If awake targets refuse connection, inspect the server and existing clients.
+  A deployment request includes one SDB server restart/retry when no other
+  worker owns an active SDB operation. If the server is shared with active work,
+  coordinate first; an explicit owner restart request authorizes that restart.
+  Do not restart repeatedly or change host privacy settings automatically.
+- Stage the actual source with the repository's explicit asset/license inventory.
+  Use an explicit `tizen build-web --output` directory and package that directory
+  with the existing profile; do not assume the SDK wrote to `.build`. Verify
+  package identity, signatures and changed source before installation.
+- Check install output for completion, not exit status alone. Launch after a
+  successful install rather than telling the owner to open Apps manually.
+  If `tizen run` fails for the Web app, use the demonstrated Samsung command
+  `sdb -s TARGET_SERIAL shell 0 execute VemmTvApp0.Vemm` and verify its successful
+  launch response. Do not infer that a general-purpose device shell is available.
+- Continue on other authorized targets when one fails. Record install and launch
+  separately per model; an SDK launch receipt is not visual/playback acceptance.
+
+Ask only for a genuinely missing decision or an operation beyond approved scope.
+If an input tool reports the owner unavailable, do not repeat the same question
+or send identical blocker responses to automated continuation prompts. Exhaust
+safe, authorized alternatives, preserve evidence, then report the precise
+remaining blocker once without claiming completion.
+
+Keep workflow overhead proportional to the task. Use existing requirements and
+test evidence; do not create repository planning files, spawn review sessions or
+add recursive approval/review stages merely for bookkeeping. Follow applicable
+required gates, but do not invent additional ones. Correct invalid bookkeeping
+before committing; never turn a deployment fallback into a false deployment
+claim. Honor "stop" and owner-selected fallbacks; resume only when requested.
+Temporary helpers and private receipts belong in session storage, not the repo.
+
 ## Verification
 
 Read `docs/building.md` for the source/distribution loop. Install dependencies
@@ -64,13 +124,18 @@ tools/tizen/build-source.sh samsung/Vemm
 
 The host suite includes inventory/routing/identity checks, locale/icon
 freshness, packaging/source contracts and strict ES5/runtime checks.
-Use the narrow test while iterating, then commit, confirm a clean tree and run
-the full host gate on that exact committed candidate. Confirm it remains clean.
+Use the narrow test while iterating. For an authorized commit, commit, confirm a
+clean tree and run the full host gate on that exact committed candidate. Confirm
+it remains clean. Without commit authorization, verify the working candidate
+without committing or manufacturing a clean tree. Documentation-only instruction
+changes need a diff/consistency check, not the app build and full host suite.
 Audit related prose for contradictions and local links after behavior/removal
 changes. A green host/unsigned SDK build is not Samsung hardware acceptance.
 
-Device access, SDK installation, signing/certificate access and releases
-require explicit authorization. Use the installed `tizen-tv-builder` skill
+Device deployment requires explicit authorization as defined above; normal
+signing with an existing profile is included, not another approval checkpoint.
+SDK installation, new/replacement certificates and public releases require
+separate explicit authorization. Use the installed `tizen-tv-builder` skill
 when available; the separate MIT toolkit is not a source dependency here.
 For device work require a Samsung-specific exclusive lane and exact target,
 then use synthetic accounts/media or explicitly disposable test records.
@@ -80,8 +145,12 @@ is implied by a source-cleanup assignment.
 
 ## Integration and releases
 
-Use short-lived branches; **main takes one squash commit per change**. Push or
-merge main only with user approval. Fetch immediately before integration and
+Use short-lived branches when the owner requests branch work; do not create or
+switch branches implicitly in an in-place checkout. **Main takes one squash
+commit per change**. Commit only when requested; implementation/deployment
+approval alone is not commit or push approval. An explicit "commit and push"
+authorizes both on the current intended branch without another confirmation.
+Push or merge main only with user approval. Fetch immediately before integration and
 inspect divergence and exact changed paths; never squash an old index onto a
 moving main and reverse other work. Do not force-push, rewrite tags or replace
 published assets. Include the configured Co-authored-by trailer on commits.
