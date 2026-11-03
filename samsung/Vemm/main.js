@@ -430,6 +430,20 @@
 
     function revealControl(node) {
         if (!node.getBoundingClientRect) { return; }
+        var menuScroll = node.parentNode;
+        while (menuScroll && menuScroll !== screen) {
+            if (/(?:^| )menu-scroll(?: |$)/.test(menuScroll.className || "")) {
+                var rowBounds = node.getBoundingClientRect();
+                var scrollBounds = menuScroll.getBoundingClientRect();
+                if (rowBounds.top < scrollBounds.top + 4) {
+                    menuScroll.scrollTop -= scrollBounds.top + 4 - rowBounds.top;
+                } else if (rowBounds.bottom > scrollBounds.bottom - 4) {
+                    menuScroll.scrollTop += rowBounds.bottom - scrollBounds.bottom + 4;
+                }
+                return;
+            }
+            menuScroll = menuScroll.parentNode;
+        }
         var browse = screen.querySelector(".browse-header");
         if (browse && browse.contains(node)) { return; }
         var homeTrack = screen.className.indexOf("screen-home") !== -1 && screen.querySelector(".home-track");
@@ -1254,10 +1268,17 @@
         var account = button(header, "Account", function () {
             var utilities = screen.querySelector(".home-utilities");
             utilities.hidden = !utilities.hidden;
-            if (!utilities.hidden) { utilities.querySelector("button").focus(); }
+            account.setAttribute("aria-expanded", utilities.hidden ? "false" : "true");
+            if (!utilities.hidden) {
+                utilities.querySelector(".menu-scroll").scrollTop = 0;
+                utilities.querySelector("button").focus();
+                utilities.vemmUpdateScroll();
+            }
         }, false, "profile");
         account.className += " account-control round-control";
         account.setAttribute("aria-label", translate("Account"));
+        account.setAttribute("aria-expanded", "false");
+        account.setAttribute("aria-controls", "account-menu");
         profileAvatar(account, activeProfile || linkedProfile, currentClient);
         var nav = element("nav", "home-navigation");
         nav.setAttribute("aria-label", translate("Home"));
@@ -1277,19 +1298,45 @@
         button(nav, "Search", function () { visit(openSearch); });
         header.appendChild(nav);
         screen.appendChild(header);
-        var utilities = element("div", "home-utilities");
-        button(utilities, "Settings", function () { visit(openSettings); });
-        button(utilities, "Refresh", function () {
+        var utilities = element("section", "home-utilities grouped-menu");
+        utilities.id = "account-menu";
+        utilities.setAttribute("role", "dialog");
+        utilities.setAttribute("aria-labelledby", "account-menu-title");
+        var identity = element("header", "menu-identity");
+        var profile = activeProfile || linkedProfile;
+        var mark = element("div", "menu-profile");
+        mark.appendChild(element("span", "menu-profile-fallback",
+            String(profile && (profile.title || profile.username) || translate("Account")).charAt(0)));
+        mark.setAttribute("aria-hidden", "true");
+        profileAvatar(mark, activeProfile || linkedProfile, currentClient);
+        identity.appendChild(mark);
+        var identityCopy = element("div", "menu-identity-copy");
+        var title = element("h2", "menu-heading", translate("Account"));
+        title.id = "account-menu-title";
+        identityCopy.appendChild(title);
+        identityCopy.appendChild(element("p", "", translate("Profile and app actions")));
+        identity.appendChild(identityCopy);
+        utilities.appendChild(identity);
+        var content = groupedMenuContent(utilities);
+        var explore = group(content, translate("Explore"));
+        button(explore, "Live TV and DVR", function () { visit(openTelevision); }).className += " menu-drill-in";
+        if (accountClient) {
+            var plex = group(content, translate("Plex account"));
+            button(plex, "Watchlist", function () { visit(function () { catalogueUi().watchlist(); }); }).className += " menu-drill-in";
+            button(plex, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); }).className += " menu-drill-in";
+        }
+        var appActions = group(content, translate("App"));
+        button(appActions, "Settings", function () { visit(openSettings); }).className += " menu-drill-in";
+        button(appActions, "Refresh", function () {
             if (selected) { openSection(selected); } else { loadHome(false); }
         }, false, "refresh");
-        button(utilities, "Live TV and DVR", function () { visit(openTelevision); }, false, "television");
-        if (accountClient) { button(utilities, "Watchlist", function () { visit(function () { catalogueUi().watchlist(); }); }); }
-        if (accountClient) { button(utilities, "Plex catalogue", function () { visit(function () { catalogueUi().search(); }); }); }
-        button(utilities, "Change server", function () {
+        var connection = group(content, translate("Connection"));
+        button(connection, "Change server", function () {
             currentClient = null;
             currentServerId = "";
             if (accountClient) { openServers(); } else { addConnectForm(""); }
-        });
+        }).className += " menu-drill-in";
+        utilities.appendChild(element("p", "menu-footer", translate("Up / Down: Move · OK: Select · Back: Close")));
         utilities.hidden = true;
         screen.appendChild(utilities);
     }
@@ -1302,6 +1349,31 @@
         queueImage(image, client, profile.thumb, { width: 168, height: 168 }, 256 * 1024, function () {
             parent.setAttribute("data-avatar", "true");
         });
+    }
+
+    function groupedMenuContent(menu) {
+        var wrap = element("div", "menu-scroll-wrap");
+        var content = element("div", "menu-scroll");
+        var track = element("div", "menu-scroll-track");
+        var thumb = element("div", "menu-scroll-thumb");
+        track.setAttribute("aria-hidden", "true");
+        track.appendChild(thumb);
+        wrap.appendChild(content);
+        wrap.appendChild(track);
+        menu.appendChild(wrap);
+        function update() {
+            var overflow = content.scrollHeight - content.clientHeight;
+            track.hidden = overflow <= 1;
+            if (overflow <= 1) { return; }
+            var height = track.clientHeight;
+            var thumbHeight = Math.max(26, height * content.clientHeight / content.scrollHeight);
+            thumb.style.height = thumbHeight + "px";
+            thumb.style.top = ((height - thumbHeight) * content.scrollTop / overflow) + "px";
+        }
+        content.addEventListener("scroll", update);
+        menu.addEventListener("focusin", update);
+        menu.vemmUpdateScroll = update;
+        return content;
     }
 
     function openSection(section, saved) {
@@ -2892,35 +2964,46 @@
         cancelHudTimer();
         var old = document.getElementById("player-menu");
         if (old) { old.parentNode.removeChild(old); }
-        var menu = element("section", "player-menu");
+        var menu = element("section", "player-menu grouped-menu playback-options");
         menu.id = "player-menu";
-        menu.appendChild(element("h2", "", translate("Playback options")));
-        button(menu, "Markers", openMarkers);
-        button(menu, "Audio and subtitles", function () { openTracks("subtitle"); });
-        if (externalCues) { button(menu, "Subtitle timing", openSubtitleTiming); }
-        button(menu, "Stats for nerds", function () {
+        menu.setAttribute("role", "dialog");
+        menu.setAttribute("aria-labelledby", "playback-options-title");
+        var heading = element("h2", "menu-heading", translate("Playback options"));
+        heading.id = "playback-options-title";
+        menu.appendChild(heading);
+        var content = groupedMenuContent(menu);
+        var playback = group(content, translate("Playback"));
+        button(playback, "Markers", openMarkers).className += " menu-drill-in";
+        button(playback, "Audio and subtitles", function () { openTracks("subtitle"); }).className += " menu-drill-in";
+        if (externalCues) { button(playback, "Subtitle timing", openSubtitleTiming).className += " menu-drill-in"; }
+        button(playback, "Quality and version", openQuality).className += " menu-drill-in";
+        var information = group(content, translate("Information"));
+        button(information, "Stats for nerds", function () {
             closePlayerMenu();
             togglePlayerStats();
         });
-        button(menu, "Quality and version", openQuality);
-        button(menu, "Info", function () { closePlayerMenu(); openPlayerPanel("info"); });
+        button(information, "Info", function () { closePlayerMenu(); openPlayerPanel("info"); }).className += " menu-drill-in";
         if (playerItem.type === "track") {
-            button(menu, "Previous track", function () { skipMusic(-1, false); });
-            button(menu, "Next track", function () { skipMusic(1, false); });
-            button(menu, "Shuffle / On or off", function () {
+            var queue = group(content, translate("Music queue"));
+            button(queue, "Previous track", function () { skipMusic(-1, false); });
+            button(queue, "Next track", function () { skipMusic(1, false); });
+            button(queue, "Shuffle / On or off", function () {
                 queueShuffle = musicQueue.shuffle(!queueShuffle);
                 setStatus(translate(queueShuffle ? "Shuffle on." : "Shuffle off."));
             });
-            button(menu, "Repeat / Off, one, all", function () {
+            button(queue, "Repeat / Off, one, all", function () {
                 queueRepeat = queueRepeat === "off" ? "one" : queueRepeat === "one" ? "all" : "off";
                 musicQueue.repeat(queueRepeat);
                 setStatus(translate("Repeat") + ": " + translate(queueRepeat));
             });
         }
-        button(menu, "Stop and return to details", stopPlayer);
-        button(menu, "Close menu", closePlayerMenu);
+        var session = group(content, "", "menu-session-actions");
+        button(session, "Stop and return to details", stopPlayer);
+        button(session, "Close menu", closePlayerMenu);
+        menu.appendChild(element("p", "menu-footer", translate("Back closes this menu and returns focus to More.")));
         screen.appendChild(menu);
         menu.querySelectorAll("button")[0].focus();
+        menu.vemmUpdateScroll();
     }
 
     function startPlayer(item, client, offset, mediaIndex, trackOptions) {
@@ -3815,15 +3898,19 @@
             button(librarySettings, "Favorite libraries", function () { visit(function () { openFavorites(false); }); });
         }
         var languages = group(menu, translate("Language"), "settings-group");
-        var names = { en: "English", es: "Español", be: "Беларуская" };
+        var names = { en: "English", es: "Español", be: "Беларуская", ro: "Română (meniuri)" };
         button(languages, translate("Language") + ": " + names[preferences.language], function () {
-            settingsChoices("Language", ["en", "es", "be"].map(function (language) {
+            settingsChoices("Language", ["en", "es", "be", "ro"].map(function (language) {
                 return { value: language, label: names[language] };
             }), preferences.language, function (language) {
                 preferences.language = language;
                 if (savePreferences()) { backView(); }
             });
         }, false, "language");
+        if (preferences.language === "ro") {
+            languages.appendChild(element("p", "help-text",
+                translate("Romanian covers the Account and Playback options menus. Other screens use English.")));
+        }
         if (accountToken || currentClient) {
             var graphicsSettings = group(menu, translate("Graphics"), "settings-group");
             var graphicsToggle = button(graphicsSettings, translate("New graphics enhancements: {state}", {
@@ -3929,6 +4016,17 @@
 
     function moveFocus(direction, key) {
         var active = document.activeElement;
+        var grouped = screen.querySelector(".grouped-menu");
+        if (grouped && !grouped.hidden) {
+            var groupedControls = Array.prototype.slice.call(grouped.querySelectorAll("button")).filter(function (node) {
+                return !node.disabled && !insideHidden(node);
+            });
+            var groupedIndex = groupedControls.indexOf(active);
+            var groupedNext = groupedIndex < 0 ? 0 :
+                Math.max(0, Math.min(groupedControls.length - 1, groupedIndex + direction));
+            if (groupedControls[groupedNext]) { groupedControls[groupedNext].focus(); }
+            return;
+        }
         var hud = player && screen.querySelector(".player-hud");
         var playerControls = hud && hud.querySelector(".playback-controls");
         var scrubSurface = hud && hud.querySelector(".playback-progress");
@@ -4092,6 +4190,16 @@
             }
         }
         var editing = active && ((active.tagName === "INPUT" && active.type !== "checkbox") || active.tagName === "TEXTAREA");
+        if (key === 9) {
+            var groupedMenu = screen.querySelector(".grouped-menu");
+            if (groupedMenu && !groupedMenu.hidden) {
+                var tabControls = groupedMenu.querySelectorAll("button");
+                var tabIndex = Array.prototype.indexOf.call(tabControls, active);
+                var tabNext = (tabIndex + (event.shiftKey ? -1 : 1) + tabControls.length) % tabControls.length;
+                if (tabControls[tabNext]) { event.preventDefault(); tabControls[tabNext].focus(); }
+                return;
+            }
+        }
         if (key === 13 && event.repeat) { event.preventDefault(); return; }
         if (player && subtitleTiming && (key === 37 || key === 39)) {
             event.preventDefault();
@@ -4170,6 +4278,7 @@
             var utilities = screen.querySelector(".home-utilities");
             if (utilities && !utilities.hidden) {
                 utilities.hidden = true;
+                screen.querySelector(".account-control").setAttribute("aria-expanded", "false");
                 screen.querySelector(".account-control").focus();
                 return;
             }

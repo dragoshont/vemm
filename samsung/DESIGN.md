@@ -72,6 +72,19 @@ identity surface, with an Account text fallback when artwork is unavailable.
 | Settings and diagnostics | Single-column value rows; quality/language alternatives on separate choice pages; privacy explanation in Diagnostics |
 | Confirmations and states | Explicit operation/item copy, confirmation and cancel; readable loading, empty and error/retry copy |
 
+Account is a left drawer with profile identity and Explore, conditional Plex account,
+App and Connection groups. Playback options is a right drawer with Playback,
+Information, conditional Music queue and separate Stop/Close actions. Only actual
+drill-ins carry chevrons. Both retain a fixed heading/footer and an internally
+scrolling list with a visible position indicator; directional focus stays inside
+the open drawer, and Back restores Account or More. Loading/status overlays sit
+below the drawer so they cannot obscure its heading.
+
+The Language choice includes **Română (meniuri)** for these two menus; their
+labels, grouping and remote help are translated. Other screens retain the existing
+English fallback, explicitly explained in Settings. English, Spanish and Belarusian
+remain available. This is not a claim of full Romanian app localization.
+
 ## Layout and input
 
 Use Flexbox, margins and ordinary ES5 DOM helpers, not CSS Grid, flex-gap, CSS custom properties

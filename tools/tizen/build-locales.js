@@ -48,15 +48,17 @@ var catalogs = { es: {}, be: {} };
     });
 });
 var additions = JSON.parse(fs.readFileSync(path.join(root, "samsung/strings.json"), "utf8"));
+catalogs.ro = {};
 Object.keys(additions).forEach(function (source) {
     Object.keys(catalogs).forEach(function (language) {
+        if (language === "ro" && typeof additions[source][language] !== "string") { return; }
         if (typeof additions[source][language] !== "string") { throw new Error("Missing translation: " + source); }
         catalogs[language][source] = additions[source][language];
     });
 });
 var output = "(function (root) {\n    \"use strict\";\n    var catalogs = " + JSON.stringify(catalogs) +
     ";\n    var language = \"en\";\n    root.VemmI18n = {\n" +
-    "        setLanguage: function (value) { language = value === \"es\" || value === \"be\" ? value : \"en\"; },\n" +
+    "        setLanguage: function (value) { language = value === \"es\" || value === \"be\" || value === \"ro\" ? value : \"en\"; },\n" +
     "        has: function (value) { return language === \"en\" || Object.prototype.hasOwnProperty.call(catalogs[language], value); },\n" +
     "        error: function (error) {\n" +
     "            var message = String(error && error.message || error || \"Playback failed. Stop and retry.\");\n" +

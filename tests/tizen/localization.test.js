@@ -37,4 +37,19 @@ walk(acorn.parse(fs.readFileSync(require.resolve("../../samsung/Vemm/js/catalogu
     assert(context.VemmI18n.text("Record / {title}", { title: "<Synthetic>" }).includes("<Synthetic>"));
     assert(!context.VemmI18n.text("Resume at {time}", { time: "3:12" }).includes("{time}"));
 });
+context.VemmI18n.setLanguage("ro");
+[
+    "Account", "Profile and app actions", "Explore", "Plex account", "App", "Connection",
+    "Settings", "Refresh", "Live TV and DVR", "Watchlist", "Plex catalogue", "Change server",
+    "Playback options", "Playback", "Information", "Music queue", "Markers", "Audio and subtitles",
+    "Subtitle timing", "Stats for nerds", "Quality and version", "Info", "Previous track", "Next track",
+    "Shuffle / On or off", "Repeat / Off, one, all", "Stop and return to details", "Close menu",
+    "Up / Down: Move · OK: Select · Back: Close", "Back closes this menu and returns focus to More.", "More"
+].forEach(function (text) {
+    assert(context.VemmI18n.has(text), "Romanian menu translation is missing: " + text);
+    assert.notStrictEqual(context.VemmI18n.text(text), text);
+});
+assert.strictEqual(context.VemmI18n.text("Synthetic server title"), "Synthetic server title");
+context.VemmI18n.setLanguage("en");
+assert.strictEqual(context.VemmI18n.text("Account"), "Account", "English remains a selectable source language");
 console.log("Tizen English/Spanish/Belarusian static app-copy coverage: passed");

@@ -53,6 +53,7 @@ live in `docs/samsung-tizen-client-spec.md` and the Samsung feasibility/test reg
 
 Remote-first operation, visible focus, couch-legible text, visible labels for
 ordinary controls, accessible names for compact playback glyphs,
-English/Spanish/Belarusian copy and scrollable long content. Focus must not
+English/Spanish/Belarusian copy, Romanian Account/Playback-options menus (English
+fallback elsewhere, labelled in Settings), and scrollable long content. Focus must not
 imply selection or permission, and unavailable actions must remain explicitly
 disabled or explained.

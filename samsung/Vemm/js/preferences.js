@@ -32,7 +32,7 @@
         var nextEpisode = value && value.nextEpisode !== undefined ? value.nextEpisode :
             (value && value.autoNext === false ? "off" : "countdown");
         if (!value || qualities.indexOf(value.quality) === -1 ||
-                ["en", "es", "be"].indexOf(value.language) === -1 ||
+                ["en", "es", "be", "ro"].indexOf(value.language) === -1 ||
                 (value.autoNext !== undefined && typeof value.autoNext !== "boolean") ||
                 nextEpisodeModes.indexOf(nextEpisode) === -1 ||
                 (value.continueAction !== undefined && ["details", "play"].indexOf(value.continueAction) === -1) ||

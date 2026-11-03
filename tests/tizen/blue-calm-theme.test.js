@@ -47,5 +47,9 @@ var reducedMotion = Array.from(css.matchAll(/@media \(prefers-reduced-motion:\s*
 assert(reducedMotion.length && /\.screen-home \.media-card,[\s\S]*\.detail-backdrop[\s\S]*transition:\s*none/.test(
     reducedMotion[reducedMotion.length - 1][1]),
     "The final cascade must disable Home and detail transitions for reduced motion");
+assert(/\.grouped-menu\s*\{[^}]*flex-direction:\s*column;[^}]*flex-wrap:\s*nowrap;/s.test(css),
+    "Account's inherited flex-wrap must not split a long drawer into clipped columns");
+assert(/\.grouped-menu\s*\{[^}]*z-index:\s*20;/s.test(css),
+    "The menu title must remain above the existing playback status layer");
 
 console.log("Vemm Blue Calm palette, focus, selection and icon-restraint contract: passed");

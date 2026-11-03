@@ -205,9 +205,29 @@ async function run() {
         assert(window.document.activeElement.classList.contains("account-control"),
             "Left from the first Home destination must reach Account");
         window.document.dispatchEvent(new window.KeyboardEvent("keydown", { keyCode: 13, bubbles: true }));
-        assert.strictEqual(window.document.activeElement.textContent, "Settings",
-            "OK on Account must open its utilities with Settings focused");
+        assert.strictEqual(window.document.activeElement.textContent, "Live TV and DVR",
+            "OK on Account opens the approved Explore-first grouping");
+        var accountMenu = window.document.querySelector(".home-utilities");
+        assert.strictEqual(accountMenu.getAttribute("role"), "dialog");
+        assert.strictEqual(window.document.querySelector(".account-control").getAttribute("aria-expanded"), "true");
+        assert.deepStrictEqual(Array.from(accountMenu.querySelectorAll(".group-title")).map(function (node) {
+            return node.textContent;
+        }), ["Explore", "App", "Connection"], "Local-server mode must omit the Plex-account group entirely");
+        assert.strictEqual(accountMenu.querySelectorAll(".menu-drill-in").length, 3,
+            "Refresh is immediate; the other local-server actions open a screen");
+        assert(accountMenu.querySelector(".menu-footer"), "Remote help stays outside the scrolling actions");
+        var accountActions = accountMenu.querySelectorAll("button");
+        accountActions[accountActions.length - 1].focus();
+        window.document.dispatchEvent(new window.KeyboardEvent("keydown", { keyCode: 40, bubbles: true }));
+        assert.strictEqual(window.document.activeElement, accountActions[accountActions.length - 1],
+            "Down at the last Account action must not escape to the underlying Home");
+        window.document.dispatchEvent(new window.KeyboardEvent("keydown", { keyCode: 9, bubbles: true }));
+        assert.strictEqual(window.document.activeElement, accountActions[0], "Tab stays inside the open drawer");
+        accountActions[0].focus();
+        window.document.dispatchEvent(new window.KeyboardEvent("keydown", { keyCode: 38, bubbles: true }));
+        assert.strictEqual(window.document.activeElement, accountActions[0], "Up at the first row stays in the drawer");
         back();
+        assert.strictEqual(window.document.querySelector(".account-control").getAttribute("aria-expanded"), "false");
         assert(window.document.activeElement.classList.contains("account-control"),
             "Back from Account utilities must return focus to Account");
         window.document.dispatchEvent(new window.KeyboardEvent("keydown", { keyCode: 38, bubbles: true }));
@@ -306,6 +326,26 @@ async function run() {
         click("Account");
         click("Settings");
         assert(window.document.querySelector(".settings-menu"), "Settings uses a grouped menu surface");
+        click("Language: English");
+        click("Română (meniuri)");
+        assert(window.document.querySelector(".settings-menu").textContent.includes("Celelalte ecrane folosesc limba engleză"),
+            "The partial Romanian menu locale is explicitly described, not presented as a fully translated app");
+        click("Înapoi");
+        await settle();
+        window.document.querySelector(".account-control").click();
+        assert.deepStrictEqual(Array.from(window.document.querySelectorAll(".home-utilities button")).map(function (node) {
+            return node.textContent;
+        }), ["TV în direct și DVR", "Setări", "Reîmprospătează", "Schimbă serverul"]);
+        back();
+        assert(window.document.activeElement.classList.contains("account-control"));
+        window.document.querySelector(".account-control").click();
+        click("Setări");
+        click("Limbă: Română (meniuri)");
+        click("English");
+        click("Back");
+        await settle();
+        click("Account");
+        click("Settings");
         click("About Vemm");
         assert(window.document.querySelector(".screen-about"), "About Vemm is a first-class settings destination");
         assert(window.document.querySelector(".about-brand-mark"), "About Vemm uses the original packaged mark");
@@ -563,6 +603,15 @@ async function run() {
         var seeksBeforeOptions = seekTargets.length;
         remote("keydown", 13);
         assert(window.document.getElementById("player-menu"), "OK on More must open playback options");
+        var optionsMenu = window.document.getElementById("player-menu");
+        assert.deepStrictEqual(Array.from(optionsMenu.querySelectorAll(".group-title")).map(function (node) {
+            return node.textContent;
+        }), ["Playback", "Information"], "Video options omit the music-only queue group");
+        assert.strictEqual(optionsMenu.querySelectorAll(".menu-drill-in").length, 4,
+            "Only Markers, Audio, Quality and Info drill in when external subtitles are inactive");
+        assert(!optionsMenu.textContent.includes("Subtitle timing"), "Timing is absent until external cues are active");
+        assert(optionsMenu.querySelector(".menu-scroll") && optionsMenu.querySelector(".menu-footer"),
+            "The long list scrolls without moving the menu title or Back help");
         assert.strictEqual(seekTargets.length, seeksBeforeOptions, "Opening More must not seek");
         var firstOption = window.document.activeElement;
         remote("keydown", 39);
@@ -713,6 +762,10 @@ async function run() {
         assert(subtitleOverlay.classList.contains("subtitle-size-large"),
             subtitleOverlay.className + " | " + window.document.getElementById("status").textContent);
         assert(subtitleOverlay.classList.contains("subtitle-position-low"));
+        click("More");
+        assert(window.document.getElementById("player-menu").textContent.includes("Subtitle timing"),
+            "Active external subtitles reveal timing in the grouped menu");
+        click("Close menu");
         var picks = requests.filter(function (request) { return request.method === "PUT" && /^\/library\/parts\//.test(request.path); });
         assert.strictEqual(picks.length, 1, "Choosing the text overlay records that one explicit pick on PMS");
         assert.notStrictEqual(picks[0].query.get("subtitleStreamID"), "0", "An overlay pick must not be written as Subtitles off");

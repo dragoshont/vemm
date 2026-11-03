@@ -72,4 +72,6 @@ assert.strictEqual(prefs.load(storage).enhancedGraphics, false);
 });
 prefs.reset(storage);
 assert.strictEqual(value, null);
+prefs.save(storage, { quality: "original", language: "ro", nextEpisode: "off" });
+assert.strictEqual(prefs.load(storage).language, "ro", "Romanian menu language survives a restart");
 console.log("Tizen preference persistence/allowlist/reset tests: passed");

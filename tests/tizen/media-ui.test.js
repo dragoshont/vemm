@@ -126,6 +126,11 @@ async function run() {
         await settle();
         click("Use linked account"); await settle();
         click("Synthetic PMS (owned)"); await settle();
+        click("Account");
+        assert.deepStrictEqual(Array.from(window.document.querySelectorAll(".home-utilities .group-title")).map(function (node) {
+            return node.textContent;
+        }), ["Explore", "Plex account", "App", "Connection"]);
+        assert.strictEqual(window.document.querySelectorAll(".home-utilities button").length, 6);
         click("Watchlist"); await settle();
         assert(window.document.querySelector(".screen-watchlist .catalogue-grid"), "Watchlist uses the shared poster grid");
         assert(window.document.querySelector('.screen-watchlist .page-toolbar [aria-pressed="true"]'),
@@ -157,10 +162,10 @@ async function run() {
         click("Confirm"); await settle();
         assert(watchlisted);
         click("Refresh"); await settle();
-        for (var back = 0; back < 8 && window.document.querySelector(".screen h2").textContent !== "Home"; back += 1) {
+        for (var back = 0; back < 8 && !window.document.querySelector(".screen-home"); back += 1) {
             click("Back"); await settle();
         }
-        assert.strictEqual(window.document.querySelector(".screen h2").textContent, "Home");
+        assert(window.document.querySelector(".screen-home"), "Back returns to Home, not the hidden Account heading");
         click("Music"); await settle();
         assert.strictEqual(window.document.querySelector(".media-card").getAttribute("data-shape"), "square");
         window.document.querySelector(".media-card").click(); await settle();
@@ -169,6 +174,9 @@ async function run() {
         assert.strictEqual(state, "PLAYING");
         assert(window.document.body.textContent.includes("Track 1"));
         click("More");
+        assert(window.document.getElementById("player-menu").textContent.includes("Music queue"));
+        assert.strictEqual(window.document.querySelectorAll("#player-menu .menu-drill-in").length, 4,
+            "Queue stepping, toggles, Stop and Close must not promise a drill-in");
         click("Shuffle / On or off"); click("Repeat / Off, one, all");
         listener.onstreamcompleted(); await settle();
         assert(window.document.body.textContent.includes("Track 1"), "Repeat-one must replay the same track");
